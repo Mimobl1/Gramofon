@@ -1,0 +1,74 @@
+[
+  {
+    "name": "STEAK DINNER",
+    "author": "T-BONE WALKER",
+    "color": "#2a2f3a",
+    "duration": "",
+    "folder": "Vinyl Collection/T-Bone Walker - Steak Dinner",
+    "cover": "",
+    "tracks": [
+      "01 Hard Times.mp3",
+      "03 Stormy Monday Blues 8.mp3"
+    ]
+  },
+  {
+    "name": "TOGETHER AGAIN",
+    "author": "RAY CHARLES",
+    "color": "#2a2a2f",
+    "duration": "",
+    "folder": "Vinyl Collection/Ray Charles - Together Again",
+    "cover": "",
+    "tracks": [
+      "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
+      "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
+      "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3"
+    ]
+  },
+  {
+    "name": "MORRISON HOTEL",
+    "author": "THE DOORS",
+    "color": "#2a3a35",
+    "duration": "",
+    "folder": "Vinyl Collection/The Doors - Morrison Hotel",
+    "cover": "",
+    "tracks": [
+      "The Doors - Peace Frog.MP3",
+      "The Doors - Roadhouse Blues.MP3"
+    ]
+  },
+  {
+    "name": "RUBBER SOUL",
+    "author": "THE BEATLES",
+    "color": "#3a2a33",
+    "duration": "",
+    "folder": "Vinyl Collection/The Beatles - Rubber Soul",
+    "cover": "Vinyl Collection/The Beatles - Rubber Soul/folder.jpg",
+    "tracks": [
+      "01. Drive My Car.mp3",
+      "11. In My Life.mp3"
+    ]
+  },
+  {
+    "name": "SOB ROCK",
+    "author": "JOHN MAYER",
+    "color": "#2f2a3a",
+    "duration": "",
+    "folder": "Vinyl Collection/John Mayer - Sob Rock",
+    "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
+    "tracks": [
+      "01. Last Train Home.mp3",
+      "03. New Light.mp3"
+    ]
+  },
+  {
+    "name": "SAMPLE ALBUM",
+    "author": "LOREM IPSUM",
+    "color": "#3a2f2a",
+    "duration": "",
+    "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
+    "cover": "",
+    "tracks": [
+      "Together Again.mp3"
+    ]
+  }
+]

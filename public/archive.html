@@ -1,0 +1,2474 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinyl player by Milan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap');
+
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        body {
+            background: #000;
+            color: #ffffff;
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+            touch-action: none; /* Ključno za sprečavanje sistemskog zooma/scrolla */
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        #audio-hint {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.2);
+            z-index: 20;
+        }
+        #route-fade {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 200;
+            transition: opacity 420ms cubic-bezier(0.16, 1, 0.3, 1) 380ms;
+        }
+        #route-fade.on { opacity: 1; }
+
+        #play-button {
+            position: fixed;
+            pointer-events: auto;
+            display: none;
+            z-index: 100;
+            background: white;
+            color: black;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            box-shadow: 0 0 20px rgba(255,255,255,0.3);
+            border: none;
+            opacity: 0;
+        }
+
+        #play-button.visible {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #play-button:hover, #play-button:active {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: #f0f0f0;
+        }
+        #now-playing-badge {
+            position: fixed;
+            pointer-events: none;
+            z-index: 96;
+            display: none;
+            transform: translate(-50%, -50%);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.24);
+            background: rgba(0,0,0,0.40);
+            color: rgba(255,255,255,0.95);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.3px;
+            text-transform: uppercase;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            white-space: nowrap;
+        }
+        .top-nav-btn {
+            pointer-events: auto;
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 0 12px;
+            height: 40px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: background 0.2s, filter 0.1s, transform 0.2s;
+            color: rgba(255,255,255,.9);
+            text-decoration: none;
+        }
+        .top-nav-btn:active { filter: brightness(0.8); transform: translateY(1px); }
+        .top-bar {
+            width: 100%;
+            padding: 40px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+        }
+        .counter-text {
+            text-align: right;
+            font-size: 12px;
+            opacity: 0.34;
+            font-weight: 700;
+            text-transform: none;
+            letter-spacing: 1px;
+            line-height: 1.4;
+        }
+        .archive-title {
+            position: absolute;
+            left: 50%;
+            top: 42px;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: rgba(255,255,255,0.42);
+            font-weight: 300;
+            letter-spacing: 10px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .left-sidebar {
+            position: absolute;
+            left: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+            align-items: center;
+        }
+        .bottom-bar {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: auto;
+        }
+        .upload-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .upload-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.4);
+        }
+        .genre-pill {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.6);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            text-align: center;
+        }
+        .genre-pill.active {
+            background: #fff;
+            color: #000;
+            border-color: #fff;
+        }
+        .genre-pill:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        
+    
+        .upload-modal { position: fixed; inset: 0; z-index: 260; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .24s ease; }
+        .upload-modal.open { opacity: 1; pointer-events: auto; }
+        .upload-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(5px); }
+        .upload-card { position: relative; width: min(92vw, 460px); border-radius: 14px; border: 1px solid rgba(255,255,255,.14); background: rgba(16,16,16,.96); color: #fff; box-shadow: 0 20px 52px rgba(0,0,0,.5); padding: 24px; z-index: 1; font-family: Roboto, sans-serif; }
+        .upload-title { margin: 0 0 8px; font-size: 19px; font-weight: 700; line-height: 1.2; letter-spacing: .1px; }
+        .upload-label { margin: 0 0 16px; font-size: 13px; opacity: .82; }
+        .upload-input, .upload-select { width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.04); color: inherit; font: 500 14px/1.4 Roboto, Arial, sans-serif; padding: 10px 12px; outline: none; box-sizing: border-box; margin-bottom: 8px; }
+        .upload-select option { background: #111; color: #fff; }
+        .upload-input:focus, .upload-select:focus { border-color: rgba(255,255,255,.42); box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
+        .upload-actions { margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px; }
+        .upload-btn-action { border: 1px solid #3a3a3a; border-radius: 9px; height: 38px; padding: 0 16px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; color: #f0f0f0; background: #171717; transition: all 0.2s; }
+        .upload-btn-action:hover { background: #222; }
+        .upload-btn-action.send { background: #f0f0f0; color: #111; border-color: #d0d0d0; }
+        .upload-btn-action.send:hover { background: #fff; }
+</style>
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+  const firebaseConfig = {
+      projectId: "tonal-benefit-309615",
+      appId: "1:879302573511:web:8e04e061ec413981ad6de2",
+      apiKey: "AIzaSyA8gT_eynvTSa0ep28Eldw3nm_4GWDxQzY",
+      authDomain: "tonal-benefit-309615.firebaseapp.com",
+      storageBucket: "tonal-benefit-309615.firebasestorage.app",
+      messagingSenderId: "879302573511"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  window.gDriveToken = null; // We still use this variable name for compatibility with existing code
+
+  onAuthStateChanged(auth, async (user) => {
+      if (user) {
+          const token = await user.getIdToken();
+          window.gDriveToken = token;
+          document.getElementById('authStatus').innerText = 'Logged in: ' + user.email;
+          document.getElementById('loginBtn').style.display = 'none';
+          document.getElementById('logoutBtn').style.display = 'block';
+          
+          // Show upload button and manage UI
+          const manageBtn = document.querySelector('.manage-collection-btn');
+          if (manageBtn) manageBtn.style.display = 'block';
+          
+          window.loadCollectionManifest();
+      } else {
+          window.gDriveToken = null;
+          document.getElementById('authStatus').innerText = 'Please log in to manage albums';
+          document.getElementById('loginBtn').style.display = 'block';
+          document.getElementById('logoutBtn').style.display = 'none';
+          
+          // Hide upload button and manage UI if not logged in
+          const manageBtn = document.querySelector('.manage-collection-btn');
+          if (manageBtn) manageBtn.style.display = 'none';
+          
+          window.loadCollectionManifest();
+      }
+  });
+
+  document.getElementById('loginBtn').addEventListener('click', () => {
+      signInWithPopup(auth, provider).catch(err => console.error("Login failed", err));
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+      signOut(auth);
+  });
+</script>
+
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="route-fade" aria-hidden="true"></div>
+    <div id="audio-hint">Zvuk aktivan nakon interakcije</div>
+    <button id="play-button">PLAY</button>
+    <div id="now-playing-badge">Now Playing</div>
+
+    
+    <div id="uploadProgress" style="position: fixed; bottom: 20px; left: 20px; color: rgba(255,255,255,0.4); font-size: 11px; z-index: 100; font-family: monospace; display: none; text-transform: uppercase; letter-spacing: 1px;">
+        uploading... 0%
+    </div>
+
+    <div class="upload-modal" id="uploadModal" aria-hidden="true">
+        <div class="upload-backdrop" id="uploadModalBackdrop"></div>
+        <div class="upload-card" role="dialog" aria-modal="true">
+            <h3 class="upload-title">Save Uploaded Album</h3>
+            <p class="upload-label">Customize your record before adding it to collection.</p>
+            
+            <div style="display: flex; gap: 20px; margin-bottom: 8px; align-items: flex-start;">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span class="upload-label" style="margin-bottom: 4px;">Album Name</span>
+                        <input class="upload-input" id="upAlbumName" type="text" placeholder="Album Name" />
+                    </div>
+                    <div style="display: flex; flex-direction: column;">
+                        <span class="upload-label" style="margin-bottom: 4px;">Artist</span>
+                        <input class="upload-input" id="upAlbumAuthor" type="text" placeholder="Artist" />
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span class="upload-label" style="margin-bottom: 4px;">Year</span>
+                            <input class="upload-input" id="upAlbumYear" type="text" placeholder="YYYY" />
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span class="upload-label" style="margin-bottom: 4px;">Genre</span>
+                            <select class="upload-select" id="upAlbumGenre" style="appearance: auto; color: #fff; margin-bottom: 0;">
+                                <option value="ROCK">ROCK</option>
+                                <option value="BLUES">BLUES</option>
+                                <option value="JAZZ">JAZZ</option>
+                                <option value="POP">POP</option>
+                                <option value="SOUL">SOUL</option>
+                                <option value="OTHER">OTHER</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; margin-top: 4px;">
+                        <span class="upload-label" style="margin-bottom: 6px;">Cover Color</span>
+                        <div id="paletteContainer" style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px;">
+                            <!-- palette populated via JS -->
+                        </div>
+                        <input type="hidden" id="upAlbumColor" value="#1a2a3a" />
+                    </div>
+                </div>
+                
+                <div style="width: 140px; display: flex; flex-direction: column; gap: 8px; align-items: center;">
+                    <span class="upload-label" style="margin-bottom: 0px;">Cover Image</span>
+                    <div style="position: relative;">
+                        <img id="upCoverPreview" src="" style="width: 140px; height: 140px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.5);" />
+                        <button id="upRemoveCoverBtn" style="display:none; position: absolute; top: -6px; right: -6px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold; align-items: center; justify-content: center;">✕</button>
+                    </div>
+                    <label for="upCoverInput" class="upload-btn-action" style="text-align:center; display:block; width:100%; box-sizing:border-box; line-height:36px; padding:0; cursor:pointer;">Upload Cover</label>
+                    <input type="file" id="upCoverInput" accept="image/*" style="display: none;" />
+                </div>
+            </div>
+            
+            <div class="upload-actions">
+                <button class="upload-btn-action" id="upCancelBtn" type="button">Cancel</button>
+                <button class="upload-btn-action send" id="upSaveBtn" type="button">Save to Collection</button>
+            </div>
+        </div>
+    </div>
+    <div class="ui-overlay">
+
+        <div class="top-bar">
+            <div class="counter-text" id="counter">
+                0 Albums
+            </div>
+            <div class="archive-title">Album Archive</div>
+            <a class="top-nav-btn" href="vinyl-player.html" aria-label="Open Player" id="playerNavLink">
+                Player
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+        </div>
+        <div class="left-sidebar" id="genresContainer">
+            <button class="genre-pill active" data-genre="ALL">ALL</button>
+            <button class="genre-pill" data-genre="ROCK">ROCK</button>
+            <button class="genre-pill" data-genre="BLUES">BLUES</button>
+            <button class="genre-pill" data-genre="JAZZ">JAZZ</button>
+            <button class="genre-pill" data-genre="POP">POP</button>
+            <button class="genre-pill" data-genre="SOUL">SOUL</button>
+        </div>
+        <div class="bottom-bar" style="display: flex; gap: 12px; align-items: center;">
+            <label for="folderUpload" class="upload-btn" id="uploadBtn">Upload</label>
+            <input type="file" id="folderUpload" webkitdirectory directory multiple style="display: none;" />
+            </div>
+        
+        <div class="right-sidebar" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 100; pointer-events: auto;">
+            <button class="genre-pill" id="editBtn" style="width: 80px; text-align: center;">EDIT</button>
+            <button class="genre-pill" id="deleteBtn" style="width: 80px; text-align: center; color: #ff6b6b; border-color: rgba(255,85,85,0.3);">DELETE</button>
+        </div>
+    </div>
+    <script>
+
+    // Replaced with Firebase Auth
+
+        const COLLECTION_MANIFEST_URL = "/api/collection";
+        const IS_FILE_PROTOCOL = window.location.protocol === "file:";
+        const DEFAULT_COLLECTION = [
+            {
+                "name": "SOB ROCK",
+                "author": "JOHN MAYER",
+                "color": "#2a2a2f",
+                "duration": "",
+                "folder": "Vinyl Collection/John Mayer - Sob Rock",
+                "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
+                "tracks": [
+                    "01. Last Train Home.mp3",
+                    "02. Shouldn't Matter but It Does.mp3",
+                    "03. New Light.mp3",
+                    "05. Wild Blue.mp3",
+                    "06. Shot in the Dark.mp3",
+                    "07. I Guess I Just Feel Like.mp3",
+                    "10. All I Want Is to Be With You.mp3"
+                ]
+            },
+            {
+                "name": "SAMPLE ALBUM",
+                "author": "LOREM IPSUM",
+                "color": "#3a2f2a",
+                "duration": "",
+                "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
+                "cover": "",
+                "tracks": [
+                    "Together Again.mp3"
+                ]
+            },
+            {
+                "name": "TOGETHER AGAIN",
+                "author": "RAY CHARLES",
+                "color": "#2f2a3a",
+                "duration": "",
+                "folder": "Vinyl Collection/Ray Charles - Together Again",
+                "cover": "",
+                "tracks": [
+                    "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
+                    "Charles, Ray (1965) - Together Again, side A (archive)-02.mp3",
+                    "Charles, Ray (1965) - Together Again, side A (archive)-04.mp3",
+                    "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
+                    "Charles, Ray (1965) - Together Again, side B (archive)-04.mp3",
+                    "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3",
+                    "Charles, Ray (1965) - Together Again, side B (archive)-06.mp3"
+                ]
+            },
+            {
+                "name": "STEAK DINNER",
+                "author": "T-BONE WALKER",
+                "color": "#2a2f3a",
+                "duration": "",
+                "folder": "Vinyl Collection/T-Bone Walker - Steak Dinner",
+                "cover": "",
+                "tracks": [
+                    "01 Hard Times.mp3",
+                    "02 All Night Long.mp3",
+                    "03 Stormy Monday Blues 8.mp3",
+                    "04 Please Come Back To Me.mp3",
+                    "07 Louisiana Bayou Drive.mp3"
+                ]
+            },
+            {
+                "name": "RUBBER SOUL",
+                "author": "THE BEATLES",
+                "color": "#3a2f2a",
+                "duration": "",
+                "folder": "Vinyl Collection/The Beatles - Rubber Soul",
+                "cover": "Vinyl Collection/The Beatles - Rubber Soul/folder.jpg",
+                "tracks": [
+                    "01. Drive My Car.mp3",
+                    "02. Norwegian Wood (This Bird Has Flown).mp3",
+                    "03. You Won't See Me.mp3",
+                    "04. Nowhere Man.mp3",
+                    "05. Think For Yourself.mp3",
+                    "07. Michelle.mp3",
+                    "08. What Goes On.mp3",
+                    "10. I'm Looking Through You.mp3",
+                    "11. In My Life.mp3",
+                    "12. Wait.mp3"
+                ]
+            },
+            {
+                "name": "MORRISON HOTEL",
+                "author": "THE DOORS",
+                "color": "#33362a",
+                "duration": "",
+                "folder": "Vinyl Collection/The Doors - Morrison Hotel",
+                "cover": "",
+                "tracks": [
+                    "The Doors - Blue Sunday.MP3",
+                    "The Doors - Indian Summer.MP3",
+                    "The Doors - Land Ho!.MP3",
+                    "The Doors - Peace Frog.MP3",
+                    "The Doors - Queen Of The Highway.MP3",
+                    "The Doors - Roadhouse Blues.MP3",
+                    "The Doors - Ship Of Fools.MP3",
+                    "The Doors - The Spy.MP3",
+                    "The Doors - Waiting For The Sun.MP3"
+                ]
+            }
+        ];
+        let originalCollection = [];
+        let collection = [];
+        let activeGenre = "ALL";
+
+        let scene, camera, renderer, groups = [];
+        const DISK_LAYER = 1; 
+
+        const scrollSensitivity = 850; 
+        let totalMeshes = 0;
+        let maxScroll = 0;
+
+        let targetScroll = 0;
+        let currentScroll = 0;
+        let lastIndex = 0; 
+        let interactiveIndex = -1; 
+        let openStates = [];
+        let pendingOpenIndex = -1; 
+        let isHovered = false;
+        let launchIndex = -1;
+        let launchStartMs = 0;
+        let launchTargetUrl = "";
+        let launchSelectedPayload = null;
+        let launchNavigated = false;
+        let playingIndex = -1;
+        let hasLoadedRecord = false;
+        const LAUNCH_MS = 620;
+        const WARM_FLAG_KEY = "vinyl_assets_warmed_v1";
+        const PLAYING_INDEX_KEY = "archive_playing_index_v1";
+        const SCROLL_STATE_KEY = "archive_scroll_state_v1";
+        const SELECTED_ALBUM_KEY = "vinyl_selected_album_v1";
+        const ARCHIVE_ALBUMS_KEY = "vinyl_archive_albums_v1";
+        const ALBUM_DURATION_CACHE_KEY = "vinyl_album_duration_cache_v1";
+        const PLAYBACK_STATE_KEY = "vinyl_player_playback_state_v1";
+        const RECORD_LOADED_KEY = "vinyl_record_loaded_v1";
+        const FEEDBACK_DELAY_MS = 30000;
+        const routeFade = document.getElementById('route-fade');
+        const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
+        const archiveDeck = new Audio();
+        archiveDeck.preload = "metadata";
+        let bgBridge = {
+            active: false,
+            currentSide: "A",
+            currentTrackIndex: 0,
+            sideDurations: {A:1175,B:1410},
+            base: 1,
+            albumName: "",
+            tracks: [],
+            sideSplit: 0
+        };
+
+        // Touch varijable
+        let touchStartY = 0;
+        let isTouchMove = false;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const playBtn = document.getElementById('play-button');
+        const nowPlayingBadge = document.getElementById('now-playing-badge');
+        const playerNavLink = document.getElementById('playerNavLink');
+        
+
+        
+
+        async function ensureArchiveFontsReady() {
+            if (!document.fonts || !document.fonts.load) return;
+            const loads = [
+                document.fonts.load("300 16px Roboto"),
+                document.fonts.load("400 16px Roboto"),
+                document.fonts.load("700 16px Roboto"),
+                document.fonts.load("900 16px Roboto")
+            ];
+            const timeout = new Promise((resolve) => setTimeout(resolve, 1200));
+            await Promise.race([Promise.all(loads), timeout]);
+        }
+
+        function normalizeCollectionItem(item) {
+            if (!item || typeof item !== "object") return null;
+            const tracks = Array.isArray(item.tracks) ? item.tracks : [];
+            return {
+                name: String(item.name || "UNKNOWN ALBUM").toUpperCase(),
+                author: String(item.author || "UNKNOWN ARTIST").toUpperCase(),
+                color: String(item.color || ""),
+                duration: String(item.duration || ""),
+                folder: String(item.folder || ""),
+                cover: String(item.cover || ""),
+                tracks: tracks
+            };
+        }
+
+        function hslToHex(h, s, l) {
+            const sat = Math.max(0, Math.min(100, s)) / 100;
+            const lig = Math.max(0, Math.min(100, l)) / 100;
+            const c = (1 - Math.abs(2 * lig - 1)) * sat;
+            const hp = ((h % 360) + 360) % 360 / 60;
+            const x = c * (1 - Math.abs((hp % 2) - 1));
+            let r = 0, g = 0, b = 0;
+            if (hp < 1) { r = c; g = x; }
+            else if (hp < 2) { r = x; g = c; }
+            else if (hp < 3) { g = c; b = x; }
+            else if (hp < 4) { g = x; b = c; }
+            else if (hp < 5) { r = x; b = c; }
+            else { r = c; b = x; }
+            const m = lig - c / 2;
+            const rr = Math.round((r + m) * 255).toString(16).padStart(2, "0");
+            const rg = Math.round((g + m) * 255).toString(16).padStart(2, "0");
+            const rb = Math.round((b + m) * 255).toString(16).padStart(2, "0");
+            return `#${rr}${rg}${rb}`;
+        }
+
+        function uniqueAlbumColorByIndex(index) {
+            const i = Math.max(0, Number(index) || 0);
+            // Unique dark tint per album with stronger saturation.
+            const hue = (i * 137.50776405 + 210) % 360;
+            let sat = 42 + ((i * 13) % 20);      // 42..61
+            if ((hue >= 160 && hue <= 260) || (hue >= 80 && hue <= 155)) sat += 8;
+            sat = Math.min(70, sat);
+            const light = 20 + ((i * 7) % 8);    // 20..27
+            return hslToHex(hue, sat, light);
+        }
+
+        function applyCollectionData(data) {
+            console.log("applyCollectionData called with", data?.length, "items");
+            const normalized = Array.isArray(data) ? data.map(normalizeCollectionItem).filter(Boolean) : [];
+            originalCollection = normalized.map((item, idx) => ({
+                ...item,
+                color: uniqueAlbumColorByIndex(idx)
+            }));
+            filterCollection();
+        }
+
+        function filterCollection() {
+            if (activeGenre === "ALL") {
+                collection = [...originalCollection];
+            } else {
+                collection = originalCollection.filter(item => 
+                    item.name.includes(activeGenre) || item.author.includes(activeGenre) || item.folder.toUpperCase().includes(activeGenre) || item.genre === activeGenre
+                );
+            }
+            totalMeshes = collection.length;
+            maxScroll = Math.max(0, (totalMeshes - 1) * scrollSensitivity);
+            openStates = new Array(totalMeshes).fill(false);
+            targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
+            currentScroll = Math.max(0, Math.min(maxScroll, currentScroll));
+            
+            if (scene) {
+                console.log("Rebuilding meshes. Total meshes:", totalMeshes, "Collection length:", collection.length);
+                rebuildMeshes();
+            }
+        }
+        
+        function rebuildMeshes() {
+            console.log("rebuildMeshes called");
+            groups.forEach(g => scene.remove(g));
+            groups = [];
+            
+            const coverGeo = new THREE.BoxGeometry(6, 6, 0.12);
+            coverGeo.translate(0, 4, 0);
+            const sharedDiskNormalMap = generateVinylNormalMap(1024);
+
+            for (let i = 0; i < totalMeshes; i++) {
+                const group = new THREE.Group();
+                const item = collection[i];
+                const texture = generateCoverTexture(item, 1024);
+                const material = new THREE.MeshStandardMaterial({ 
+                    map: texture, 
+                    roughness: 0.5, 
+                    metalness: 0.65,
+                    transparent: true 
+                });
+                if (item.cover) {
+                    new THREE.TextureLoader().load(encodeURI(item.cover), (tex) => {
+                        tex.encoding = THREE.sRGBEncoding;
+                        material.map = tex;
+                        material.needsUpdate = true;
+                    }, undefined, (e) => {
+                        console.warn("Failed to load cover image", item.cover, e);
+                    });
+                }
+                const edgeMat = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color(item.color), 
+                    roughness: 0.5, 
+                    metalness: 0.65,
+                    transparent: true 
+                });
+                
+                const cover = new THREE.Mesh(coverGeo, [edgeMat, edgeMat, edgeMat, edgeMat, material, material]);
+                cover.name = "cover";
+                const disk = createVinylDisk(item, sharedDiskNormalMap);
+                disk.position.set(0, 4, -0.05);
+                
+                group.add(disk);
+                group.add(cover);
+                group.userData = { 
+                    index: i, 
+                    openProgress: 0, 
+                    openAmount: 0,   
+                    hoverVal: 0,
+                    tiltX: 0
+                };
+                scene.add(group);
+                groups.push(group);
+            }
+            lastIndex = -1; // force update of UI
+        }
+
+        function parseHrefList(html) {
+            const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+            const out = [];
+            Array.from(doc.querySelectorAll("a[href]")).forEach((a) => {
+                const rawHref = a.getAttribute("href");
+                if (!rawHref) return;
+                const href = String(rawHref).split("#")[0].split("?")[0];
+                if (!href) return;
+                if (href.startsWith("?") || href.startsWith("#")) return;
+                if (href === "../" || href === "..") return;
+                out.push(decodeURIComponent(href));
+            });
+            return out;
+        }
+
+        function deriveMetaFromFolder(folderName) {
+            const clean = String(folderName || "").trim();
+            const parts = clean.split(" - ").map((s) => s.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+                return { author: parts[0].toUpperCase(), name: parts.slice(1).join(" - ").toUpperCase() };
+            }
+            return { author: "UNKNOWN ARTIST", name: clean.toUpperCase() || "UNKNOWN ALBUM" };
+        }
+
+        function hashString(str) {
+            let h = 2166136261 >>> 0;
+            const s = String(str || "");
+            for (let i = 0; i < s.length; i += 1) {
+                h ^= s.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return h >>> 0;
+        }
+
+        function pickAlbumColor(inputColor, seedKey) {
+            const c = String(inputColor || "").trim();
+            if (/^#[0-9a-f]{3}$/i.test(c) || /^#[0-9a-f]{6}$/i.test(c)) {
+                return c;
+            }
+            const idx = hashString(seedKey);
+            return uniqueAlbumColorByIndex(idx);
+        }
+
+        async function fetchTextSafe(path) {
+            try {
+                const res = await fetch(encodeURI(path), { cache: "no-store" });
+                if (!res.ok) return null;
+                return await res.text();
+            } catch (_) {
+                return null;
+            }
+        }
+
+        async function scanCollectionFolderAlbums() {
+            const roots = ["Vinyl Collection", "collection", "Collection"];
+            let root = "";
+            let rootHtml = null;
+            for (const r of roots) {
+                const html = await fetchTextSafe(`${r}/`);
+                if (html) {
+                    root = r;
+                    rootHtml = html;
+                    break;
+                }
+            }
+            if (!root || !rootHtml) return [];
+
+            const AUDIO_RE = /\.(mp3|flac|wav|m4a|aac|ogg)$/i;
+            const foundAudio = [];
+            const visitedDirs = new Set();
+
+            const walkDir = async (relativeDir, depth = 0) => {
+                if (depth > 5) return;
+                const dirPath = relativeDir ? `${root}/${relativeDir}` : root;
+                const key = dirPath.toLowerCase();
+                if (visitedDirs.has(key)) return;
+                visitedDirs.add(key);
+
+                const listing = relativeDir ? await fetchTextSafe(`${dirPath}/`) : rootHtml;
+                if (!listing) return;
+                const entries = parseHrefList(listing);
+                for (const entry of entries) {
+                    const clean = String(entry || "").replace(/^\.?\//, "").replace(/\/+$/g, "");
+                    if (!clean || clean === "." || clean === "..") continue;
+                    const nextRelative = relativeDir ? `${relativeDir}/${clean}` : clean;
+                    if (/\/$/.test(entry)) {
+                        await walkDir(nextRelative, depth + 1);
+                        continue;
+                    }
+                    if (AUDIO_RE.test(clean)) {
+                        foundAudio.push(nextRelative);
+                    }
+                }
+            };
+
+            await walkDir("", 0);
+
+            const grouped = new Map();
+            for (const relPath of foundAudio) {
+                const bits = relPath.split("/").filter(Boolean);
+                if (!bits.length) continue;
+                const folderName = bits[0];
+                const trackRel = bits.slice(1).join("/") || bits[0];
+                if (!grouped.has(folderName)) grouped.set(folderName, []);
+                grouped.get(folderName).push(trackRel);
+            }
+
+            const albums = [];
+            for (const [folderName, tracksRaw] of grouped.entries()) {
+                const tracks = tracksRaw
+                    .filter(Boolean)
+                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+                if (!tracks.length) continue;
+                const meta = deriveMetaFromFolder(folderName);
+                albums.push({
+                    name: meta.name,
+                    author: meta.author,
+                    color: pickAlbumColor("", folderName),
+                    duration: "",
+                    folder: `${root}/${folderName}`,
+                    cover: "",
+                    tracks
+                });
+            }
+            albums.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+            return albums;
+        }
+
+        function formatDuration(totalSeconds) {
+            const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+            const hh = Math.floor(s / 3600);
+            const mm = Math.floor((s % 3600) / 60);
+            const ss = s % 60;
+            if (hh > 0) {
+                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+            }
+            return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+        }
+
+        function getDurationCache() {
+            try {
+                const raw = localStorage.getItem(ALBUM_DURATION_CACHE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return parsed && typeof parsed === "object" ? parsed : {};
+            } catch (_) {
+                return {};
+            }
+        }
+
+        function setDurationCache(map) {
+            try {
+                localStorage.setItem(ALBUM_DURATION_CACHE_KEY, JSON.stringify(map || {}));
+            } catch (_) {}
+        }
+
+        function readAudioDuration(url) {
+            return new Promise((resolve) => {
+                const a = document.createElement("audio");
+                const done = (dur) => {
+                    a.removeAttribute("src");
+                    a.load();
+                    resolve(Number.isFinite(dur) && dur > 0 ? dur : 0);
+                };
+                const to = setTimeout(() => done(0), 3000);
+                a.preload = "metadata";
+                a.onloadedmetadata = () => {
+                    clearTimeout(to);
+                    done(a.duration);
+                };
+                a.onerror = () => {
+                    clearTimeout(to);
+                    done(0);
+                };
+                a.src = encodeURI(url);
+            });
+        }
+
+        async function enrichAlbumDurations(albums) {
+            if (!Array.isArray(albums) || !albums.length) return albums;
+            const cache = getDurationCache();
+            for (const album of albums) {
+                if (!album || !album.folder || !Array.isArray(album.tracks)) continue;
+                const key = `${album.folder}::${album.tracks.length}`;
+                if (cache[key]) {
+                    album.duration = cache[key];
+                    continue;
+                }
+                let total = 0;
+                for (const t of album.tracks) {
+                    const trackName = typeof t === 'string' ? t : t.name;
+                    const proxyUrl = (typeof t === 'object' && t.url) ? t.url : null;
+                    const fullPath = proxyUrl ? proxyUrl : `${album.folder}/${trackName}`;
+                    total += await readAudioDuration(fullPath);
+                }
+                const formatted = formatDuration(total);
+                if (formatted) {
+                    album.duration = formatted;
+                    cache[key] = formatted;
+                }
+            }
+            setDurationCache(cache);
+            return albums;
+        }
+
+        async function loadCollectionManifest() {
+            let localAlbums = [];
+            let overridesMap = new Map();
+            try {
+                const dbAlbums = await loadAlbumsFromDB();
+                localAlbums = dbAlbums.filter(a => a.folder.startsWith("LOCAL://") && !a.isDeleted);
+                const serverOverrides = dbAlbums.filter(a => !a.folder.startsWith("LOCAL://"));
+                serverOverrides.forEach(o => overridesMap.set(o.folder, o));
+
+                for (const item of localAlbums) {
+                    const albumId = item.folder.replace("LOCAL://", "");
+                    const localFiles = item.fileObjects || [];
+                    (window.parent || window).__localUploadedFiles = (window.parent || window).__localUploadedFiles || {};
+                    (window.parent || window).__localUploadedFiles[albumId] = localFiles;
+                    
+                    if (item.coverFile) {
+                        item.cover = URL.createObjectURL(item.coverFile);
+                    } else {
+                        item.cover = "";
+                    }
+                }
+            } catch(e) {
+                console.error("Local albums load error:", e);
+            }
+
+            const mergeWithOverrides = (serverAlbums) => {
+                const merged = [];
+                for (const alb of serverAlbums) {
+                    if (overridesMap.has(alb.folder)) {
+                        const override = overridesMap.get(alb.folder);
+                        if (override.isDeleted) continue;
+                        
+                        alb.name = override.name || alb.name;
+                        alb.author = override.author || alb.author;
+                        alb.genre = override.genre || alb.genre;
+                        alb.color = override.color || alb.color;
+                        if (override.year) alb.year = override.year;
+                        if (override.coverFile) {
+                            alb.cover = URL.createObjectURL(override.coverFile);
+                        } else if (override.cover !== undefined) {
+                            alb.cover = override.cover;
+                        }
+                    }
+                    merged.push(alb);
+                }
+                return merged;
+            };
+
+            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+            try {
+                console.log("Fetching manifest from:", COLLECTION_MANIFEST_URL);
+                const fetchPromise = fetch(`${COLLECTION_MANIFEST_URL}?t=${Date.now()}`, { cache: "no-store", headers: gDriveToken ? { 'Authorization': 'Bearer ' + gDriveToken } : {} });
+                const res = await Promise.race([fetchPromise, timeoutPromise]);
+                
+                if (res && res.ok) {
+                    const data = await res.json();
+                    const parsed = Array.isArray(data) ? data : [];
+                    if (parsed.length) {
+                        const finalDefault = mergeWithOverrides(parsed);
+                        const finalData = [...localAlbums, ...finalDefault];
+                        applyCollectionData(finalData);
+                        console.log("Collection loaded successfully:", finalData.length, "albums");
+                        enrichAlbumDurations(finalData).catch(err => console.warn("Background enrichment failed:", err));
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to fetch manifest, falling back to local DB + DEFAULT_COLLECTION", err);
+            }
+            const fallbackDefault = mergeWithOverrides(DEFAULT_COLLECTION);
+            const fallbackData = [...localAlbums, ...fallbackDefault];
+            applyCollectionData(fallbackData);
+        }
+
+        let audioCtx;
+        
+        const sleeveSound = new Audio("/sfx/Vinyl out sound.mp3");
+        sleeveSound.volume = 0.7; 
+        sleeveSound.load();
+
+        function playSleeve() {
+            try {
+                sleeveSound.pause();
+                sleeveSound.currentTime = 0;
+                sleeveSound.play().catch(e => {});
+            } catch(_) {}
+        }
+
+        function easeInOutExpo(x) {
+            return x === 0 ? 0 : x === 1 ? 1 : x < 0.5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2;
+        }
+        function easeInCubic(x) {
+            return x * x * x;
+        }
+
+        function refreshRecordLoadedState() {
+            try {
+                hasLoadedRecord = localStorage.getItem(RECORD_LOADED_KEY) === "1";
+            } catch(_) {
+                hasLoadedRecord = false;
+            }
+            if (!hasLoadedRecord) {
+                playingIndex = -1;
+            }
+        }
+
+        function isPlayingLockedIndex(idx) {
+            return hasLoadedRecord && idx === playingIndex;
+        }
+
+        function getSelectedAlbumForBridge(){
+            try {
+                const selected = JSON.parse(localStorage.getItem(SELECTED_ALBUM_KEY) || "null");
+                if(selected && Array.isArray(selected.tracks) && selected.tracks.length){
+                    return selected;
+                }
+            } catch(_) {}
+            return null;
+        }
+
+        function saveBridgePlaybackState(playing){
+            if(!bgBridge.active) return;
+            const state = {
+                powered: true,
+                playing: !!playing,
+                currentSide: bgBridge.currentSide,
+                albumName: bgBridge.albumName,
+                base: bgBridge.base || 1,
+                elapsedMs: 0,
+                rot: 0,
+                currentTrackIndex: bgBridge.currentTrackIndex,
+                deckCurrentTime: Number.isFinite(archiveDeck.currentTime) ? archiveDeck.currentTime : 0,
+                sideDurations: bgBridge.sideDurations,
+                savedAtEpochMs: Date.now()
+            };
+            try { localStorage.setItem(PLAYBACK_STATE_KEY, JSON.stringify(state)); } catch(_) {}
+        }
+
+        function sideRangeForBridge(side){
+            if(side === "A"){
+                return {start:0, end:Math.max(0,bgBridge.sideSplit-1)};
+            }
+            return {start:bgBridge.sideSplit, end:Math.max(bgBridge.sideSplit,bgBridge.tracks.length-1)};
+        }
+
+        function ensureBridgeTrackInSide(){
+            const range = sideRangeForBridge(bgBridge.currentSide);
+            if(bgBridge.currentTrackIndex < range.start || bgBridge.currentTrackIndex > range.end){
+                bgBridge.currentTrackIndex = range.start;
+            }
+        }
+
+        function setBridgeSourceByIndex(idx){
+            const src = bgBridge.tracks[idx];
+            if(!src) return;
+            const encoded = encodeURI(src);
+            const absolute = new URL(encoded, window.location.href).href;
+            if(archiveDeck.src !== absolute){
+                archiveDeck.src = encoded;
+            }
+        }
+
+        function startArchiveBridgeFromState(){
+            let state = null;
+            try { state = JSON.parse(localStorage.getItem(PLAYBACK_STATE_KEY) || "null"); } catch(_) { state = null; }
+            if(!state || !state.playing) return;
+            try {
+                if(localStorage.getItem(RECORD_LOADED_KEY) !== "1") return;
+            } catch(_) {}
+            const selected = getSelectedAlbumForBridge();
+            if(!selected) return;
+            const albumName = String(selected.name || "");
+            if(String(state.albumName || "") !== albumName) return;
+            bgBridge.active = true;
+            bgBridge.albumName = albumName;
+            bgBridge.tracks = selected.tracks.slice();
+            bgBridge.sideSplit = Math.ceil(bgBridge.tracks.length / 2);
+            bgBridge.currentSide = state.currentSide === "B" ? "B" : "A";
+            bgBridge.currentTrackIndex = Number.isFinite(state.currentTrackIndex) ? Number(state.currentTrackIndex) : 0;
+            bgBridge.sideDurations = (state.sideDurations && typeof state.sideDurations === "object") ? state.sideDurations : bgBridge.sideDurations;
+            bgBridge.base = Number.isFinite(state.base) ? Number(state.base) : 1;
+            ensureBridgeTrackInSide();
+            setBridgeSourceByIndex(bgBridge.currentTrackIndex);
+            try { archiveDeck.currentTime = Math.max(0, Number(state.deckCurrentTime || 0)); } catch(_) {}
+            archiveDeck.playbackRate = bgBridge.base;
+            archiveDeck.play().catch(()=>{});
+        }
+
+        function ensureArchiveBridgePlayback(){
+            if(!bgBridge.active) return;
+            if(!archiveDeck.paused) return;
+            archiveDeck.play().catch(()=>{});
+        }
+
+        function playTick() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const duration = 0.04;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(1500, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(250, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + duration);
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function generateVinylNormalMap(size = 1024) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgb(128, 128, 255)';
+            ctx.fillRect(0, 0, size, size);
+            const centerX = size / 2;
+            const centerY = size / 2;
+            for(let r = 180; r < 495; r += 1.3) {
+                const strength = Math.random() * 12 + 3; 
+                ctx.beginPath();
+                ctx.strokeStyle = `rgb(${128 + strength}, ${128}, 255)`;
+                ctx.lineWidth = 0.9;
+                ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function generateArchiveBackgroundTexture() {
+            const canvas = document.createElement("canvas");
+            canvas.width = 2048;
+            canvas.height = 2048;
+            const ctx = canvas.getContext("2d");
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const r = Math.min(canvas.width, canvas.height) / 2;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0, "#000");
+            grad.addColorStop(1, "#020202");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function generateCoverTexture(item, size = 512) {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = size;
+            canvas.height = size;
+
+            const hexNorm = (v) => {
+                const s = String(v || "").trim();
+                if (/^#[0-9a-f]{3}$/i.test(s)) {
+                    return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`.toLowerCase();
+                }
+                return /^#[0-9a-f]{6}$/i.test(s) ? s.toLowerCase() : "#1a5fd0";
+            };
+            const mix = (a, b, t) => {
+                const aa = hexNorm(a);
+                const bb = hexNorm(b);
+                const p = Math.max(0, Math.min(1, t));
+                const ar = parseInt(aa.slice(1, 3), 16), ag = parseInt(aa.slice(3, 5), 16), ab = parseInt(aa.slice(5, 7), 16);
+                const br = parseInt(bb.slice(1, 3), 16), bg = parseInt(bb.slice(3, 5), 16), bbv = parseInt(bb.slice(5, 7), 16);
+                const rr = Math.round(ar + (br - ar) * p).toString(16).padStart(2, "0");
+                const rg = Math.round(ag + (bg - ag) * p).toString(16).padStart(2, "0");
+                const rb = Math.round(ab + (bbv - ab) * p).toString(16).padStart(2, "0");
+                return `#${rr}${rg}${rb}`;
+            };
+            const hash = (str) => {
+                let h = 2166136261 >>> 0;
+                const s = String(str || "");
+                for (let i = 0; i < s.length; i += 1) {
+                    h ^= s.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                return h >>> 0;
+            };
+            const titleCase = (s) => String(s || "")
+                .toLowerCase()
+                .split(/\s+/)
+                .map((w) => (w ? (w[0].toUpperCase() + w.slice(1)) : w))
+                .join(" ");
+            const trackNameOnly = (name) => {
+                const base = decodeURIComponent(String(name || "").trim())
+                    .replace(/\.(mp3|flac|wav|m4a|aac|ogg)\s*$/i, "")
+                    .replace(/[_]+/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                const rayTogetherAgain = (() => {
+                    const src = base.toLowerCase();
+                    if (!String(item?.name || "").toUpperCase().includes("TOGETHER AGAIN")) return "";
+                    if (/side a .*?-0?1/.test(src)) return "Together Again";
+                    if (/side a .*?-0?2/.test(src)) return "I Like To Hear It Sometime";
+                    if (/side a .*?-0?4/.test(src)) return "Please Forgive And Forget";
+                    if (/side a .*?-0?6/.test(src)) return "Next Door To The Blues";
+                    if (/side b .*?-0?4/.test(src)) return "All Night Long";
+                    if (/side b .*?-0?5/.test(src)) return "Don't Let Her Know";
+                    if (/side b .*?-0?6/.test(src)) return "Watch It Baby";
+                    return "";
+                })();
+                if (rayTogetherAgain) return rayTogetherAgain;
+                const cleaned = base
+                    .replace(/^\s*(?:track\s*)?\d{1,3}\s*[\.\-\)_]\s*/i, "")
+                    .replace(/^\s*\d{1,3}\s+/, "")
+                    .replace(/^\s*[^-]{2,60}\s-\s+/i, "")
+                    .replace(/\s*,?\s*side\s*[ab]\s*\(archive\)\s*[-_ ]*\d*\s*$/i, "")
+                    .replace(/\s*,?\s*side\s*[ab]\s*[-_ ]*\d*\s*$/i, "")
+                    .replace(/\s*\(archive\)\s*[-_ ]*\d*\s*$/i, "")
+                    .replace(/\s*[-_ ]\d{1,2}\s*$/i, "")
+                    .replace(/\s*\((19|20)\d{2}\)\s*$/i, "")
+                    .replace(/\s*\[[^\]]+\]\s*$/i, "")
+                    .replace(/[_]+/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                return cleaned || base || "Unknown track";
+            };
+            const wrapText = (textVal, maxWidth, maxLines, lineHeight, x, y) => {
+                const words = String(textVal || "").split(/\s+/).filter(Boolean);
+                let line = "";
+                let lines = 0;
+                for (let i = 0; i < words.length; i += 1) {
+                    const test = line ? `${line} ${words[i]}` : words[i];
+                    if (ctx.measureText(test).width <= maxWidth) {
+                        line = test;
+                    } else {
+                        ctx.fillText(line, x, y + lines * lineHeight);
+                        lines += 1;
+                        if (lines >= maxLines) return;
+                        line = words[i];
+                    }
+                }
+                if (line && lines < maxLines) ctx.fillText(line, x, y + lines * lineHeight);
+            };
+            const measureWrapped = (textVal, maxWidth) => {
+                const words = String(textVal || "").split(/\s+/).filter(Boolean);
+                const lines = [];
+                let line = "";
+                for (let i = 0; i < words.length; i += 1) {
+                    const test = line ? `${line} ${words[i]}` : words[i];
+                    if (ctx.measureText(test).width <= maxWidth) {
+                        line = test;
+                    } else {
+                        if (line) lines.push(line);
+                        line = words[i];
+                    }
+                }
+                if (line) lines.push(line);
+                return lines;
+            };
+            const drawRightSpacedText = (textVal, xRight, yTop, spacingPx) => {
+                const textStr = String(textVal || "");
+                ctx.textAlign = "left";
+                let x = xRight;
+                for (let i = textStr.length - 1; i >= 0; i -= 1) {
+                    const ch = textStr[i];
+                    const w = ctx.measureText(ch).width;
+                    x -= w;
+                    ctx.fillText(ch, x, yTop);
+                    x -= spacingPx;
+                }
+            };
+            const KNOWN_RELEASE_YEARS = {
+                "MORRISON HOTEL": "1970",
+                "RUBBER SOUL": "1965",
+                "SOB ROCK": "2021"
+            };
+            const getYear = () => {
+                if (item && item.year && /^\d{4}$/.test(String(item.year))) return String(item.year);
+                const hay = `${item.name || ""} ${item.folder || ""}`;
+                const m = hay.match(/(19|20)\d{2}/);
+                if (m) return m[0];
+                const key = String(item.name || "").toUpperCase().trim();
+                return KNOWN_RELEASE_YEARS[key] || "----";
+            };
+
+            const accent = hexNorm(item.color || "#1a5fd0");
+            ctx.fillStyle = accent;
+            ctx.fillRect(0, 0, size, size);
+            ctx.save();
+            ctx.globalCompositeOperation = "overlay";
+            const overlay = ctx.createLinearGradient(0, 0, size, size);
+            overlay.addColorStop(0, "rgba(0,0,0,0.3)");
+            overlay.addColorStop(1, "rgba(0,0,0,0.6)");
+            ctx.fillStyle = overlay;
+            ctx.fillRect(0, 0, size, size);
+            ctx.restore();
+
+            // Visible grain over the gradient.
+            const seed = hash(item.name || "");
+            ctx.save();
+            ctx.globalAlpha = 0.16;
+            for (let i = 0; i < 7600; i += 1) {
+                const x = (seed * (i + 31) * 1103515245 + 12345) % size;
+                const y = (seed * (i + 67) * 214013 + 2531011) % size;
+                ctx.fillStyle = (i % 2 === 0) ? "rgba(255,255,255,1)" : "rgba(0,0,0,1)";
+                ctx.fillRect(x, y, 2, 2);
+            }
+            ctx.restore();
+
+            // Typography/layout based on provided design
+            const margin = size * 0.062;
+            const contentW = size - margin * 2;
+            const text = "rgba(247,249,255,0.98)";
+            const textSoft = "rgba(228,236,249,0.88)";
+
+            ctx.textBaseline = "top";
+            ctx.textAlign = "left";
+            ctx.fillStyle = text;
+            ctx.font = `300 ${Math.round(size * 0.073)}px Roboto`;
+            ctx.fillText(titleCase(item.author || "Unknown Artist"), margin, size * 0.06);
+
+            ctx.textAlign = "right";
+            ctx.font = `900 ${Math.round(size * 0.043)}px Roboto`;
+            ctx.fillText(getYear(), size - margin, size * 0.075);
+            ctx.font = `400 ${Math.round(size * 0.018)}px Roboto`;
+            ctx.fillStyle = textSoft;
+            drawRightSpacedText("RELEASE", size - margin, size * 0.128, 5);
+
+            const words = String(item.name || "Untitled").toUpperCase().split(/\s+/).filter(Boolean);
+            const split = Math.ceil(words.length / 2);
+            const line1 = words.slice(0, split).join(" ");
+            const line2 = words.slice(split).join(" ");
+            let titlePx = Math.round(size * 0.19);
+            ctx.textAlign = "left";
+            ctx.fillStyle = text;
+            ctx.font = `900 ${titlePx}px Roboto`;
+            while ((ctx.measureText(line1).width > contentW || (line2 && ctx.measureText(line2).width > contentW)) && titlePx > Math.round(size * 0.1)) {
+                titlePx -= 2;
+                ctx.font = `900 ${titlePx}px Roboto`;
+            }
+            const titleY = size * 0.30;
+            ctx.fillText(line1, margin, titleY);
+            if (line2) ctx.fillText(line2, margin, titleY + titlePx * 0.9);
+
+            const tracks = (item.tracks || []).map(trackNameOnly).filter(Boolean);
+            const listText = tracks.map((t, i) => `${i + 1}. ${t}`).join(", ");
+            ctx.fillStyle = textSoft;
+            let tracksFontPx = Math.round(size * 0.026);
+            const tracksY = size * 0.69;
+            const tracksMaxH = size * 0.20;
+            const tracksW = contentW * 0.98;
+            while (tracksFontPx >= Math.round(size * 0.016)) {
+                ctx.font = `400 ${tracksFontPx}px Roboto`;
+                const lineHeight = tracksFontPx * 1.34;
+                const lines = measureWrapped(listText, tracksW);
+                const neededH = lines.length * lineHeight;
+                if (neededH <= tracksMaxH) {
+                    const maxLines = Math.max(1, Math.floor(tracksMaxH / lineHeight));
+                    wrapText(listText, tracksW, maxLines, lineHeight, margin, tracksY);
+                    break;
+                }
+                tracksFontPx -= 1;
+            }
+
+            ctx.font = `700 ${Math.round(size * 0.029)}px Roboto`;
+            ctx.fillStyle = text;
+            ctx.fillText("33 RPM ALBUM", margin, size * 0.92);
+            ctx.textAlign = "right";
+            ctx.fillText("VINYL RECORD", size - margin, size * 0.92);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function generateArchiveLabelTexture(item, side = "A", size = 512) {
+            const toHex = (value) => {
+                if (typeof value !== "string") return null;
+                const v = value.trim();
+                if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) return null;
+                if (v.length === 4) {
+                    return `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`.toLowerCase();
+                }
+                return v.toLowerCase();
+            };
+            const desaturateAndDarken = (hex, desat = 0.45, darken = 0.34) => {
+                const norm = toHex(hex);
+                if (!norm) return "#262626";
+                const r = parseInt(norm.slice(1, 3), 16);
+                const g = parseInt(norm.slice(3, 5), 16);
+                const b = parseInt(norm.slice(5, 7), 16);
+                const gray = (r + g + b) / 3;
+                const d = Math.max(0, Math.min(1, desat));
+                const k = Math.max(0, Math.min(1, darken));
+                const nr = Math.round((r * (1 - d) + gray * d) * (1 - k));
+                const ng = Math.round((g * (1 - d) + gray * d) * (1 - k));
+                const nb = Math.round((b * (1 - d) + gray * d) * (1 - k));
+                return `rgb(${nr}, ${ng}, ${nb})`;
+            };
+            const mixHexWithWhite = (hex, amount = 0.10) => {
+                const norm = toHex(hex);
+                if (!norm) return "#efe9d8";
+                const p = Math.max(0, Math.min(1, amount));
+                const r = parseInt(norm.slice(1, 3), 16);
+                const g = parseInt(norm.slice(3, 5), 16);
+                const b = parseInt(norm.slice(5, 7), 16);
+                const nr = Math.round(r + (255 - r) * p);
+                const ng = Math.round(g + (255 - g) * p);
+                const nb = Math.round(b + (255 - b) * p);
+                return `rgb(${nr}, ${ng}, ${nb})`;
+            };
+            const canvas = document.createElement("canvas");
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext("2d");
+            const c = size / 2;
+            const r = size * 0.49;
+
+            ctx.clearRect(0, 0, size, size);
+
+            ctx.beginPath();
+            ctx.arc(c, c, r, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fillStyle = desaturateAndDarken(item.color || "", 0.5, 0.38);
+            ctx.fill();
+
+            ctx.strokeStyle = "#252525";
+            ctx.lineWidth = size * 0.0065;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(c, c, size * 0.462, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(24,24,24,0.8)";
+            ctx.lineWidth = size * 0.0038;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(c, c, size * 0.31, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(24,24,24,0.24)";
+            ctx.lineWidth = size * 0.003;
+            ctx.stroke();
+
+            const bandH = size * 0.13;
+            const bandTop = size * 0.435;
+            const bandInset = size * 0.048;
+            ctx.fillStyle = "#181818";
+            ctx.fillRect(bandInset, bandTop, size - bandInset * 2, bandH);
+            ctx.strokeStyle = "#1f1f1f";
+            ctx.lineWidth = size * 0.002;
+            ctx.strokeRect(bandInset, bandTop, size - bandInset * 2, bandH);
+
+            ctx.fillStyle = "#f1f1f1";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = `400 ${Math.round(4.3 * (size / 100))}px Roboto`;
+            ctx.fillText("STEREO", size * 0.245, c);
+            ctx.fillText("33 RPM", size * 0.755, c);
+
+            ctx.fillStyle = "#f3f3f3";
+            ctx.font = `900 ${Math.round(5.8 * (size / 100))}px Roboto`;
+            ctx.fillText((item.author || "").toUpperCase(), c, size * 0.24);
+
+            ctx.fillStyle = "#ececec";
+            ctx.font = `400 ${Math.round(3.9 * (size / 100))}px Roboto`;
+            ctx.fillText((item.name || "").toUpperCase(), c, size * 0.305);
+
+            ctx.fillStyle = "#f1f1f1";
+            ctx.font = `400 ${Math.round(5.8 * (size / 100))}px Roboto`;
+            ctx.fillText(`SIDE ${side}`, c, size * 0.647);
+
+            ctx.fillStyle = "#e9e9e9";
+            ctx.font = `300 ${Math.round(2.8 * (size / 100))}px Roboto`;
+            ctx.fillText("DESIGN PORTFOLIO", c, size * 0.761);
+            ctx.fillText("MILAN SAMARDZIC", c, size * 0.792);
+
+            ctx.beginPath();
+            ctx.arc(c, c, size * 0.07, 0, Math.PI * 2);
+            ctx.fillStyle = "#181818";
+            ctx.fill();
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createVinylDisk(item, diskNormalMap) {
+            const diskMat = new THREE.MeshStandardMaterial({ 
+                color: 0x050505, 
+                roughness: 0.28,
+                metalness: 0.75,
+                normalMap: diskNormalMap, 
+                normalScale: new THREE.Vector2(1.4, 1.4)
+            });
+            const geo = new THREE.CylinderGeometry(2.85, 2.85, 0.05, 64);
+            const disk = new THREE.Mesh(geo, diskMat);
+            disk.rotation.x = Math.PI / 2;
+            disk.name = "disk";
+            disk.layers.set(DISK_LAYER);
+            
+            const labelTexture = generateArchiveLabelTexture(item, "A", 512);
+            const labelGeo = new THREE.CircleGeometry(1.05, 64);
+            const labelMat = new THREE.MeshStandardMaterial({ map: labelTexture, roughness: 0.5, metalness: 0.6 });
+            const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+            labelMesh.position.y = 0.026;
+            labelMesh.rotation.x = -Math.PI / 2;
+            labelMesh.layers.set(DISK_LAYER); 
+            disk.add(labelMesh);
+            return disk;
+        }
+
+        function pickAlbumIndexAtPointer() {
+            raycaster.layers.enable(0);
+            raycaster.layers.enable(DISK_LAYER);
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            if (!intersects.length) return -1;
+            for (let i = 0; i < intersects.length; i += 1) {
+                let hitObj = intersects[i].object;
+                while (hitObj.parent && !groups.includes(hitObj)) hitObj = hitObj.parent;
+                if (hitObj.userData && typeof hitObj.userData.index !== "undefined") {
+                    if (hitObj.visible && hitObj.position.z > -8) {
+                        return hitObj.userData.index;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        function handleInteractionAtIndex(idx) {
+            if (!totalMeshes || launchIndex !== -1) return;
+            if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
+            if (isPlayingLockedIndex(idx)) {
+                openStates[idx] = false;
+                return;
+            }
+            const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
+            if (idx !== currentFocusIdx) {
+                targetScroll = idx * scrollSensitivity;
+                openStates.fill(false);
+                // Open immediately on first click while camera settles.
+                openStates[idx] = true;
+                pendingOpenIndex = -1;
+                playSleeve();
+            } else {
+                const targetState = !openStates[idx];
+                openStates.fill(false);
+                openStates[idx] = targetState;
+                if (targetState) playSleeve();
+            }
+            document.getElementById('audio-hint').style.display = 'none';
+        }
+
+        function startLaunchToPlayer(idx, url, selectedPayload = null) {
+            if (launchIndex !== -1) return;
+            
+            bgBridge.active = false;
+            try { archiveDeck.pause(); } catch(_) {}
+            launchIndex = idx;
+            launchStartMs = performance.now();
+            launchTargetUrl = url;
+            launchSelectedPayload = selectedPayload;
+            launchNavigated = false;
+            pendingOpenIndex = -1;
+            openStates.fill(false);
+            openStates[idx] = true;
+            targetScroll = idx * scrollSensitivity;
+            currentScroll = targetScroll;
+            try {
+                localStorage.setItem(SCROLL_STATE_KEY, JSON.stringify({
+                    targetScroll,
+                    currentScroll,
+                    openIndex: idx
+                }));
+            } catch(_) {}
+            playBtn.classList.remove('visible');
+            playBtn.style.display = 'none';
+            playBtn.style.pointerEvents = 'none';
+            if (routeFade) {
+                routeFade.style.transition = 'opacity 420ms cubic-bezier(0.16, 1, 0.3, 1) 380ms';
+            }
+            routeFade?.classList.add('on');
+        }
+
+        function resetLaunchState() {
+            if (launchSelectedPayload?.name) {
+                const name = String(launchSelectedPayload.name).toUpperCase();
+                const idx = collection.findIndex((a) => String(a?.name || "").toUpperCase() === name);
+                if (idx >= 0) {
+                    playingIndex = idx;
+                    try { localStorage.setItem(PLAYING_INDEX_KEY, String(idx)); } catch(_) {}
+                }
+            }
+            launchIndex = -1;
+            launchStartMs = 0;
+            launchTargetUrl = "";
+            launchSelectedPayload = null;
+            launchNavigated = false;
+            pendingOpenIndex = -1;
+            openStates.fill(false);
+            routeFade?.classList.remove('on');
+            if (routeFade) routeFade.style.transition = '';
+            playBtn.style.pointerEvents = 'auto';
+        }
+
+        function resetArchiveToFirst() {
+            targetScroll = 0;
+            currentScroll = 0;
+            pendingOpenIndex = -1;
+            openStates.fill(false);
+            if (playBtn) {
+                playBtn.classList.remove('visible');
+                playBtn.style.display = 'none';
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = generateArchiveBackgroundTexture();
+            scene.fog = null;
+
+            camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8.8, 28);
+            camera.lookAt(0, 3, 0);
+            
+            camera.layers.enable(0);
+            camera.layers.enable(DISK_LAYER);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const radialMain = new THREE.PointLight(0xffffff, 1.68, 24);
+            radialMain.position.set(-3, 10, 16);
+            radialMain.decay = 3.2;
+            scene.add(radialMain);
+
+            const radialSub = new THREE.PointLight(0xffffff, 0.3, 25);
+            radialSub.position.set(6, 3, 14);
+            radialSub.decay = 2.0;
+            radialSub.layers.set(DISK_LAYER);
+            scene.add(radialSub);
+
+            const reflectionLight = new THREE.PointLight(0xffffff, 0.125, 50);
+            reflectionLight.position.set(4.75, 8, 18); 
+            reflectionLight.layers.set(DISK_LAYER);
+            scene.add(reflectionLight);
+
+            const coverGeo = new THREE.BoxGeometry(6, 6, 0.12);
+            coverGeo.translate(0, 4, 0);
+            const sharedDiskNormalMap = generateVinylNormalMap(1024);
+
+            for (let i = 0; i < totalMeshes; i++) {
+                const group = new THREE.Group();
+                const item = collection[i];
+                const texture = generateCoverTexture(item, 1024);
+                
+                const material = new THREE.MeshStandardMaterial({ 
+                    map: texture, 
+                    roughness: 0.5, 
+                    metalness: 0.65,
+                    transparent: true 
+                });
+                const edgeMat = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color(item.color), 
+                    roughness: 0.5, 
+                    metalness: 0.65,
+                    transparent: true 
+                });
+                
+                const cover = new THREE.Mesh(coverGeo, [edgeMat, edgeMat, edgeMat, edgeMat, material, material]);
+                cover.name = "cover";
+                const disk = createVinylDisk(item, sharedDiskNormalMap);
+                disk.position.set(0, 4, -0.05);
+                
+                group.add(disk);
+                group.add(cover);
+                group.userData = { 
+                    index: i, 
+                    openProgress: 0, 
+                    openAmount: 0,   
+                    hoverVal: 0,
+                    tiltX: 0
+                };
+                scene.add(group);
+                groups.push(group);
+            }
+
+            // Desktop Mouse Events
+            window.addEventListener('wheel', (e) => {
+                if (launchIndex !== -1) return;
+                targetScroll -= e.deltaY; 
+                targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                pendingOpenIndex = -1; 
+                if (Math.abs(e.deltaY) > 5) openStates.fill(false);
+            }, { passive: true });
+
+            window.addEventListener('mousemove', (e) => {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            });
+
+            window.addEventListener('mousedown', (e) => {
+               if (e.target.closest('#play-button')) return;
+               mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+               mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+               const foundIdx = pickAlbumIndexAtPointer();
+               interactiveIndex = foundIdx;
+               isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+               handleInteractionAtIndex(foundIdx);
+            });
+
+            // Touch Events (Mobile/Tablet)
+            window.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+                isTouchMove = false;
+                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            }, { passive: false });
+
+            window.addEventListener('touchmove', (e) => {
+                if (launchIndex !== -1) return;
+                e.preventDefault(); // Sprečava nativno skrolanje
+                const touchY = e.touches[0].clientY;
+                const deltaY = touchY - touchStartY;
+                touchStartY = touchY;
+
+                // Tolerancija za tap vs scroll
+                if (Math.abs(deltaY) > 1.5) {
+                    isTouchMove = true;
+                    // Touch skrolanje treba biti osjetljivije
+                    targetScroll -= deltaY * 3.5; 
+                    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                    
+                    if (Math.abs(deltaY) > 2) openStates.fill(false);
+
+                    mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', (e) => {
+                if (!isTouchMove) {
+                    // Ignoriši ako je tapnuto play dugme (ono ima svoj handler)
+                    if (e.target.closest('#play-button')) return;
+                    
+                    // Direct pick at current touch position (no stale hover state).
+                    const foundIdx = pickAlbumIndexAtPointer();
+                    interactiveIndex = foundIdx;
+                    isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+                    handleInteractionAtIndex(foundIdx);
+                }
+            });
+
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!totalMeshes) return;
+                const currentIdx = Math.round(currentScroll / scrollSensitivity);
+                try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
+                hasLoadedRecord = true;
+                const selected = collection[currentIdx];
+                if (!selected) return;
+                const selectedPayload = { ...selected };
+                try {
+                    localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selectedPayload));
+                } catch(_) {}
+                const q = new URLSearchParams({
+                    album: selected.name,
+                    name: selected.name,
+                    author: selected.author || "",
+                    color: selected.color || "",
+                    duration: selected.duration || "",
+                    folder: selected.folder || ""
+                });
+                startLaunchToPlayer(currentIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+            });
+            playerNavLink?.addEventListener('click', (e) => {
+                e.preventDefault();
+                if(EMBEDDED && window.parent){
+                    window.parent.postMessage({type:"archive-close"}, "*");
+                    return;
+                }
+                window.location.href = "vinyl-player.html";
+            });
+
+            animate();
+        }
+
+        function warmGlobalAssetsOnce() {
+            try {
+                localStorage.setItem(ARCHIVE_ALBUMS_KEY, JSON.stringify(collection.length ? collection : DEFAULT_COLLECTION));
+                if (localStorage.getItem(WARM_FLAG_KEY) === "1") return;
+                const warm = (url, mode = "same-origin") => {
+                    try { fetch(url, { cache: "force-cache", mode }).catch(()=>{}); } catch(_) {}
+                };
+                warm("archive.html");
+                warm("vinyl-player.html");
+                warm("sjaj-overlay.png");
+                warm("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js", "no-cors");
+                localStorage.setItem(WARM_FLAG_KEY, "1");
+            } catch(_) {}
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            let launchProgress = 0;
+            if (launchIndex !== -1) {
+                launchProgress = Math.min(1, (performance.now() - launchStartMs) / LAUNCH_MS);
+                if (launchProgress >= 1 && !launchNavigated) {
+                    launchNavigated = true;
+                    if(EMBEDDED && window.parent){
+                        window.parent.postMessage({type:"archive-select-album", album: launchSelectedPayload}, "*");
+                        resetLaunchState();
+                        return;
+                    }
+                    if(!launchTargetUrl) return;
+                    window.location.href = launchTargetUrl;
+                    return;
+                }
+            }
+            
+            currentScroll += (targetScroll - currentScroll) * 0.08; 
+            const scrollProgress = currentScroll / scrollSensitivity; 
+
+            if (pendingOpenIndex !== -1) {
+                const distToTarget = Math.abs(pendingOpenIndex - scrollProgress);
+                if (distToTarget < 0.25) { 
+                    openStates[pendingOpenIndex] = true;
+                    pendingOpenIndex = -1;
+                }
+            }
+
+            raycaster.layers.enable(0);
+            raycaster.layers.enable(DISK_LAYER);
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            let foundIdx = -1;
+            if (intersects.length > 0) {
+                for(let i = 0; i < intersects.length; i++) {
+                    let hitObj = intersects[i].object;
+                    while(hitObj.parent && !groups.includes(hitObj)) hitObj = hitObj.parent;
+                    if (hitObj.userData && typeof hitObj.userData.index !== 'undefined') {
+                        if (hitObj.visible && hitObj.position.z > -8) {
+                            foundIdx = hitObj.userData.index;
+                            break; 
+                        }
+                    }
+                }
+            }
+
+            interactiveIndex = foundIdx;
+            isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+            document.body.style.cursor = isHovered ? 'pointer' : 'default';
+
+            const displayIdx = totalMeshes ? Math.max(0, Math.min(totalMeshes - 1, Math.round(scrollProgress))) : 0;
+            if (displayIdx !== lastIndex) {
+                playTick();
+                lastIndex = displayIdx;
+            }
+            
+            document.getElementById('counter').innerText = `${totalMeshes} Albums`;
+
+            let playBtnUpdated = false;
+            let nowPlayingUpdated = false;
+
+            groups.forEach((group, i) => {
+                let dist = i - scrollProgress;
+                const cover = group.children.find(c => c.name === "cover");
+                const disk = group.children.find(c => c.name === "disk");
+                
+                const isLaunching = i === launchIndex;
+                const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
+                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.045;
+                group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
+                if (isLaunching) {
+                    group.userData.openProgress = 1;
+                    group.userData.openAmount = 1;
+                }
+
+                group.userData.hoverVal += (((i === interactiveIndex) ? 1 : 0) - group.userData.hoverVal) * 0.1;
+
+                if (i === interactiveIndex) {
+                    group.userData.tiltX += (mouse.y * 0.15 - group.userData.tiltX) * 0.1;
+                } else {
+                    group.userData.tiltX *= 0.85;
+                }
+                
+                const baseRotX = -Math.PI * 0.04; 
+                let z = 8 - (dist >= 0 ? dist * 2.8 : 0);
+                let y = dist < 0 ? Math.abs(dist) * 0.15 : 0;
+                let rotX = baseRotX + (dist < 0 ? Math.abs(dist) * 2.8 : 0);
+
+                group.position.set(0, y, z);
+                group.rotation.x = rotX + group.userData.tiltX;
+
+                const s = 1 + (group.userData.hoverVal * 0.03);
+                group.scale.set(s, s, s);
+                
+                const openVal = group.userData.openAmount;
+                cover.position.x = openVal * -1.2; 
+                const launchEase = isLaunching ? easeInCubic(launchProgress) : 0;
+                if (isLaunching) {
+                    group.userData.tiltX = 0;
+                    cover.position.x = -1.2;
+                    disk.position.x = 1.8 + launchEase * 28;
+                    disk.rotation.y = -2.2 - (launchProgress * Math.PI * 1.15);
+                    disk.rotation.z = 0;
+                    disk.rotation.x = Math.PI / 2;
+                } else {
+                    disk.position.x = openVal * 1.8;
+                    disk.rotation.y = openVal * -2.2;
+                    disk.rotation.z = 0;
+                    disk.rotation.x = (Math.PI / 2) + group.userData.tiltX * 0.5;
+                }
+
+                disk.visible = isLaunching || openVal > 0.005;
+                if (!isLaunching && openStates[i]) disk.rotation.y -= 0.008;
+
+                const fadeStartThreshold = Math.PI / 4; 
+                let opacity = 1;
+                if (rotX > fadeStartThreshold) {
+                    opacity = Math.max(0, 1 - (rotX - fadeStartThreshold) * 3.5);
+                    if (!isLaunching && openStates[i] && opacity < 0.2) {
+                        openStates[i] = false;
+                    }
+                }
+
+                // Ažuriranje pozicije PLAY dugmeta
+                if (openVal > 0.1 && i === displayIdx && !isPlayingLockedIndex(i)) {
+                    const vector = new THREE.Vector3();
+                    disk.getWorldPosition(vector);
+                    vector.project(camera);
+
+                    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                    const yPos = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+                    playBtn.style.left = `${x}px`;
+                    playBtn.style.top = `${yPos}px`;
+                    playBtn.classList.add('visible');
+                    playBtn.style.display = 'flex';
+                    playBtnUpdated = true;
+                }
+
+                if (playingIndex === i && i === interactiveIndex && opacity > 0.05) {
+                    const v = new THREE.Vector3();
+                    cover.getWorldPosition(v);
+                    v.y += 2.35;
+                    v.project(camera);
+                    const bx = (v.x * 0.5 + 0.5) * window.innerWidth;
+                    const by = (v.y * -0.5 + 0.5) * window.innerHeight;
+                    nowPlayingBadge.style.left = `${bx}px`;
+                    nowPlayingBadge.style.top = `${by}px`;
+                    nowPlayingBadge.style.display = 'block';
+                    nowPlayingUpdated = true;
+                }
+
+                group.traverse(child => { 
+                    if(child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(m => {
+                            m.opacity = opacity;
+                            m.transparent = true;
+                            m.depthWrite = opacity > 0.9;
+                        });
+                    } 
+                });
+                group.visible = opacity > 0.001;
+            });
+
+            if (!playBtnUpdated) {
+                playBtn.classList.remove('visible');
+                setTimeout(() => { if(!playBtn.classList.contains('visible')) playBtn.style.display = 'none'; }, 400);
+            }
+            if (!nowPlayingUpdated) {
+                nowPlayingBadge.style.display = 'none';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            
+            // Upload button logic
+            
+            
+        const IDB_NAME = "VinylCollectionDB";
+        const IDB_STORE = "local_albums";
+        let dbPromise = null;
+
+        function getDB() {
+            if (dbPromise) return dbPromise;
+            dbPromise = new Promise((resolve, reject) => {
+                const request = indexedDB.open(IDB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(IDB_STORE)) {
+                        db.createObjectStore(IDB_STORE, { keyPath: "folder" });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            return dbPromise;
+        }
+
+        async function saveAlbumToDB(albumData) {
+            const db = await getDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE, "readwrite");
+                const store = tx.objectStore(IDB_STORE);
+                store.put(albumData);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function loadAlbumsFromDB() {
+            try {
+                const db = await getDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(IDB_STORE, "readonly");
+                    const store = tx.objectStore(IDB_STORE);
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch(e) {
+                console.error("Failed to load local albums:", e);
+                return [];
+            }
+        }
+        
+        let pendingUploadData = null;
+
+        
+        let editMode = false;
+
+        const PALETTE_COLORS = [
+            "#121212", "#1e1e1e", "#2c2c2c", "#3a3a3a", "#4a4a4a",
+            "#1a2a3a", "#2a3a4a", "#1a3a2a", "#2a4a3a", "#3a1a2a",
+            "#4a2a3a", "#3a2a1a", "#4a3a2a", "#2a1a3a", "#3a2a4a",
+            "#1a1a2a", "#2a2a3a", "#3a1a1a", "#1a3a1a", "#3a3a1a"
+        ];
+        
+        const paletteContainer = document.getElementById("paletteContainer");
+        if(paletteContainer) {
+            PALETTE_COLORS.forEach(color => {
+                const dot = document.createElement("div");
+                dot.style.width = "20px";
+                dot.style.height = "20px";
+                dot.style.borderRadius = "50%";
+                dot.style.background = color;
+                dot.style.cursor = "pointer";
+                dot.style.border = "2px solid transparent";
+                dot.addEventListener("click", () => {
+                    document.querySelectorAll("#paletteContainer > div").forEach(d => d.style.borderColor = "transparent");
+                    dot.style.borderColor = "#fff";
+                    document.getElementById("upAlbumColor").value = color;
+                });
+                paletteContainer.appendChild(dot);
+            });
+            // Select first by default
+            if(paletteContainer.children.length > 0) {
+                paletteContainer.children[0].style.borderColor = "#fff";
+                document.getElementById("upAlbumColor").value = PALETTE_COLORS[0];
+            }
+        }
+
+        document.getElementById("upCoverInput")?.addEventListener("change", (e) => {
+            if(e.target.files && e.target.files[0]) {
+                const file = e.target.files[0];
+                if(pendingUploadData) pendingUploadData.customCoverFile = file;
+                const url = URL.createObjectURL(file);
+                document.getElementById("upCoverPreview").src = url;
+                document.getElementById("upRemoveCoverBtn").style.display = "flex";
+            }
+        });
+
+        document.getElementById("upRemoveCoverBtn")?.addEventListener("click", () => {
+            if(pendingUploadData) {
+                pendingUploadData.customCoverFile = null;
+                pendingUploadData.cover = null;
+                pendingUploadData.coverFile = null;
+            }
+            document.getElementById("upCoverPreview").src = "";
+            document.getElementById("upRemoveCoverBtn").style.display = "none";
+            document.getElementById("upCoverInput").value = "";
+        });
+
+
+        document.getElementById("folderUpload")?.addEventListener("change", (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+            
+            const pathParts = files[0].webkitRelativePath.split('/');
+            const albumName = pathParts.length > 1 ? pathParts[0] : "Uploaded Album";
+            
+            const audioFiles = files.filter(f => f.type.startsWith('audio/') || f.name.toLowerCase().endsWith('.mp3'));
+            const imageFiles = files.filter(f => f.type.startsWith('image/'));
+            
+            if(!audioFiles.length) {
+                alert("No audio files found in the selected folder.");
+                return;
+            }
+            
+            const coverFile = imageFiles.find(f => f.name.toLowerCase().includes('cover') || f.name.toLowerCase().includes('front')) || imageFiles[0];
+            
+            editMode = false;
+            pendingUploadData = {
+                audioFiles,
+                coverFile,
+                albumName,
+                author: "Local Upload",
+                color: "#1a2a3a",
+                genre: "ROCK"
+            };
+            
+            document.getElementById("upAlbumName").value = albumName;
+            document.getElementById("upAlbumAuthor").value = "Local Upload";
+            document.getElementById("upAlbumYear").value = new Date().getFullYear().toString();
+            document.getElementById("upAlbumGenre").value = "ROCK";
+            document.getElementById("upAlbumColor").value = PALETTE_COLORS[0];
+            document.querySelectorAll("#paletteContainer > div").forEach((d, i) => d.style.borderColor = i === 0 ? "#fff" : "transparent");
+            
+            if (coverFile) {
+                document.getElementById("upCoverPreview").src = URL.createObjectURL(coverFile);
+                document.getElementById("upRemoveCoverBtn").style.display = "flex";
+            } else {
+                document.getElementById("upCoverPreview").src = "";
+                document.getElementById("upRemoveCoverBtn").style.display = "none";
+            }
+            document.getElementById("upCoverInput").value = "";
+            document.getElementById("uploadModal").classList.add("open");
+            
+            
+            document.getElementById("folderUpload").value = ""; 
+        });
+
+        document.getElementById("editBtn")?.addEventListener("click", () => {
+            if(!collection.length) return;
+            const currentIdx = Math.round(currentScroll / scrollSensitivity);
+            const album = collection[currentIdx];
+            
+            
+            editMode = true;
+            pendingUploadData = {
+                ...album,
+                albumId: album.folder.replace("LOCAL://", "")
+            };
+            
+            document.getElementById("upAlbumName").value = album.name || "";
+            document.getElementById("upAlbumAuthor").value = album.author || "";
+            document.getElementById("upAlbumYear").value = album.year || "";
+            document.getElementById("upAlbumGenre").value = album.genre || "ROCK";
+            
+            let c = album.color || PALETTE_COLORS[0];
+            document.getElementById("upAlbumColor").value = c;
+            document.querySelectorAll("#paletteContainer > div").forEach(d => {
+                const bg = d.style.background;
+                const rbgColor = bg.startsWith("rgb") ? bg : c; // simplified match
+                d.style.borderColor = (d.style.background === c || d.style.backgroundColor === c) ? "#fff" : "transparent";
+            });
+            // basic fallback for palette border
+            const idx = PALETTE_COLORS.indexOf(c);
+            if(idx !== -1) {
+                 document.querySelectorAll("#paletteContainer > div").forEach((d, i) => d.style.borderColor = i === idx ? "#fff" : "transparent");
+            }
+            
+            if (album.cover || album.coverFile || pendingUploadData.customCoverFile) {
+                const src = pendingUploadData.customCoverFile ? URL.createObjectURL(pendingUploadData.customCoverFile) : 
+                            (album.coverFile ? URL.createObjectURL(album.coverFile) : album.cover);
+                document.getElementById("upCoverPreview").src = src;
+                document.getElementById("upRemoveCoverBtn").style.display = "flex";
+            } else {
+                document.getElementById("upCoverPreview").src = "";
+                document.getElementById("upRemoveCoverBtn").style.display = "none";
+            }
+            document.getElementById("upCoverInput").value = "";
+
+            document.getElementById("uploadModal").classList.add("open");
+        });
+
+        document.getElementById("deleteBtn")?.addEventListener("click", async () => {
+            if(!collection.length) return;
+            const currentIdx = Math.round(currentScroll / scrollSensitivity);
+            const album = collection[currentIdx];
+            
+            if(!confirm(`Are you sure you want to delete "${album.name}"?`)) return;
+            
+            try {
+                if (album.folder.startsWith("LOCAL://")) {
+                    const db = await getDB();
+                    const tx = db.transaction(IDB_STORE, "readwrite");
+                    const store = tx.objectStore(IDB_STORE);
+                    store.delete(album.folder);
+                    await new Promise((resolve) => {
+                        tx.oncomplete = resolve;
+                    });
+                } else {
+                    await fetch('/api/delete-album', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folder: album.folder })
+                    });
+                }
+                
+                await loadCollectionManifest();
+                filterCollection();
+                
+                const albumId = album.folder.replace("LOCAL://", "");
+                if((window.parent || window).__localUploadedFiles) {
+                    delete (window.parent || window).__localUploadedFiles[albumId];
+                }
+            } catch(e) {
+                console.error("Failed to delete", e);
+                alert("Failed to delete album.");
+            }
+        });
+
+        document.getElementById("upCancelBtn")?.addEventListener("click", () => {
+            document.getElementById("uploadModal").classList.remove("open");
+            pendingUploadData = null;
+            editMode = false;
+        });
+
+
+        
+        document.getElementById("upSaveBtn")?.addEventListener("click", async () => {
+            if(!pendingUploadData) return;
+            
+            const name = document.getElementById("upAlbumName").value.trim() || pendingUploadData.albumName || "Unknown Album";
+            const author = document.getElementById("upAlbumAuthor").value.trim() || pendingUploadData.author || "Unknown Artist";
+            const year = document.getElementById("upAlbumYear").value.trim();
+            const color = document.getElementById("upAlbumColor").value;
+            const genre = document.getElementById("upAlbumGenre").value;
+            
+            document.getElementById("uploadModal").classList.remove("open");
+            const progress = document.getElementById("uploadProgress");
+            progress.style.display = "block";
+            
+                        let p = 0;
+            const xhr = new XMLHttpRequest();
+            
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('author', author);
+            if (year) formData.append('year', year);
+            if (color) formData.append('color', color);
+            if (genre) formData.append('genre', genre);
+            
+            if (editMode && pendingUploadData.folder && !pendingUploadData.folder.startsWith("LOCAL://")) {
+                formData.append('existingFolder', pendingUploadData.folder);
+            }
+            
+            let hasCover = false;
+            if ('customCoverFile' in pendingUploadData && pendingUploadData.customCoverFile) {
+                formData.append('coverFile', pendingUploadData.customCoverFile);
+                hasCover = true;
+            } else if (pendingUploadData.coverFile) {
+                formData.append('coverFile', pendingUploadData.coverFile);
+                hasCover = true;
+            }
+            
+            if (editMode && !hasCover && !pendingUploadData.cover) {
+                 formData.append('clearCover', 'true');
+            }
+
+            if (pendingUploadData.audioFiles) {
+                for (const file of pendingUploadData.audioFiles) {
+                    formData.append('audioFiles', file);
+                }
+            }
+
+            const uploadPromise = new Promise((resolve, reject) => {
+                xhr.upload.addEventListener("progress", (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 99);
+                        progress.innerText = `uploading... ${percent}%`;
+                    }
+                });
+                
+                xhr.addEventListener("load", () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch(err) {
+                            reject(new Error("Invalid JSON response"));
+                        }
+                    } else {
+                        reject(new Error("Upload failed with status " + xhr.status));
+                    }
+                });
+                
+                xhr.addEventListener("error", () => reject(new Error("Network error")));
+                xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+                
+                xhr.open("POST", "/api/upload-album");
+                if (gDriveToken) xhr.setRequestHeader("Authorization", "Bearer " + gDriveToken);
+                xhr.send(formData);
+            });
+            
+            try {
+                const result = await uploadPromise;
+                
+                if (result.success) {
+                    
+                    progress.innerText = "success! 100%";
+                    setTimeout(() => { progress.style.display = "none"; }, 600);
+                    
+                    // Clear old IndexedDB override if it exists so backend takes precedence
+                    try {
+                       const db = await getDB();
+                       const tx = db.transaction(IDB_STORE, "readwrite");
+                       tx.objectStore(IDB_STORE).delete(result.album.folder);
+                       await new Promise(r => { tx.oncomplete = r; });
+                    } catch(e) {}
+                    
+                    // Reload everything from manifest
+                    await loadCollectionManifest();
+                    
+                    const collectionData = window.globalCollectionData || originalCollection;
+                    const loadedIndex = collectionData.findIndex(a => a.folder === result.album.folder);
+                    if (loadedIndex !== -1) {
+                         targetScroll = loadedIndex * scrollSensitivity;
+                    }
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (e) {
+                console.error("Upload failed", e);
+                
+                progress.innerText = "upload failed!";
+                setTimeout(() => { progress.style.display = "none"; }, 1500);
+            }
+            
+            document.getElementById("folderUpload").value = "";
+        });
+
+
+
+
+            // Genre pills logic
+            const genreBtns = document.querySelectorAll(".genre-pill");
+            genreBtns.forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    const genre = e.target.getAttribute("data-genre");
+                    if (!genre || genre === activeGenre) return;
+                    
+                    genreBtns.forEach(b => b.classList.remove("active"));
+                    e.target.classList.add("active");
+                    activeGenre = genre;
+                    
+                    filterCollection();
+                });
+            });
+
+            // Verify collection source before app init so archive is ready immediately.
+            try { localStorage.removeItem("vinyl_archive_albums_v1"); } catch(_) {}
+            await loadCollectionManifest();
+            if (!collection.length) {
+                console.warn("Collection empty, applying defaults");
+                applyCollectionData(DEFAULT_COLLECTION);
+            }
+            await ensureArchiveFontsReady();
+            refreshRecordLoadedState();
+            try {
+                const saved = Number(localStorage.getItem(PLAYING_INDEX_KEY));
+                if (Number.isFinite(saved) && saved >= 0 && saved < totalMeshes) playingIndex = saved;
+            } catch(_) {}
+            if (!hasLoadedRecord) {
+                playingIndex = -1;
+            }
+            // Always start archive from the first album.
+            resetArchiveToFirst();
+            warmGlobalAssetsOnce();
+            
+            console.log("Starting init with", totalMeshes, "albums", "groups:", groups.length, "collection:", collection.length);
+            init();
+        });
+        startArchiveBridgeFromState();
+        window.addEventListener("pageshow", () => {
+            // In standalone mode reset to first album; embedded mode is controlled by parent.
+            if (!EMBEDDED) resetArchiveToFirst();
+            refreshRecordLoadedState();
+            startArchiveBridgeFromState();
+        });
+        window.addEventListener("focus", () => {
+            // Avoid unexpected jump-to-first while already browsing embedded archive.
+            if (!EMBEDDED) resetArchiveToFirst();
+        });
+        window.addEventListener("message", (event) => {
+            const data = event?.data;
+            if (!data || data.type !== "archive-reset-first") return;
+            resetArchiveToFirst();
+        });
+        ["pointerdown","mousedown","touchstart","wheel","keydown"].forEach((evt)=>{
+            window.addEventListener(evt, ensureArchiveBridgePlayback, {passive:true});
+        });
+        document.addEventListener("visibilitychange", () => {
+            if(!document.hidden) ensureArchiveBridgePlayback();
+        });
+        archiveDeck.addEventListener("ended", () => {
+            if(!bgBridge.active) return;
+            const range = sideRangeForBridge(bgBridge.currentSide);
+            if(bgBridge.currentTrackIndex < range.end){
+                bgBridge.currentTrackIndex += 1;
+                setBridgeSourceByIndex(bgBridge.currentTrackIndex);
+                archiveDeck.currentTime = 0;
+                archiveDeck.play().catch(()=>{});
+                saveBridgePlaybackState(true);
+                return;
+            }
+            bgBridge.active = false;
+            saveBridgePlaybackState(false);
+        });
+        window.addEventListener("pagehide", () => {
+            try {
+                let openIndex = -1;
+                for (let i = 0; i < openStates.length; i++) {
+                    if (openStates[i]) { openIndex = i; break; }
+                }
+                localStorage.setItem(SCROLL_STATE_KEY, JSON.stringify({
+                    targetScroll,
+                    currentScroll,
+                    openIndex
+                }));
+            } catch(_) {}
+            if(bgBridge.active){
+                saveBridgePlaybackState(!archiveDeck.paused);
+            }
+        });
+    </script>
+</body>
+</html>
