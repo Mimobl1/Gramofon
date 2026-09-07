@@ -342,7 +342,7 @@
     }
     .record-shadow{position:absolute;left:50%;top:50%;width:95%;height:95%;transform:translate(-50%,-50%) translateX(var(--drop-x,0px)) scale(var(--lift-scale,1));transform-origin:center;border-radius:50%;pointer-events:none;z-index:2;background:radial-gradient(circle at center,rgba(0,0,0,.42) 0%,rgba(0,0,0,.34) 42%,rgba(0,0,0,.08) 64%,rgba(0,0,0,0) 74%);filter:blur(8px);opacity:var(--record-shadow-opacity,1);transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 420ms cubic-bezier(0.22, 1, 0.36, 1)}
     body.no-record .record-shadow{opacity:0;pointer-events:none}
-    .record-stage{position:absolute;inset:0;transform:perspective(1400px) translateX(var(--drop-x,0px)) rotate(var(--drop-rot,0deg)) scale(var(--lift-scale,1));transform-origin:center;transform-style:preserve-3d;backface-visibility:visible;transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);z-index:3;opacity:1;will-change:transform}
+    .record-stage{position:absolute;inset:0;transform:perspective(1400px) translateX(var(--drop-x,0px)) rotate(var(--drop-rot,0deg)) scale(var(--lift-scale,1)) rotateX(var(--flip-rot,0deg));transform-origin:center;transform-style:preserve-3d;backface-visibility:visible;transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);z-index:3;opacity:1;will-change:transform}
     body.no-record .record-stage{opacity:0;pointer-events:none}
     body.no-record .flip-nav-container{opacity:0;pointer-events:none}
     body.no-record .button-bank .skeuo-btn{opacity:.35;pointer-events:none}
@@ -1951,9 +1951,10 @@ console.log("applySelectedAlbumAndStart START", selected);
 
       const flipBtn=document.querySelector('.flip-nav-btn');
       const recordStage = $("recordStage");
-      const LIFT_UP_MS=460;
-      const HOLD_MS=120;
-      const LIFT_DOWN_MS=620;
+      const LIFT_UP_MS=400;
+      const FLIP_IN_MS=200;
+      const FLIP_OUT_MS=250;
+      const LIFT_DOWN_MS=850;
 
       flipBtn?.setAttribute('disabled','true');
 
@@ -1965,13 +1966,21 @@ console.log("applySelectedAlbumAndStart START", selected);
         document.body.classList.add('is-flipping');
         const prevStageTransition = recordStage ? recordStage.style.transition : "";
 
+        // 1. Lift up
         if (recordStage) {
-          recordStage.style.transition = `transform ${LIFT_UP_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+          recordStage.style.transition = `transform ${LIFT_UP_MS}ms ease-in`;
         }
         document.documentElement.style.setProperty('--lift-scale','1.28');
-        await sleep(LIFT_UP_MS);
+        await sleep(LIFT_UP_MS - 120);
 
-        // Clean baseline: no 3D rotate, only side swap while lifted.
+        // 2. Rotate to 90deg (ease-in)
+        if (recordStage) {
+          recordStage.style.transition = `transform ${FLIP_IN_MS}ms linear`;
+        }
+        document.documentElement.style.setProperty('--flip-rot','90deg');
+        await sleep(FLIP_IN_MS);
+
+        // 3. Swap side data instantly
         currentSide = currentSide === "A" ? "B" : "A";
         syncDisplay();
         ensureTrackIndexInCurrentSide();
@@ -1982,12 +1991,26 @@ console.log("applySelectedAlbumAndStart START", selected);
         dragRec = false;
         elapsedMs = 0;
         setTimer(getSideDuration());
-        await sleep(HOLD_MS);
+        
+        if (recordStage) {
+           recordStage.style.transition = 'none';
+        }
+        document.documentElement.style.setProperty('--flip-rot','-90deg');
+        void recordStage.offsetWidth; // force reflow
 
+        // 4. Rotate from -90deg to 0deg (ease-out)
+        if (recordStage) {
+          recordStage.style.transition = `transform ${FLIP_OUT_MS}ms linear`;
+        }
+        document.documentElement.style.setProperty('--flip-rot','0deg');
+        await sleep(FLIP_OUT_MS - 120);
+
+        // 5. Drop down
         if (recordStage) {
           recordStage.style.transition = `transform ${LIFT_DOWN_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
         }
         document.documentElement.style.setProperty('--lift-scale','1');
+        
         const handoffMs = Math.max(180, Math.floor(LIFT_DOWN_MS * 0.82));
         await sleep(handoffMs);
         document.body.classList.remove('is-flipping');
