@@ -98,7 +98,7 @@
       --grooves:none;
       --vin-noise:
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
-      --vin-noise-opacity:.35;
+      --vin-noise-opacity:.55;
       --vin-a:none;
       --shine:.4;
       --lab:#888;--lab-b:2px solid #111;--lab-t:#111;
@@ -457,6 +457,14 @@
     }
     .vinyl-label{width:33%;height:33%;background:#efe9d8;border-radius:50%;border:2px solid #252525;box-sizing:border-box;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 0 10px rgba(0,0,0,.5);opacity:1;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden;isolation:isolate;cursor:grab}
     .vinyl-label:active{cursor:grabbing}
+    body[data-theme="dark"] .vinyl-label {
+      opacity: 0.7 !important;
+      filter: brightness(0.6) saturate(0.6) !important;
+    }
+    body[data-theme="light"] .vinyl-label {
+      opacity: 1 !important;
+      filter: brightness(1.05) saturate(0.8) !important;
+    }
     .vinyl-label:before{content:"";position:absolute;inset:calc(4.8% - 1px);border-radius:50%;border:1.6px solid rgba(22,22,22,.88);pointer-events:none}
     .vinyl-label:after{content:"";position:absolute;inset:19%;border-radius:50%;border:1px solid rgba(22,22,22,.22);pointer-events:none}
     .label-standard{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
@@ -722,7 +730,7 @@
           </div>
 
           <div class="control-elements-stack">
-            <div class="digital-display on" id="displayArea">
+            <div class="digital-display" id="displayArea">
               <div class="flex flex-col justify-center">
                 <div class="text-[5px] opacity-40" id="nowPlayingLabel">Playing</div>
                 <div class="font-bold" id="sideDisplay">Side A</div>
@@ -731,8 +739,8 @@
                 <div class="font-bold" id="timer">00:00</div>
               </div>
             </div>
-            <div class="power-section on" id="powerArea">
-              <div class="toggle-switch on" id="powerToggle" onclick="togglePower()"><div class="toggle-handle"></div></div>
+            <div class="power-section" id="powerArea">
+              <div class="toggle-switch" id="powerToggle" onclick="togglePower()"><div class="toggle-handle"></div></div>
               <div class="flex items-center gap-2">
                 <span class="text-[7px] font-bold uppercase" id="powerText" style="color:var(--pt)">Power</span>
                 <div class="status-lamp" id="mainLamp"></div>
@@ -973,7 +981,7 @@
     setTheme(localStorage.getItem("nosac_theme")==="dark"?"dark":"light");
 
     const PLAYBACK_STATE_KEY = "vinyl_player_playback_state_v1";
-    let powered=true,playing=false,base=1,target=0,speed=0,rot=0;
+    let powered=false,playing=false,base=1,target=0,speed=0,rot=0;
     let currentSide="A";
     let currentAlbumName="";
     let playT=null;
@@ -1241,27 +1249,46 @@
 
     let currentAlbumFolder = "";
     
-    const setDeckSourceByIndex=(idx)=>{
-      let trackItem = albumTracks[idx];
-      if(!trackItem) return;
+    const setDeckSourceByIndex=async(idx)=>{
+      const trackName = albumTracks[idx];
+      if(!trackName) return;
       
-      let trackName = typeof trackItem === 'string' ? trackItem : trackItem.name;
       let fullPath = trackName;
       if (currentAlbumFolder && !trackName.startsWith(currentAlbumFolder)) {
           fullPath = currentAlbumFolder + "/" + trackName;
       }
       
       let absoluteUrl = "";
-      if (typeof trackItem === 'object' && trackItem.url) {
-          absoluteUrl = trackItem.url; // Use proxy URL if provided
-      } else if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
-          const albumId = currentAlbumFolder.replace("LOCAL://", "");
-          const localFiles = (window.parent && window.parent.__localUploadedFiles) ? window.parent.__localUploadedFiles[albumId] : null;
-          if (localFiles) {
-              const file = localFiles.find(f => f.name === trackName);
-              if (file) {
-                  absoluteUrl = URL.createObjectURL(file);
+      if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
+          try {
+              const albumId = currentAlbumFolder.replace("LOCAL://", "");
+              const db = await new Promise((resolve, reject) => {
+                  const req = indexedDB.open("VinylCollectionDB", 1);
+                  req.onupgradeneeded = (e) => {
+                      const db = e.target.result;
+                      if (!db.objectStoreNames.contains("albums")) {
+                          db.createObjectStore("albums", { keyPath: "id" });
+                      }
+                  };
+                  req.onsuccess = () => resolve(req.result);
+                  req.onerror = () => reject(req.error);
+              });
+              const tx = db.transaction("albums", "readonly");
+              const store = tx.objectStore("albums");
+              const album = await new Promise((resolve) => {
+                  const req = store.get(albumId);
+                  req.onsuccess = () => resolve(req.result);
+                  req.onerror = () => resolve(null);
+              });
+              if (album && album.files) { console.log("Found album in DB:", albumId);
+                  const file = album.files.find(f => f.name === trackName);
+                  if (file) {
+                      const blob = new Blob([file.data], { type: file.type || "audio/mpeg" });
+                      absoluteUrl = URL.createObjectURL(blob);
+                  }
               }
+          } catch(err) {
+              console.error("IndexedDB error:", err);
           }
       }
       
@@ -1272,7 +1299,6 @@
       if(deckAudio.src !== absoluteUrl){
         console.log("Setting deck source to:", absoluteUrl);
         deckAudio.src = absoluteUrl;
-        deckAudio.load();
       }
     };
 
@@ -1308,36 +1334,60 @@
 
     const loadSideDurationsFromMetadata=async()=>{
       
-      const readDuration=(src)=>new Promise((resolve)=>{
-        const a=new Audio();
-        a.preload="metadata";
-        let absoluteUrl = "";
-        
-        if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
-            const albumId = currentAlbumFolder.replace("LOCAL://", "");
-            const localFiles = (window.parent && window.__localUploadedFiles) ? window.__localUploadedFiles[albumId] : null;
-            if (localFiles) {
-                const file = localFiles.find(f => f.name === src);
-                if (file) {
-                    absoluteUrl = URL.createObjectURL(file);
+      const readDuration=async(src)=>{
+        return new Promise(async(resolve)=>{
+            const a=new Audio();
+            a.preload="metadata";
+            let absoluteUrl = "";
+            
+            if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
+                const albumId = currentAlbumFolder.replace("LOCAL://", "");
+                try {
+                    const db = await new Promise((res, rej) => {
+                        const req = indexedDB.open("VinylCollectionDB", 1);
+                        req.onupgradeneeded = (e) => {
+                            const db = e.target.result;
+                            if (!db.objectStoreNames.contains("albums")) {
+                                db.createObjectStore("albums", { keyPath: "id" });
+                            }
+                        };
+                        req.onsuccess = () => res(req.result);
+                        req.onerror = () => rej(req.error);
+                    });
+                    const tx = db.transaction("albums", "readonly");
+                    const store = tx.objectStore("albums");
+                    const album = await new Promise((res) => {
+                        const req = store.get(albumId);
+                        req.onsuccess = () => res(req.result);
+                        req.onerror = () => res(null);
+                    });
+                    if (album && album.files) {
+                        const file = album.files.find(f => f.name === src);
+                        console.log("readDuration finding file", src, !!file);
+                        if (file) {
+                            const blob = new Blob([file.data], { type: file.type || "audio/mpeg" });
+                            absoluteUrl = URL.createObjectURL(blob);
+                            console.log("Created blob url:", absoluteUrl);
+                        }
+                    }
+                } catch(e) {}
+            }
+            
+            if (!absoluteUrl) {
+                let fullPath = src;
+                if (currentAlbumFolder && !src.startsWith(currentAlbumFolder)) {
+                    fullPath = currentAlbumFolder + "/" + src;
                 }
+                absoluteUrl = encodeURI(fullPath);
             }
-        }
-        
-        if (!absoluteUrl) {
-            let fullPath = src;
-            if (currentAlbumFolder && !src.startsWith(currentAlbumFolder)) {
-                fullPath = currentAlbumFolder + "/" + src;
-            }
-            absoluteUrl = encodeURI(fullPath);
-        }
-        
-        a.src=absoluteUrl;
-        const done=(value)=>resolve(Number.isFinite(value)&&value>0?value:180);
-        a.addEventListener("loadedmetadata",()=>done(a.duration),{once:true});
-        a.addEventListener("error",()=>done(180),{once:true});
-        setTimeout(()=>done(180),2500);
-      });
+            
+            a.src=absoluteUrl;
+            const done=(value)=>resolve(Number.isFinite(value)&&value>0?value:180);
+            a.addEventListener("loadedmetadata",()=>done(a.duration),{once:true});
+            a.addEventListener("error",()=>done(180),{once:true});
+            setTimeout(()=>done(180),2500);
+        });
+      };
 
       const durations=await Promise.all(albumTracks.map(readDuration));
       trackDurationsSec = durations.map((d)=>Math.round(d));
@@ -1353,8 +1403,15 @@
 
     const playDeckTrack=async()=>{
       ensureTrackIndexInCurrentSide();
-      setDeckSourceByIndex(currentTrackIndex);
-      try { await deckAudio.play(); } catch(_) {}
+      await setDeckSourceByIndex(currentTrackIndex);
+      try { 
+  const p = deckAudio.play();
+  if (p !== undefined) {
+    p.then(() => console.log("deckAudio is playing!")).catch(e => console.error("deckAudio play failed", e));
+  }
+} catch(e) { 
+  console.error("deckAudio play failed sync", e); 
+}
     };
 
     const pauseDeckTrack=()=>{ try { deckAudio.pause(); } catch(_) {} };
@@ -1371,15 +1428,14 @@
       await playDeckTrack();
     };
 
-    const stopDeckTrack=()=>{
+    const stopDeckTrack=async()=>{
       playStartToken += 1;
       stopStartCue();
       applyDeckVolume(targetVolume);
       try { deckAudio.pause(); } catch(_) {}
       try { deckAudio.currentTime = 0; } catch(_) {}
       ensureTrackIndexInCurrentSide();
-      setDeckSourceByIndex(currentTrackIndex);
-    };
+      };
 
     const nextDeckTrackInSide=()=>{
       const range=getSideRange(currentSide);
@@ -1390,7 +1446,7 @@
       return false;
     };
 
-    const syncTrackFromElapsed=()=>{
+    const syncTrackFromElapsed=async()=>{
       if(!albumTracks.length) return;
       const sideTracks = currentSide === "A" ? tracksBySide.A : tracksBySide.B;
       const sideStart = currentSide === "A" ? 0 : tracksBySide.A.length;
@@ -1400,38 +1456,14 @@
         const dur = Number(trackDurationsSec[globalIdx] || 180);
         if(remain <= dur || i === sideTracks.length - 1){
           currentTrackIndex = globalIdx;
-          setDeckSourceByIndex(currentTrackIndex);
-          const seekTo = Math.max(0, Math.min(dur - 0.05, remain));
-          deckAudio._pendingSeek = seekTo;
-          
-          const applySeek = () => {
-             try { 
-                 if (deckAudio._pendingSeek !== undefined) {
-                     deckAudio.currentTime = deckAudio._pendingSeek;
-                     deckAudio._pendingSeek = undefined;
-                 }
-             } catch(e) { console.error("Seek error", e); }
-          };
-          
-          if (deckAudio.readyState >= 1) {
-              applySeek();
-          } else {
-              if(!deckAudio._hasMetaSeek) {
-                  deckAudio._hasMetaSeek = true;
-                  const onMeta = () => {
-                      deckAudio._hasMetaSeek = false;
-                      applySeek();
-                      deckAudio.removeEventListener("loadedmetadata", onMeta);
-                  };
-                  deckAudio.addEventListener("loadedmetadata", onMeta);
-              }
-          }
+          await setDeckSourceByIndex(currentTrackIndex);
+          try { deckAudio.currentTime = Math.max(0, Math.min(dur - 0.05, remain)); } catch(_) {}
           return;
         }
         remain -= dur;
       }
     };
-    
+
     const setTimer=(sec)=>{
       timer.textContent=fmtTime(sec);
     };
@@ -1501,30 +1533,6 @@
         await playDeckTrack();
       } else {
         handlePress(null,"stop");
-      }
-    });
-    
-    deckAudio.addEventListener("timeupdate", () => {
-      if(playing && !dragRec && !dragArm && !leadInNoiseActive && deckAudio.duration) {
-          const sideTracks = currentSide === "A" ? tracksBySide.A : tracksBySide.B;
-          const sideStart = currentSide === "A" ? 0 : tracksBySide.A.length;
-          
-          let playedInSide = 0;
-          for(let i=0; i<sideTracks.length; i++){
-              const globalIdx = sideStart + i;
-              if (globalIdx < currentTrackIndex) {
-                  playedInSide += (trackDurationsSec[globalIdx] || 180);
-              }
-          }
-          
-          const audioCurrentTime = deckAudio.currentTime || 0;
-          const newElapsedMs = (playedInSide + audioCurrentTime) * 1000;
-          
-          if (deckAudio._pendingSeek === undefined) {
-              if (Math.abs(elapsedMs - newElapsedMs) > 1000) {
-                  elapsedMs = newElapsedMs;
-              }
-          }
       }
     });
 
@@ -1608,7 +1616,7 @@
       currentSide = state.currentSide === "B" ? "B" : "A";
       currentAlbumName = typeof state.albumName === "string" ? state.albumName : "";
       base = typeof state.base === "number" ? state.base : 1;
-      powered = state.powered !== false;
+      powered = !!state.powered;
       rot = typeof state.rot === "number" ? state.rot : 0;
       if(state.sideDurations && typeof state.sideDurations === "object"){
         sideDurations = {
@@ -1652,7 +1660,7 @@
       return true;
     }
 
-    function applyAlbumFromQuery(selectedOverride = null) {
+    async function applyAlbumFromQuery(selectedOverride = null) {
       let selectedFromStorage = selectedOverride;
       if(!selectedFromStorage){
         try {
@@ -1683,18 +1691,12 @@
       if (labelMeta) labelMeta.innerHTML = "DESIGN PORTFOLIO<br/>MILAN SAMARDZIC";
       if (sidebarTitle) sidebarTitle.textContent = name;
       if (sidebarArtist) sidebarArtist.textContent = author || "Unknown Artist";
-      if (sidebarMeta) {
-        const metaParts = [];
-        if (selectedOverride && selectedOverride.year) metaParts.push(selectedOverride.year);
-        else if (selectedFromStorage && selectedFromStorage.year) metaParts.push(selectedFromStorage.year);
-        
-        if (duration) metaParts.push(`Length: ${duration}`);
-        sidebarMeta.textContent = metaParts.join(" • ");
-      }
+      if (sidebarMeta) sidebarMeta.textContent = duration ? `Length: ${duration}` : "";
       if (vinylLabel && isHexColor(color)) {
         const isLightTheme = document.body?.dataset?.theme === "light";
-        const mutedLabel = desaturateAndToneHex(color, 0.58, isLightTheme ? 0.08 : 0.04) || color;
-        vinylLabel.style.background = mutedLabel;
+        let mutedLabel = color;
+        // Let CSS handle the theme-based opacity and filtering
+        vinylLabel.style.background = color;
       }
       const folder = (selectedOverride?.folder || params.get("folder") || selectedFromStorage?.folder || "");
       currentAlbumFolder = folder;
@@ -1704,8 +1706,8 @@
       if(albumTracks.length){
         splitAlbumSides(albumTracks);
         currentTrackIndex = 0;
-        setDeckSourceByIndex(currentTrackIndex);
-        loadSideDurationsFromMetadata().catch(()=>{});
+        await setDeckSourceByIndex(currentTrackIndex);
+        loadSideDurationsFromMetadata().catch(e => console.error("loadSideDurationsFromMetadata error", e));
       } else {
         tracksBySide={A:[],B:[]};
         renderSidebarTrackLists();
@@ -1716,6 +1718,7 @@
     }
 
     async function applySelectedAlbumAndStart(selected){
+console.log("applySelectedAlbumAndStart START", selected);
       if(!selected || !selected.name) return;
       try { localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selected)); } catch(_) {}
       // Reset transport button visual state when switching albums.
@@ -1736,9 +1739,9 @@
       elapsedMs = 0;
       rot = 0;
       setRecordRotation(0);
-      applyAlbumFromQuery(selected);
+      await applyAlbumFromQuery(selected);
       ensureTrackIndexInCurrentSide();
-      setDeckSourceByIndex(currentTrackIndex);
+      await setDeckSourceByIndex(currentTrackIndex);
       syncDisplay();
       if(sidebarScrollEl) {
         sidebarScrollEl.scrollTop = 0;
@@ -1747,7 +1750,7 @@
       setTimer(getSideDuration());
       updatePowerUi();
       document.body.classList.remove("no-record");
-      await runDropInAnimation();
+      console.log("Before runDropInAnimation"); await runDropInAnimation(); console.log("After runDropInAnimation");
       if(powered){
         handlePress($("playBtn"), "play");
       } else {
@@ -1768,7 +1771,7 @@
     }
 
     async function runDropInAnimation() {
-      
+      try { sleeveSound.currentTime = 0; sleeveSound.play().catch(()=>{}); } catch (_) {}
       const recordStage = $("recordStage");
       const recordEl = $("vinylRecord");
       const ENTRY_TO_CENTER_MS = 1480;
@@ -1831,7 +1834,7 @@
       syncVinylNoise();
     }
 
-    function handlePress(btn,type,opts={}){
+    async function handlePress(btn,type,opts={}){
       if(!btn){
         if(type === "play") btn = $("playBtn");
         else if(type === "pause") btn = $("pauseBtn");
@@ -1872,8 +1875,8 @@
         stopStartCue();
         // Continue from current cue position (arm seek), do not auto-reset.
         ensureTrackIndexInCurrentSide();
-        setDeckSourceByIndex(currentTrackIndex);
-        syncTrackFromElapsed();
+        await setDeckSourceByIndex(currentTrackIndex);
+        await syncTrackFromElapsed();
         playing=false;
         const sideDurSec = Math.max(0, getSideDuration() - Math.floor(elapsedMs/1000));
         setTimer(sideDurSec);
@@ -1972,7 +1975,7 @@
         currentSide = currentSide === "A" ? "B" : "A";
         syncDisplay();
         ensureTrackIndexInCurrentSide();
-        setDeckSourceByIndex(currentTrackIndex);
+        await setDeckSourceByIndex(currentTrackIndex);
         speed = 0;
         target = 0;
         scratch = 0;
@@ -2081,7 +2084,7 @@
       setTimer(Math.max(0, getSideDuration()-Math.floor(elapsedMs/1000)));
       setTonearmFromElapsed(false);
       syncTrackFromElapsed();
-      
+      try { deckAudio.currentTime = Math.max(0, Number(deckAudio.currentTime || 0)); } catch(_) {}
     };
     window.addEventListener("mousemove",onMove);
     window.addEventListener("touchmove",onMove,{passive:false});
@@ -2185,7 +2188,7 @@
         const accel = 0.035;
         speed += (target - speed) * accel;
         if(Math.abs(speed) > 0.0005){
-          rot += speed * 3.9;
+          rot += speed * 2.05;
           setRecordRotation(rot);
         }
       }
@@ -2272,6 +2275,19 @@
       savePlaybackState();
       saveSidebarState();
     });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (playing) {
+          handlePress(null, 'pause');
+        } else {
+          handlePress(null, 'play');
+        }
+      }
+    });
+
   </script>
 </body>
 </html>
