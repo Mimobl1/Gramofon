@@ -495,6 +495,27 @@
             </div>
         </div>
     </div>
+    <!-- Login Modal -->
+    <div class="edit-modal-overlay" id="loginModalOverlay" style="z-index: 3500;">
+        <div class="edit-modal" style="max-width: 360px;">
+            <h2 style="margin-top: 0; margin-bottom: 8px;">Prijava Naloga</h2>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-bottom: 16px;">
+                Za uređivanje, upload i brisanje albuma potrebna je prijava sa nalogom <strong>mimasplash@gmail.com</strong>.
+            </p>
+            <label style="margin-bottom: 12px; display: block; font-size: 13px; color: #aaa;">
+                E-mail adresa
+                <input type="email" id="loginEmailInput" value="mimasplash@gmail.com" readonly style="width: 100%; padding: 10px; margin-top: 4px; background: #222; border: 1px solid #444; border-radius: 6px; color: #fff; cursor: not-allowed; box-sizing: border-box;">
+            </label>
+            <label style="margin-bottom: 20px; display: block; font-size: 13px; color: #aaa;">
+                Lozinka / PIN
+                <input type="password" id="loginPasswordInput" placeholder="Unesite lozinku..." value="mima2026" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+            </label>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="edit-modal-btn cancel" id="loginCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Odustani</button>
+                <button class="edit-modal-btn save" id="loginSubmitBtn" style="padding: 10px 18px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Prijavi se</button>
+            </div>
+        </div>
+    </div>
     <div class="edit-modal-overlay" id="editModalOverlay">
         <div class="edit-modal">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -2245,12 +2266,9 @@
             await ensureArchiveFontsReady();
             refreshRecordLoadedState();
             try {
-                const savedUid = localStorage.getItem(PLAYING_UID_KEY);
-                if (savedUid) {
-                    const idx = collection.findIndex(a => a._uid === savedUid);
-                    if (idx >= 0) playingIndex = idx;
-                }
+                localStorage.removeItem(PLAYING_UID_KEY);
             } catch(_) {}
+            playingIndex = -1;
             if (!hasLoadedRecord) {
                 playingIndex = -1;
             }
@@ -2368,15 +2386,45 @@
             };
         });
 
+        let pendingAction = null;
+        function checkAuthAndRun(action) {
+            const loggedUser = localStorage.getItem('vinyl_logged_user');
+            if (loggedUser === 'mimasplash@gmail.com') {
+                action();
+            } else {
+                pendingAction = action;
+                document.getElementById('loginModalOverlay').classList.add('active');
+            }
+        }
+
+        document.getElementById('loginSubmitBtn')?.addEventListener('click', () => {
+            localStorage.setItem('vinyl_logged_user', 'mimasplash@gmail.com');
+            document.getElementById('loginModalOverlay').classList.remove('active');
+            if (pendingAction) {
+                const act = pendingAction;
+                pendingAction = null;
+                act();
+            }
+        });
+
+        document.getElementById('loginCancelBtn')?.addEventListener('click', () => {
+            pendingAction = null;
+            document.getElementById('loginModalOverlay').classList.remove('active');
+        });
+
+
+
         const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
         if (deleteAlbumBtn) {
             deleteAlbumBtn.addEventListener('click', () => {
-                let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
-                if (targetIdx >= 0 && targetIdx < collection.length) {
-                    lastIndex = targetIdx; // set it so confirmOkBtn uses the right one
-                    const customConfirmOverlay = document.getElementById("customConfirmOverlay");
-                    if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
-                }
+                checkAuthAndRun(() => {
+                    let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
+                    if (targetIdx >= 0 && targetIdx < collection.length) {
+                        lastIndex = targetIdx; // set it so confirmOkBtn uses the right one
+                        const customConfirmOverlay = document.getElementById("customConfirmOverlay");
+                        if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
+                    }
+                });
             });
         }
 
@@ -2384,7 +2432,9 @@
         const uploadAlbumInput = document.getElementById('uploadAlbumInput');
         if (uploadAlbumBtn && uploadAlbumInput) {
             uploadAlbumBtn.addEventListener('click', () => {
-                uploadAlbumInput.click();
+                checkAuthAndRun(() => {
+                    uploadAlbumInput.click();
+                });
             });
 
             uploadAlbumInput.addEventListener('change', async (e) => {
@@ -2547,36 +2597,38 @@
         }
 
         editAlbumBtn.addEventListener("click", () => {
-            if (lastIndex >= 0 && lastIndex < collection.length) {
-                const item = collection[lastIndex];
-                editAlbumName.value = item.name || "";
-                editAlbumAuthor.value = item.author || "";
-                editAlbumGenre.value = item.genre || "";
-                editAlbumYear.value = item.year || "";
-                const initColor = (item.color && item.color.startsWith('#') && item.color.length === 7) ? item.color : "#1a1a1a";
-                editAlbumColor.value = initColor;
+            checkAuthAndRun(() => {
+                if (lastIndex >= 0 && lastIndex < collection.length) {
+                    const item = collection[lastIndex];
+                    editAlbumName.value = item.name || "";
+                    editAlbumAuthor.value = item.author || "";
+                    editAlbumGenre.value = item.genre || "";
+                    editAlbumYear.value = item.year || "";
+                    const initColor = (item.color && item.color.startsWith('#') && item.color.length === 7) ? item.color : "#1a1a1a";
+                    editAlbumColor.value = initColor;
 
-                editAlbumColorSwatch.style.backgroundColor = initColor;
-                updateCustomCp(initColor);
-                
-                const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
-                const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
-                const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
-                const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
-                
-                if (item.customCover) {
-                    customCoverPreviewContainer.style.display = "block";
-                    customCoverPreview.src = item.customCover;
-                    customCoverBtn.style.display = "none";
-                } else {
-                    customCoverPreviewContainer.style.display = "none";
-                    customCoverPreview.src = "";
-                    customCoverBtn.style.display = "block";
+                    editAlbumColorSwatch.style.backgroundColor = initColor;
+                    updateCustomCp(initColor);
+                    
+                    const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
+                    const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
+                    const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
+                    const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
+                    
+                    if (item.customCover) {
+                        customCoverPreviewContainer.style.display = "block";
+                        customCoverPreview.src = item.customCover;
+                        customCoverBtn.style.display = "none";
+                    } else {
+                        customCoverPreviewContainer.style.display = "none";
+                        customCoverPreview.src = "";
+                        customCoverBtn.style.display = "block";
+                    }
+                    customCoverToggle.checked = item.useCustomCover !== false;
+
+                    editModalOverlay.classList.add("active");
                 }
-                customCoverToggle.checked = item.useCustomCover !== false;
-
-                editModalOverlay.classList.add("active");
-            }
+            });
         });
 
         const syncColorToPreview = () => {
