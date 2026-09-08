@@ -1766,10 +1766,7 @@
             if (idx !== currentFocusIdx) {
                 targetScroll = idx * scrollSensitivity;
                 openStates.fill(false);
-                // Open immediately on first click while camera settles.
-                openStates[idx] = true;
-                pendingOpenIndex = -1;
-                playSleeve();
+                pendingOpenIndex = idx; // Otvori omot tek kad kamera stigne do njega!
             } else {
                 const targetState = !openStates[idx];
                 openStates.fill(false);
@@ -2070,13 +2067,14 @@
                 }
             }
             
-            currentScroll += (targetScroll - currentScroll) * 0.08; 
+            currentScroll += (targetScroll - currentScroll) * 0.14; 
             const scrollProgress = currentScroll / scrollSensitivity; 
 
             if (pendingOpenIndex !== -1) {
                 const distToTarget = Math.abs(pendingOpenIndex - scrollProgress);
-                if (distToTarget < 0.25) { 
+                if (distToTarget < 0.35) { 
                     openStates[pendingOpenIndex] = true;
+                    playSleeve();
                     pendingOpenIndex = -1;
                 }
             }
@@ -2122,7 +2120,7 @@
                 
                 const isLaunching = i === launchIndex;
                 const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
-                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.045;
+                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.12;
                 group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
                 if (isLaunching) {
                     group.userData.openProgress = 1;
@@ -2151,6 +2149,8 @@
                 const openVal = group.userData.openAmount;
                 cover.position.x = openVal * -1.2; 
                 const launchEase = isLaunching ? easeInCubic(launchProgress) : 0;
+                // Ploča kreće da izlazi znatno ranije (skoro odmah po otvaranju omota) i izlazi sporo i lagano
+                const diskSlideVal = Math.max(0, Math.min(1, (openVal - 0.03) * 0.9));
                 if (isLaunching) {
                     group.userData.tiltX = 0;
                     cover.position.x = -1.2;
@@ -2159,8 +2159,8 @@
                     disk.rotation.z = 0;
                     disk.rotation.x = Math.PI / 2;
                 } else {
-                    disk.position.x = openVal * 1.8;
-                    disk.rotation.y = openVal * -2.2;
+                    disk.position.x = diskSlideVal * 1.8;
+                    disk.rotation.y = diskSlideVal * -2.2;
                     disk.rotation.z = 0;
                     disk.rotation.x = (Math.PI / 2) + group.userData.tiltX * 0.5;
                 }
