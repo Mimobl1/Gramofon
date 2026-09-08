@@ -1779,6 +1779,12 @@
         function startLaunchToPlayer(idx, url, selectedPayload = null) {
             if (launchIndex !== -1) return;
             
+            try {
+                if (window.parent && typeof window.parent.unlockAudios === 'function') {
+                    window.parent.unlockAudios();
+                }
+            } catch (_) {}
+
             bgBridge.active = false;
             try { archiveDeck.pause(); } catch(_) {}
             launchIndex = idx;
@@ -2120,7 +2126,7 @@
                 
                 const isLaunching = i === launchIndex;
                 const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
-                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.12;
+                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.04;
                 group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
                 if (isLaunching) {
                     group.userData.openProgress = 1;
@@ -2278,6 +2284,7 @@
             
             console.log("Starting init with", totalMeshes, "albums");
             init();
+            window.focus();
         });
         startArchiveBridgeFromState();
         window.addEventListener("pageshow", () => {
@@ -2292,8 +2299,15 @@
         });
         window.addEventListener("message", (event) => {
             const data = event?.data;
-            if (!data || data.type !== "archive-reset-first") return;
-            resetArchiveToFirst();
+            if (!data) return;
+            if (data.type === "archive-reset-first") {
+                resetArchiveToFirst();
+                window.focus();
+            }
+            if (data.type === "archive-focus") {
+                window.focus();
+                document.body.focus();
+            }
         });
         ["pointerdown","mousedown","touchstart","wheel","keydown"].forEach((evt)=>{
             window.addEventListener(evt, ensureArchiveBridgePlayback, {passive:true});
@@ -2943,16 +2957,58 @@
                 return;
             }
 
-            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            if (e.key === "ArrowDown") {
                 targetScroll += scrollSensitivity;
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 openStates.fill(false);
                 pendingOpenIndex = -1;
-            } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+            } else if (e.key === "ArrowUp") {
                 targetScroll -= scrollSensitivity;
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 openStates.fill(false);
                 pendingOpenIndex = -1;
+            } else if (e.key === "ArrowRight") {
+                const currentIdx = Math.round(currentScroll / scrollSensitivity);
+                const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                if (!openStates[clampedIdx]) {
+                    openStates.fill(false);
+                    openStates[clampedIdx] = true;
+                    playSleeve();
+                }
+            } else if (e.key === "ArrowLeft") {
+                const currentIdx = Math.round(currentScroll / scrollSensitivity);
+                const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                if (openStates[clampedIdx]) {
+                    openStates[clampedIdx] = false;
+                }
+            } else if (e.key === "Enter") {
+                const currentIdx = Math.round(currentScroll / scrollSensitivity);
+                const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                if (clampedIdx >= 0 && clampedIdx < collection.length) {
+                    try { localStorage.setItem("vinyl_record_loaded_v1", "1"); } catch(_) {}
+                    const selected = collection[clampedIdx];
+                    if (selected) {
+                        const selectedPayload = { ...selected };
+                        try {
+                            localStorage.setItem("vinyl_selected_album_v1", JSON.stringify(selectedPayload));
+                        } catch(_) {}
+                        const q = new URLSearchParams({
+                            album: selected.name,
+                            name: selected.name,
+                            author: selected.author || "",
+                            color: selected.color || "",
+                            duration: selected.duration || "",
+                            folder: selected.folder || ""
+                        });
+                        if (typeof startLaunchToPlayer === "function") {
+                            startLaunchToPlayer(clampedIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+                        }
+                    }
+                }
+            } else if (e.key === "2") {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: "archive-close" }, "*");
+                }
             }
         });
 
@@ -3130,6 +3186,7 @@
                 saveBridgePlaybackState(!archiveDeck.paused);
             }
         });
+
     </script>
 <script>
     // Reset script to wipe defaults requested by user
