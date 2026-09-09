@@ -500,15 +500,15 @@
         <div class="edit-modal" style="max-width: 360px;">
             <h2 style="margin-top: 0; margin-bottom: 8px;">Prijava Naloga</h2>
             <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-bottom: 16px;">
-                Za uređivanje, upload i brisanje albuma potrebna je prijava sa nalogom <strong>mimasplash@gmail.com</strong>.
+                Za uređivanje, upload i brisanje albuma potrebna je prijava.
             </p>
             <label style="margin-bottom: 12px; display: block; font-size: 13px; color: #aaa;">
                 E-mail adresa
-                <input type="email" id="loginEmailInput" value="mimasplash@gmail.com" readonly style="width: 100%; padding: 10px; margin-top: 4px; background: #222; border: 1px solid #444; border-radius: 6px; color: #fff; cursor: not-allowed; box-sizing: border-box;">
+                <input type="email" id="loginEmailInput" placeholder="unesite@email.com" value="" style="width: 100%; padding: 10px; margin-top: 4px; background: #222; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
             </label>
             <label style="margin-bottom: 20px; display: block; font-size: 13px; color: #aaa;">
                 Lozinka / PIN
-                <input type="password" id="loginPasswordInput" placeholder="Unesite lozinku..." value="mima2026" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+                <input type="password" id="loginPasswordInput" placeholder="Unesite lozinku..." value="" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
             </label>
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
                 <button class="edit-modal-btn cancel" id="loginCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Odustani</button>
@@ -1347,17 +1347,19 @@
 
         function generateArchiveBackgroundTexture() {
             const canvas = document.createElement("canvas");
-            canvas.width = 2048;
-            canvas.height = 2048;
+            canvas.width = 1024;
+            canvas.height = 1024;
             const ctx = canvas.getContext("2d");
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
             const r = Math.min(canvas.width, canvas.height) / 2;
             const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            grad.addColorStop(0, "#000");
-            grad.addColorStop(1, "#020202");
+            grad.addColorStop(0, "#030303");
+            grad.addColorStop(0.5, "#010101");
+            grad.addColorStop(1, "#000000");
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.minFilter = THREE.LinearFilter;
             texture.magFilter = THREE.LinearFilter;
@@ -1365,7 +1367,7 @@
             return texture;
         }
 
-        function generateCoverTexture(item, size = 512) {
+        function generateCoverTexture(item, size = 1024) {
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
             canvas.width = size;
@@ -1601,7 +1603,7 @@
             return texture;
         }
 
-        function generateArchiveLabelTexture(item, side = "A", size = 512) {
+        function generateArchiveLabelTexture(item, side = "A", size = 1024) {
             const toHex = (value) => {
                 if (typeof value !== "string") return null;
                 const v = value.trim();
@@ -1758,10 +1760,6 @@
         function handleInteractionAtIndex(idx) {
             if (!totalMeshes || launchIndex !== -1) return;
             if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
-            if (isPlayingLockedIndex(idx)) {
-                openStates[idx] = false;
-                return;
-            }
             const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
             if (idx !== currentFocusIdx) {
                 targetScroll = idx * scrollSensitivity;
@@ -1779,12 +1777,6 @@
         function startLaunchToPlayer(idx, url, selectedPayload = null) {
             if (launchIndex !== -1) return;
             
-            try {
-                if (window.parent && typeof window.parent.unlockAudios === 'function') {
-                    window.parent.unlockAudios();
-                }
-            } catch (_) {}
-
             bgBridge.active = false;
             try { archiveDeck.pause(); } catch(_) {}
             launchIndex = idx;
@@ -1943,7 +1935,7 @@
                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                const foundIdx = pickAlbumIndexAtPointer();
                interactiveIndex = foundIdx;
-               isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+               isHovered = foundIdx !== -1;
                handleInteractionAtIndex(foundIdx);
             });
 
@@ -1986,7 +1978,7 @@
                     // Direct pick at current touch position (no stale hover state).
                     const foundIdx = pickAlbumIndexAtPointer();
                     interactiveIndex = foundIdx;
-                    isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+                    isHovered = foundIdx !== -1;
                     handleInteractionAtIndex(foundIdx);
                 }
             });
@@ -2105,7 +2097,7 @@
             }
 
             interactiveIndex = foundIdx;
-            isHovered = foundIdx !== -1 && !isPlayingLockedIndex(foundIdx);
+            isHovered = foundIdx !== -1;
             document.body.style.cursor = isHovered ? 'pointer' : 'default';
 
             const displayIdx = totalMeshes ? Math.max(0, Math.min(totalMeshes - 1, Math.round(scrollProgress))) : 0;
@@ -2126,7 +2118,7 @@
                 
                 const isLaunching = i === launchIndex;
                 const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
-                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.04;
+                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.075;
                 group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
                 if (isLaunching) {
                     group.userData.openProgress = 1;
@@ -2403,7 +2395,7 @@
         let pendingAction = null;
         function checkAuthAndRun(action) {
             const loggedUser = localStorage.getItem('vinyl_logged_user');
-            if (loggedUser === 'mimasplash@gmail.com') {
+            if (loggedUser) {
                 action();
             } else {
                 pendingAction = action;
@@ -2412,7 +2404,9 @@
         }
 
         document.getElementById('loginSubmitBtn')?.addEventListener('click', () => {
-            localStorage.setItem('vinyl_logged_user', 'mimasplash@gmail.com');
+            const emailInput = document.getElementById('loginEmailInput');
+            const userVal = emailInput ? emailInput.value.trim() : '';
+            localStorage.setItem('vinyl_logged_user', userVal || 'korisnik@example.com');
             document.getElementById('loginModalOverlay').classList.remove('active');
             if (pendingAction) {
                 const act = pendingAction;

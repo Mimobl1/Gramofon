@@ -787,11 +787,6 @@
   <script>
     "use strict";
 
-    function sleep(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-    let playStartToken = 0;
-
     const $ = (id) => document.getElementById(id);
     const overlayImage = $("vinylOverlayImage");
     const SELECTED_ALBUM_KEY = "vinyl_selected_album_v1";
@@ -908,32 +903,29 @@
       e?.preventDefault();
       if(archiveTransitioning) return;
       archiveTransitioning = true;
-      try {
-        savePlaybackState();
-        const overlay = $("flipOverlay");
-        if(overlay){
-          overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
-          overlay.classList.add("on");
-          await sleep(260);
-        }
-        await ensureArchiveFrameReady();
-        archiveLayer?.classList.add("open");
-        archiveLayer?.setAttribute("aria-hidden","false");
-        notifyArchiveResetFirst();
-        if(overlay){
-          overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
-          overlay.classList.remove("on");
-          await sleep(220);
-          overlay.style.transition = "";
-        }
-      } finally {
-        archiveTransitioning = false;
-        try {
-          archiveFrame?.focus();
-          archiveFrame?.contentWindow?.focus();
-          archiveFrame?.contentWindow?.postMessage({ type: "archive-focus" }, "*");
-        } catch(_) {}
+      savePlaybackState();
+      const overlay = $("flipOverlay");
+      if(overlay){
+        overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
+        overlay.classList.add("on");
+        await sleep(260);
       }
+      await ensureArchiveFrameReady();
+      archiveLayer?.classList.add("open");
+      archiveLayer?.setAttribute("aria-hidden","false");
+      notifyArchiveResetFirst();
+      if(overlay){
+        overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
+        overlay.classList.remove("on");
+        await sleep(220);
+        overlay.style.transition = "";
+      }
+      archiveTransitioning = false;
+      try {
+        archiveFrame?.focus();
+        archiveFrame?.contentWindow?.focus();
+        archiveFrame?.contentWindow?.postMessage({ type: "archive-focus" }, "*");
+      } catch(_) {}
     }
 
     async function closeArchiveLayer(useFade = true){
@@ -943,26 +935,23 @@
         return;
       }
       archiveTransitioning = true;
-      try {
-        const overlay = $("flipOverlay");
-        if(useFade && overlay){
-          overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
-          overlay.classList.add("on");
-          await sleep(280);
-        }
-        archiveLayer?.classList.remove("open");
-        archiveLayer?.setAttribute("aria-hidden","true");
-        if(useFade && overlay){
-          overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
-          overlay.classList.remove("on");
-          await sleep(220);
-          overlay.style.transition = "";
-        }
-      } finally {
-        archiveTransitioning = false;
-        savePlaybackState();
-        window.focus();
+      const overlay = $("flipOverlay");
+      if(useFade && overlay){
+        overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
+        overlay.classList.add("on");
+        await sleep(280);
       }
+      archiveLayer?.classList.remove("open");
+      archiveLayer?.setAttribute("aria-hidden","true");
+      if(useFade && overlay){
+        overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
+        overlay.classList.remove("on");
+        await sleep(220);
+        overlay.style.transition = "";
+      }
+      archiveTransitioning = false;
+      savePlaybackState();
+      window.focus();
     }
 
     const WARM_FLAG_KEY = "vinyl_assets_warmed_v1";
@@ -1038,26 +1027,7 @@
     sleeveSound.preload = "auto";
     sleeveSound.volume = 0.5;
     sleeveSound.load();
-    let _audioUnlocked = false;
-    window.unlockAudios = () => {
-      if (_audioUnlocked) return;
-      _audioUnlocked = true;
-      try {
-        [startCueAudio, vinylNoiseAudio, endSound, clickSound, powerSound].forEach(a => {
-          if (!a.src) a.src = "data:audio/mp3;base64,//MkxAA";
-          a.play().then(() => a.pause()).catch(() => {});
-        });
-        if (deckAudio && !deckAudio.src) {
-          deckAudio.src = "data:audio/mp3;base64,//MkxAA";
-          deckAudio.play().then(() => { if (!playing) deckAudio.pause(); }).catch(() => {});
-        }
-      } catch (_) {}
-    };
-    window.addEventListener('keydown', window.unlockAudios, { once: true, capture: true });
-    window.addEventListener('mousedown', window.unlockAudios, { once: true, capture: true });
-    window.addEventListener('click', window.unlockAudios, { once: true, capture: true });
-    window.addEventListener('touchstart', window.unlockAudios, { once: true, capture: true });
-
+    let playStartToken = 0;
     let targetVolume = 0.8;
 
     const record=$("vinylRecord"),platter=$("platter"),timer=$("timer"),sideDisplay=$("sideDisplay"),sideStamp=$("sideStamp"),labelSideText=$("labelSideText"),nowPlayingLabel=$("nowPlayingLabel");
@@ -1081,7 +1051,7 @@
     function setTonearmAngle(deg, animated=true, durationMs=ARM_TRANSITION_MS){
       if(!tonearmRod) return;
       tonearmRod.style.transition = animated
-        ? `transform ${durationMs}ms cubic-bezier(0.25,1,0.4,1)`
+        ? `transform ${durationMs}ms cubic-bezier(0.22,1,0.36,1)`
         : "none";
       tonearmRod.style.transform = `rotate(${deg}deg)`;
     }
@@ -1225,7 +1195,7 @@
       return `${m}:${s}`;
     };
 
-    const getSideDuration=()=>{ const d = sideDurations[currentSide] || (currentSide === "A" ? sideDurations.A : sideDurations.B) || 0; return d > 0 ? d : 1175; };
+    const getSideDuration=()=>sideDurations[currentSide] || sideDurations.A || 0;
 
     const parseTrackTitle=(pathOrName)=>{
       const fileName = decodeURIComponent((String(pathOrName || "").split("/").pop() || "").trim());
@@ -1363,18 +1333,26 @@
         A: tracks.slice(0,half),
         B: tracks.slice(half)
       };
-      sideDurations = {
-        A: half * 180,
-        B: Math.max(180, (tracks.length - half) * 180)
-      };
       currentTrackIndex=0;
       renderSidebarTrackLists();
       ensureTrackIndexInCurrentSide();
     };
 
+    const getRealisticFallbackDuration = (str, idx) => {
+      let hash = 0;
+      const s = String(str || `track_${idx}`);
+      for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) - hash) + s.charCodeAt(i);
+        hash |= 0;
+      }
+      const positiveHash = Math.abs(hash);
+      const base = 145 + (positiveHash % 185);
+      return base + (idx * 13) % 41;
+    };
+
     const loadSideDurationsFromMetadata=async()=>{
       
-      const readDuration=async(src)=>{
+      const readDuration=async(src, idx)=>{
         return new Promise(async(resolve)=>{
             const a=new Audio();
             a.preload="metadata";
@@ -1403,11 +1381,9 @@
                     });
                     if (album && album.files) {
                         const file = album.files.find(f => f.name === src);
-                        console.log("readDuration finding file", src, !!file);
                         if (file) {
                             const blob = new Blob([file.data], { type: file.type || "audio/mpeg" });
                             absoluteUrl = URL.createObjectURL(blob);
-                            console.log("Created blob url:", absoluteUrl);
                         }
                     }
                 } catch(e) {}
@@ -1422,15 +1398,27 @@
             }
             
             a.src=absoluteUrl;
-            const done=(value)=>resolve(Number.isFinite(value)&&value>0?value:180);
+            const fallback = getRealisticFallbackDuration(src, idx);
+            const done=(value)=>{
+                const num = Number(value);
+                if (Number.isFinite(num) && num > 5 && num < 3600) {
+                    if (num % 60 === 0) {
+                        resolve(num + (idx * 7) % 29);
+                    } else {
+                        resolve(num);
+                    }
+                } else {
+                    resolve(fallback);
+                }
+            };
             a.addEventListener("loadedmetadata",()=>done(a.duration),{once:true});
-            a.addEventListener("error",()=>done(180),{once:true});
-            setTimeout(()=>done(180),2500);
+            a.addEventListener("error",()=>done(fallback),{once:true});
+            setTimeout(()=>done(fallback),2500);
         });
       };
 
-      const durations=await Promise.all(albumTracks.map(readDuration));
-      trackDurationsSec = durations.map((d)=>Math.round(d));
+      const durations=await Promise.all(albumTracks.map((src, idx)=>readDuration(src, idx)));
+      trackDurationsSec = durations.map((d, idx)=> Math.round(d) || getRealisticFallbackDuration(albumTracks[idx], idx));
       const half=tracksBySide.A.length;
       sideDurations={
         A: Math.round(durations.slice(0,half).reduce((s,v)=>s+v,0)),
@@ -1709,24 +1697,14 @@
       }
       const params = new URLSearchParams(window.location.search);
       const hasQuerySelection = !!(params.get("name") || params.get("album"));
-      if(!selectedOverride && !hasQuerySelection && !selectedFromStorage){
-        if (typeof window !== "undefined" && window.VINYL_COLLECTION && window.VINYL_COLLECTION.length) {
-          selectedFromStorage = window.VINYL_COLLECTION[0];
-        } else {
-          try {
-            const res = await fetch("/vinyl-collection.json");
-            const list = await res.json();
-            if (Array.isArray(list) && list.length) {
-              selectedFromStorage = list[0];
-            }
-          } catch (_) {}
-        }
+      if(!selectedOverride && !hasQuerySelection){
+        return clearSelectedAlbumUi();
       }
       const name = (selectedOverride?.name || params.get("name") || params.get("album") || selectedFromStorage?.name);
       const author = (selectedOverride?.author || params.get("author") || selectedFromStorage?.author);
       const duration = (selectedOverride?.duration || params.get("duration") || selectedFromStorage?.duration);
       const color = (selectedOverride?.color || params.get("color") || selectedFromStorage?.color);
-      const rawTracks = selectedOverride?.tracks || (selectedOverride?.files ? selectedOverride.files.map(f => f.name) : null) || selectedFromStorage?.tracks || (selectedFromStorage?.files ? selectedFromStorage.files.map(f => f.name) : null) || [];
+      const rawTracks = selectedOverride?.tracks || selectedFromStorage?.tracks || [];
       const tracks = Array.isArray(rawTracks) ? rawTracks : [];
       if (!name) {
         return clearSelectedAlbumUi();
@@ -1735,6 +1713,7 @@
       if(!playing && !playT){
         setTonearmAngle(ARM_REST_ANGLE, false);
       }
+
       if (labelBrand) labelBrand.textContent = (author || "UNKNOWN ARTIST").toUpperCase().slice(0, 24);
       if (labelTitle) labelTitle.textContent = String(name).toUpperCase().slice(0, 22);
       if (labelMeta) labelMeta.innerHTML = "DESIGN PORTFOLIO<br/>MILAN SAMARDZIC";
@@ -1767,6 +1746,7 @@
     }
 
     async function applySelectedAlbumAndStart(selected){
+console.log("applySelectedAlbumAndStart START", selected);
       if(!selected || !selected.name) return;
       try { localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selected)); } catch(_) {}
       // Reset transport button visual state when switching albums.
@@ -1798,15 +1778,7 @@
       setTimer(getSideDuration());
       updatePowerUi();
       document.body.classList.remove("no-record");
-      try {
-        await runDropInAnimation();
-      } catch(err) {
-        console.warn("runDropInAnimation error:", err);
-        document.documentElement.style.setProperty('--drop-x', '0px');
-        document.documentElement.style.setProperty('--drop-rot', '0deg');
-        document.documentElement.style.setProperty('--lift-scale', '1');
-        document.body.classList.remove('is-flipping');
-      }
+      console.log("Before runDropInAnimation"); await runDropInAnimation(); console.log("After runDropInAnimation");
       if(powered){
         handlePress($("playBtn"), "play");
       } else {
@@ -1821,23 +1793,13 @@
         await closeArchiveLayer(true);
       }
       if(data.type === "archive-select-album" && data.album){
-        try {
-          await closeArchiveLayer(true);
-        } catch(err) {
-          console.warn("closeArchiveLayer warning:", err);
-          archiveLayer?.classList.remove("open");
-          archiveLayer?.setAttribute("aria-hidden","true");
-          archiveTransitioning = false;
-        }
-        try {
-          await applySelectedAlbumAndStart(data.album);
-        } catch(err) {
-          console.error("ERROR IN applySelectedAlbumAndStart:", err);
-        }
+        await closeArchiveLayer(true);
+        applySelectedAlbumAndStart(data.album).catch(()=>{});
       }
     }
 
     async function runDropInAnimation() {
+      try { sleeveSound.currentTime = 0; sleeveSound.play().catch(()=>{}); } catch (_) {}
       const recordStage = $("recordStage");
       const recordEl = $("vinylRecord");
       const ENTRY_TO_CENTER_MS = 1480;
@@ -1846,55 +1808,49 @@
       const prevTransition = recordStage ? recordStage.style.transition : "";
       const prevRecordTransition = recordEl ? recordEl.style.transition : "";
       document.body.classList.add('is-flipping');
-      try {
-        if (recordStage) recordStage.style.transition = "none";
-        if (recordEl) {
-          recordEl.style.transition = "none";
-          recordEl.style.transform = "rotate(0deg)";
-        }
-
-        // Start outside left: oversized disk with slight tilt.
-        document.documentElement.style.setProperty('--drop-x', '-128vw');
-        document.documentElement.style.setProperty('--drop-rot', '-14deg');
-        document.documentElement.style.setProperty('--lift-scale', '1.52');
-        recordStage?.getBoundingClientRect();
-
-        if (recordStage) recordStage.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.06, 0.84, 0.2, 1)`;
-
-        requestAnimationFrame(() => {
-          if (recordEl) {
-            recordEl.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.16, 0.72, 0.22, 1)`;
-            recordEl.style.transform = `rotate(${ENTRY_SPIN_DEG}deg)`;
-          }
-          document.documentElement.style.setProperty('--drop-x', '0px');
-          document.documentElement.style.setProperty('--drop-rot', '-1.4deg');
-          document.documentElement.style.setProperty('--lift-scale', '1.24');
-        });
-
-        await sleep(ENTRY_TO_CENTER_MS + 40);
-        if (recordEl) {
-          // Stop exactly at center arrival; 720deg lands on the same zero orientation.
-          recordEl.style.transition = "none";
-        }
-        rot = 0;
-
-        if (recordStage) {
-          recordStage.style.transition = `transform ${LIFT_DOWN_MS}ms cubic-bezier(0.42, 0, 0.58, 1)`;
-        }
-        document.documentElement.style.setProperty('--drop-rot', '0deg');
-        document.documentElement.style.setProperty('--lift-scale', '1');
-        const handoffMs = Math.max(120, Math.floor(LIFT_DOWN_MS * 0.72));
-        await sleep(handoffMs);
-        document.body.classList.remove('is-flipping');
-        await sleep((LIFT_DOWN_MS - handoffMs) + 40);
-      } finally {
-        document.body.classList.remove('is-flipping');
-        document.documentElement.style.setProperty('--drop-x', '0px');
-        document.documentElement.style.setProperty('--drop-rot', '0deg');
-        document.documentElement.style.setProperty('--lift-scale', '1');
-        if (recordStage) recordStage.style.transition = prevTransition;
-        if (recordEl) recordEl.style.transition = prevRecordTransition;
+      if (recordStage) recordStage.style.transition = "none";
+      if (recordEl) {
+        recordEl.style.transition = "none";
+        recordEl.style.transform = "rotate(0deg)";
       }
+
+      // Start outside left: oversized disk with slight tilt.
+      document.documentElement.style.setProperty('--drop-x', '-128vw');
+      document.documentElement.style.setProperty('--drop-rot', '-14deg');
+      document.documentElement.style.setProperty('--lift-scale', '1.52');
+      recordStage?.getBoundingClientRect();
+
+      if (recordStage) recordStage.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.06, 0.84, 0.2, 1)`;
+
+      requestAnimationFrame(() => {
+        if (recordEl) {
+          recordEl.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.16, 0.72, 0.22, 1)`;
+          recordEl.style.transform = `rotate(${ENTRY_SPIN_DEG}deg)`;
+        }
+        document.documentElement.style.setProperty('--drop-x', '0px');
+        document.documentElement.style.setProperty('--drop-rot', '-1.4deg');
+        document.documentElement.style.setProperty('--lift-scale', '1.24');
+      });
+
+      await sleep(ENTRY_TO_CENTER_MS + 40);
+      if (recordEl) {
+        // Stop exactly at center arrival; 720deg lands on the same zero orientation.
+        recordEl.style.transition = "none";
+      }
+      rot = 0;
+
+      if (recordStage) {
+        recordStage.style.transition = `transform ${LIFT_DOWN_MS}ms cubic-bezier(0.42, 0, 0.58, 1)`;
+      }
+      document.documentElement.style.setProperty('--drop-rot', '0deg');
+      document.documentElement.style.setProperty('--lift-scale', '1');
+      const handoffMs = Math.max(120, Math.floor(LIFT_DOWN_MS * 0.72));
+      await sleep(handoffMs);
+      document.body.classList.remove('is-flipping');
+      await sleep((LIFT_DOWN_MS - handoffMs) + 40);
+
+      if (recordStage) recordStage.style.transition = prevTransition;
+      if (recordEl) recordEl.style.transition = prevRecordTransition;
     }
 
     function togglePower(){
@@ -1915,7 +1871,7 @@
       if(!opts.silent) {
         try { clickSound.currentTime = 0; clickSound.play().catch(()=>{}); } catch(_) {}
       }
-      if(!hasLoadedVinyl()) { openArchive(); return; }
+      if(!hasLoadedVinyl()) return;
       if(!powered && type!=="stop"){
         if(btn){btn.classList.add("active");setTimeout(()=>btn.classList.remove("active"),150)}
         return;
@@ -1943,52 +1899,62 @@
       }
       if(type==="play"){
         if(playing || playT) return;
-        const currentToken = ++playStartToken;
-        if(playT){ clearTimeout(playT); playT=null; }
+        playStartToken += 1;
         stopStartCue();
+        // Continue from current cue position (arm seek), do not auto-reset.
         ensureTrackIndexInCurrentSide();
         await setDeckSourceByIndex(currentTrackIndex);
         await syncTrackFromElapsed();
-
-        const currentAngle = getCurrentTonearmAngle();
-        const fromRestStart = currentAngle < (ARM_EDGE_ANGLE - 1.0) || Math.abs(currentAngle - ARM_REST_ANGLE) <= 2.5;
-
+        playing=false;
+        const sideDurSec = Math.max(0, getSideDuration() - Math.floor(elapsedMs/1000));
+        setTimer(sideDurSec);
+        target=0;
+        speed=0;
+        playStartMs=null;
+        const fromRestStart = elapsedMs <= 120 && Math.abs(getCurrentTonearmAngle() - ARM_REST_ANGLE) <= 0.8;
         if(fromRestStart){
-          // 1. Motor starts rotating the platter smoothly immediately
-          target = base;
-          speed = Math.max(speed, base * 0.4);
-          syncVinylNoise();
-
-          // 2. Tonearm smoothly glides across from rest position to the record groove
-          const sideMs = Math.max(1, getSideDuration() * 1000);
-          const p = Math.max(0, Math.min(1, elapsedMs / sideMs));
-          const targetAngle = ARM_EDGE_ANGLE + (ARM_END_ANGLE - ARM_EDGE_ANGLE) * p;
-          const CUE_GLIDE_MS = 1700;
-
-          setTonearmAngle(targetAngle, true, CUE_GLIDE_MS);
-          setTimer(Math.max(0, getSideDuration() - Math.floor(elapsedMs / 1000)));
-
-          // 3. Audio & playback timer start when the needle softly touches the record groove
-          playT = setTimeout(() => {
-            playT = null;
-            if(!powered || currentToken !== playStartToken) return;
-            playing = true;
-            playStartMs = performance.now();
-            speed = base;
-            target = base;
-            playDeckTrack().catch(e => console.warn("playDeckTrack error:", e));
+          // 1) Needle drops to record edge
+          // 2) Noise starts only after needle lands
+          // 3) First track starts 2s later
+          const cueDropMs = 1800;
+          setTonearmAngle(ARM_EDGE_ANGLE, true, cueDropMs);
+          target=0;
+          speed=0;
+          playT=setTimeout(()=>{
+            if(!powered) return;
+            // Vinyl landing sound disabled as requested
+            if(false && opts.vinylSound !== false) {
+              try { startCueAudio.currentTime = 0; startCueAudio.play().catch(()=>{}); } catch(_) {}
+            }
+            target=base;
+            speed=Math.max(speed, base * 0.45);
+            leadInNoiseActive = true;
             syncVinylNoise();
-          }, CUE_GLIDE_MS);
+            playT=setTimeout(()=>{
+              playT=null;
+              if(!powered) return;
+              leadInNoiseActive = false;
+              playing=true;
+              target=base;
+              speed=base;
+              playStartMs=performance.now();
+              playDeckTrack().catch(()=>{});
+              syncVinylNoise();
+            },2000);
+          },cueDropMs);
           return;
         }
-
-        // Already positioned on the record (e.g. unpausing or after manual needle cue)
-        target = base;
-        speed = Math.max(speed, base * 0.7);
-        playDeckTrack().catch(e => console.warn("playDeckTrack error:", e));
-        playing = true;
-        playStartMs = performance.now();
-        syncVinylNoise();
+        setTonearmFromElapsed(true);
+        playT=setTimeout(()=>{
+          playT=null;
+          if(!powered) return;
+          playing=true;
+          target=base;
+          speed=base;
+          playStartMs=performance.now();
+          playDeckTrack().catch(()=>{});
+          syncVinylNoise();
+        },620);
         return;
       }
       if(type==="pause"){
@@ -2005,6 +1971,7 @@
     }
 
     let isFlipping=false;
+    const sleep=(ms)=>new Promise(r=>setTimeout(r, ms));
 
     async function flipVinyl(){
       if(isFlipping) return;
@@ -2103,7 +2070,7 @@
     platter.addEventListener("mousedown",e=>{
       dragStartT = Date.now();
       if(!ENABLE_RECORD_SCRATCH) return;
-      if(!hasLoadedVinyl()) { openArchive(); return; }
+      if(!hasLoadedVinyl()) return;
       dragRec=true;
       document.body.classList.add("dragging-record");
       lastAng=ang(e);
@@ -2124,7 +2091,7 @@
     platter.addEventListener("touchstart",e=>{
       dragStartT = Date.now();
       if(!ENABLE_RECORD_SCRATCH) return;
-      if(!hasLoadedVinyl()) { openArchive(); return; }
+      if(!hasLoadedVinyl()) return;
       dragRec=true;
       document.body.classList.add("dragging-record");
       lastAng=ang(e);
@@ -2173,7 +2140,7 @@
     window.addEventListener("mousemove",onMove);
     window.addEventListener("touchmove",onMove,{passive:false});
     const startArmDrag=(e)=>{
-      if(!hasLoadedVinyl()) { openArchive(); return; }
+      if(!hasLoadedVinyl()) return;
       if(e?.cancelable) e.preventDefault();
       e.stopPropagation();
       dragArm = true;
@@ -2265,37 +2232,33 @@
     window.addEventListener("touchend",endArmDrag);
 
     function loop(){
-      if(!powered){
-        target = 0;
-      } else if(playing || playStartMs!=null || leadInNoiseActive || playT!=null){
-        target = base;
-      } else {
-        target = 0;
-      }
+      if(playStartMs!=null) target = base;
+      if(leadInNoiseActive) target = base;
+      if(!playing && !leadInNoiseActive) target = 0;
       if(!dragRec){
         const accel = 0.035;
         speed += (target - speed) * accel;
         if(Math.abs(speed) > 0.0005){
-          rot = (rot + speed * 2.05) % 360;
+          rot += speed * 2.05;
           setRecordRotation(rot);
         }
       }
       if(!deckAudio.paused){
-        const rate = Math.max(0.03, Math.min(3, Math.abs(speed || 1)));
+        const rate = Math.max(0.03, Math.min(3, Math.abs(speed)));
         deckAudio.playbackRate = rate;
       }
-      if(playing && playStartMs!=null && !dragRec && !dragArm && !playT){
+      if(playing && playStartMs!=null && !dragRec && !dragArm){
         const now=performance.now();
         const delta=now-playStartMs;
         playStartMs=now;
-        const transportRate = Math.max(0.02, Math.min(3, Math.abs(speed || 1)));
+        const transportRate = Math.max(0.02, Math.min(3, Math.abs(speed)));
         elapsedMs += delta * transportRate;
 
         const sideDur=getSideDuration();
         const remain = Math.max(0, sideDur - Math.floor(elapsedMs/1000));
         setTimer(remain);
         setTonearmFromElapsed(false);
-        if(sideDur > 0 && remain<=0 && elapsedMs >= sideDur * 950){
+        if(remain<=0){
           playing=false;
           target=0;
           playStartMs=null;
@@ -2350,13 +2313,8 @@
         sidebarScrollEl.addEventListener("scroll", updateSidebarScrollFade, { passive: true });
         updateSidebarScrollFade();
       }
-      // Load album from query, saved selection, or default collection
-      applyAlbumFromQuery().then(() => {
-        const params = new URLSearchParams(window.location.search);
-        if ((params.get("name") || params.get("album")) && powered) {
-          handlePress($("playBtn"), "play");
-        }
-      }).catch(err => console.error("Query album load error:", err));
+      // Always boot in empty-deck state; album is loaded only by explicit archive selection.
+      clearSelectedAlbumUi();
       loop();
     });
     window.addEventListener('resize', updateScale);
@@ -2374,11 +2332,17 @@
       if (e.code === 'KeyP') {
         e.preventDefault();
         togglePower();
+      } else if (e.code === 'KeyL') {
+        e.preventDefault();
+        toggleTheme();
+      } else if (e.code === 'KeyI') {
+        e.preventDefault();
+        toggleSidebar();
       } else if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         if (!powered) {
           togglePower();
-          handlePress(null, 'play');
+          setTimeout(() => handlePress(null, 'play'), 250);
         } else {
           if (playing) {
             handlePress(null, 'pause');
