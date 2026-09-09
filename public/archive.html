@@ -194,6 +194,44 @@
             pointer-events: auto;
             align-items: center;
         }
+        @media (max-width: 768px) {
+            .archive-title {
+                display: none !important;
+            }
+            .right-sidebar {
+                display: none !important;
+            }
+            .left-sidebar {
+                position: absolute !important;
+                left: 50% !important;
+                top: auto !important;
+                bottom: 20px !important;
+                transform: translateX(-50%) !important;
+                flex-direction: row !important;
+                overflow-x: auto !important;
+                max-width: 92vw !important;
+                padding: 6px 12px !important;
+                background: rgba(15, 15, 15, 0.85) !important;
+                backdrop-filter: blur(12px) !important;
+                -webkit-backdrop-filter: blur(12px) !important;
+                border-radius: 24px !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                scrollbar-width: none;
+                z-index: 100;
+                box-sizing: border-box;
+                gap: 8px !important;
+            }
+            .left-sidebar::-webkit-scrollbar {
+                display: none;
+            }
+            .genre-pill {
+                flex-shrink: 0;
+                white-space: nowrap;
+                padding: 6px 12px;
+                font-size: 9px;
+                width: auto !important;
+            }
+        }
         .edit-modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -1940,42 +1978,46 @@
             });
 
             // Touch Events (Mobile/Tablet)
+            let touchStartX = 0;
+            let touchStartY = 0;
             window.addEventListener('touchstart', (e) => {
                 if (isEditModalActive()) return;
+                touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 isTouchMove = false;
-                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+                mouse.x = (touchStartX / window.innerWidth) * 2 - 1;
+                mouse.y = -(touchStartY / window.innerHeight) * 2 + 1;
             }, { passive: false });
 
             window.addEventListener('touchmove', (e) => {
                 if (isEditModalActive() || launchIndex !== -1) return;
-                e.preventDefault(); // Sprečava nativno skrolanje
+                e.preventDefault();
+                const touchX = e.touches[0].clientX;
                 const touchY = e.touches[0].clientY;
+                const deltaX = touchX - touchStartX;
                 const deltaY = touchY - touchStartY;
+                touchStartX = touchX;
                 touchStartY = touchY;
 
-                // Tolerancija za tap vs scroll
-                if (Math.abs(deltaY) > 1.5) {
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > 1.5) {
                     isTouchMove = true;
-                    // Touch skrolanje treba biti osjetljivije
-                    targetScroll -= deltaY * 3.5; 
+                    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX * 4 : deltaY * 3.5;
+                    targetScroll -= delta; 
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                     
-                    if (Math.abs(deltaY) > 2) openStates.fill(false);
+                    if (distance > 2) openStates.fill(false);
 
-                    mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+                    mouse.x = (touchX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(touchY / window.innerHeight) * 2 + 1;
                 }
             }, { passive: false });
 
             window.addEventListener('touchend', (e) => {
                 if (isEditModalActive()) return;
                 if (!isTouchMove) {
-                    // Ignoriši ako je tapnuto play dugme (ono ima svoj handler)
-                    if (e.target.closest('#play-button')) return;
+                    if (e.target.closest('#play-button') || e.target.closest('#genresContainer') || e.target.closest('.top-bar')) return;
                     
-                    // Direct pick at current touch position (no stale hover state).
                     const foundIdx = pickAlbumIndexAtPointer();
                     interactiveIndex = foundIdx;
                     isHovered = foundIdx !== -1;
