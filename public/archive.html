@@ -45,16 +45,6 @@
             justify-content: flex-start;
         }
 
-        #audio-hint {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: rgba(255,255,255,0.2);
-            z-index: 20;
-        }
         #route-fade {
             position: fixed;
             inset: 0;
@@ -173,15 +163,37 @@
             pointer-events: none;
         }
         .left-sidebar {
-            position: absolute;
-            left: 40px;
-            top: 50%;
-            transform: translateY(-50%);
+            position: fixed;
+            left: 32px;
+            right: 32px;
+            top: auto;
+            bottom: 20px;
+            max-width: calc(100vw - 64px);
             display: flex;
-            flex-direction: column;
-            gap: 12px;
+            flex-direction: row;
+            overflow-x: auto;
+            padding: 0;
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border-radius: 0;
+            border: none;
+            scrollbar-width: none;
+            z-index: 100;
+            box-sizing: border-box;
+            gap: 8px;
             pointer-events: auto;
             align-items: center;
+        }
+        .left-sidebar::-webkit-scrollbar {
+            display: none;
+        }
+        .genre-pill {
+            flex-shrink: 0;
+            white-space: nowrap;
+            padding: 6px 12px;
+            font-size: 9px;
+            width: auto !important;
         }
         .right-sidebar {
             position: absolute;
@@ -201,35 +213,31 @@
             .right-sidebar {
                 display: none !important;
             }
+        }
+        @media (min-width: 768px), (max-width: 768px) and (orientation: landscape) {
             .left-sidebar {
                 position: absolute !important;
-                left: 50% !important;
-                top: auto !important;
-                bottom: 20px !important;
-                transform: translateX(-50%) !important;
-                flex-direction: row !important;
-                overflow-x: auto !important;
-                max-width: 92vw !important;
-                padding: 6px 12px !important;
-                background: rgba(15, 15, 15, 0.85) !important;
-                backdrop-filter: blur(12px) !important;
-                -webkit-backdrop-filter: blur(12px) !important;
-                border-radius: 24px !important;
-                border: 1px solid rgba(255, 255, 255, 0.15) !important;
-                scrollbar-width: none;
-                z-index: 100;
-                box-sizing: border-box;
-                gap: 8px !important;
-            }
-            .left-sidebar::-webkit-scrollbar {
-                display: none;
+                left: 40px !important;
+                right: auto !important;
+                top: 50% !important;
+                bottom: auto !important;
+                transform: translateY(-50%) !important;
+                flex-direction: column !important;
+                overflow-x: visible !important;
+                max-width: none !important;
+                padding: 0 !important;
+                background: transparent !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                gap: 12px !important;
             }
             .genre-pill {
-                flex-shrink: 0;
-                white-space: nowrap;
-                padding: 6px 12px;
-                font-size: 9px;
-                width: auto !important;
+                padding: 8px 16px;
+                font-size: 11px;
+                width: 70px !important;
+                text-align: center;
             }
         }
         .edit-modal-overlay {
@@ -443,7 +451,6 @@
 
     <div id="canvas-container"></div>
     <div id="route-fade" aria-hidden="true" class="route-fade-layer"></div>
-    <div id="audio-hint">Zvuk aktivan nakon interakcije</div>
     <button id="play-button">PLAY</button>
     <div id="now-playing-badge">Now Playing</div>
 
@@ -467,15 +474,15 @@
             
         </div>
         <div class="right-sidebar" style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="genre-pill" id="editAlbumBtn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block; vertical-align: middle;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>EDIT ALBUM
+            <button class="genre-pill" id="editAlbumBtn" title="Edit Album" style="width: 44px !important; height: 44px !important; padding: 0 !important; display: flex; align-items: center; justify-content: center;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
             </button>
             <input type="file" id="uploadAlbumInput" webkitdirectory directory multiple style="display: none;">
-            <button class="genre-pill" id="uploadAlbumBtn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>UPLOAD
+            <button class="genre-pill" id="uploadAlbumBtn" title="Upload" style="width: 44px !important; height: 44px !important; padding: 0 !important; display: flex; align-items: center; justify-content: center;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </button>
-            <button class="genre-pill" id="deleteAlbumBtn" style="color: #ff6b6b; border-color: rgba(220, 53, 69, 0.4);">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block; vertical-align: middle;"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>DELETE
+            <button class="genre-pill" id="deleteAlbumBtn" title="Delete" style="width: 44px !important; height: 44px !important; padding: 0 !important; display: flex; align-items: center; justify-content: center; color: #ff6b6b; border-color: rgba(220, 53, 69, 0.4);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
         </div>
         <div class="bottom-bar">
@@ -1798,6 +1805,7 @@
         function handleInteractionAtIndex(idx) {
             if (!totalMeshes || launchIndex !== -1) return;
             if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
+            if (isPlayingLockedIndex(idx)) return;
             const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
             if (idx !== currentFocusIdx) {
                 targetScroll = idx * scrollSensitivity;
@@ -1809,7 +1817,6 @@
                 openStates[idx] = targetState;
                 if (targetState) playSleeve();
             }
-            document.getElementById('audio-hint').style.display = 'none';
         }
 
         function startLaunchToPlayer(idx, url, selectedPayload = null) {
@@ -1875,20 +1882,46 @@
             }
         }
 
+        function updateCamera() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const isPortrait = h > w;
+            const isMobile = w < 768 || h < 768;
+            const isMobilePortrait = isMobile && isPortrait;
+
+            let zDist = 28;
+            if (isMobilePortrait) {
+                zDist = 34.0;
+            } else {
+                zDist = 28.0;
+            }
+
+            if (camera) {
+                camera.aspect = w / h;
+                camera.position.set(0, 8.8, zDist);
+                camera.lookAt(0, 3, 0);
+                camera.updateProjectionMatrix();
+            }
+            if (renderer) {
+                renderer.setSize(w, h);
+            }
+        }
+
         function init() {
             scene = new THREE.Scene();
             scene.background = generateArchiveBackgroundTexture();
             scene.fog = null;
 
+            const isMob = window.innerWidth < 768 || window.innerHeight < 768;
             camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 8.8, 28);
             camera.lookAt(0, 3, 0);
-            
+            updateCamera();
+
             camera.layers.enable(0);
             camera.layers.enable(DISK_LAYER);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMob ? 1.5 : 2));
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.outputEncoding = THREE.sRGBEncoding;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
@@ -1955,7 +1988,7 @@
 
             window.addEventListener('wheel', (e) => {
                 if (isEditModalActive() || launchIndex !== -1) return;
-                targetScroll -= e.deltaY; 
+                targetScroll += e.deltaY; 
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 pendingOpenIndex = -1; 
                 if (Math.abs(e.deltaY) > 5) openStates.fill(false);
@@ -2003,7 +2036,7 @@
                 if (distance > 1.5) {
                     isTouchMove = true;
                     const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX * 4 : deltaY * 3.5;
-                    targetScroll -= delta; 
+                    targetScroll += delta; 
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                     
                     if (distance > 2) openStates.fill(false);
@@ -2160,7 +2193,7 @@
                 
                 const isLaunching = i === launchIndex;
                 const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
-                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.075;
+                group.userData.openProgress += (targetOpen - group.userData.openProgress) * 0.045;
                 group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
                 if (isLaunching) {
                     group.userData.openProgress = 1;
@@ -2189,8 +2222,9 @@
                 const openVal = group.userData.openAmount;
                 cover.position.x = openVal * -1.2; 
                 const launchEase = isLaunching ? easeInCubic(launchProgress) : 0;
-                // Ploča kreće da izlazi znatno ranije (skoro odmah po otvaranju omota) i izlazi sporo i lagano
-                const diskSlideVal = Math.max(0, Math.min(1, (openVal - 0.03) * 0.9));
+                // Ploča izlazi do pola (centar dolazi do ivice omota, kao ranije) ali malo sporije i glatkije
+                const progress = Math.max(0, Math.min(1, (openVal - 0.03) / 0.97));
+                const diskSlideVal = Math.max(0, Math.min(1, Math.pow(progress, 1.35) * 0.9));
                 if (isLaunching) {
                     group.userData.tiltX = 0;
                     cover.position.x = -1.2;
@@ -2270,11 +2304,7 @@
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        window.addEventListener('resize', updateCamera);
 
         document.addEventListener("DOMContentLoaded", async () => {
             

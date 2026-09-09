@@ -226,6 +226,37 @@
     body[data-theme="dark"] .sun-icon { opacity: 0; }
     body[data-theme="dark"] .moon-icon { opacity: 1; }
 
+    body.fullscreen-mode .top-nav { display: none !important; }
+    body.fullscreen-mode .sidebar { display: none !important; }
+
+    #fullscreenBtn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 4000;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--nav-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      color: var(--nav-text);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      opacity: 1;
+      transition: opacity 0.3s ease, background 0.2s, transform 0.2s;
+    }
+    body.fullscreen-mode #fullscreenBtn {
+      opacity: 0.35;
+    }
+    body.fullscreen-mode #fullscreenBtn:hover {
+      opacity: 1;
+    }
+
     /* WRAPPER + FULLSCREEN BACKGROUND */
     .main-wrapper { width: 100vw; height: 100vh; position: relative; }
     .container-nosac {
@@ -492,6 +523,20 @@
     .headshell-pro:active{cursor:grabbing}
     .needle-point{width:2px;height:6px;background:var(--needle);position:absolute;bottom:-2px;border-radius:1px}
     .finger-lift{position:absolute;right:-8px;top:10px;width:10px;height:2px;background:var(--lift);border-radius:0 2px 2px 0;box-shadow:1px 1px 2px rgba(0,0,0,.2)}
+
+    @media (max-width: 768px) {
+      .tonearm-assembly {
+        right: 105px !important;
+        top: calc(20% - 50px) !important;
+        width: 76px !important;
+        height: 230px !important;
+      }
+      .tonearm-rod-svg {
+        width: 76px !important;
+        height: 320px !important;
+        transform-origin: 38px 28px !important;
+      }
+    }
 
 
     /* Controls */
@@ -823,16 +868,32 @@
       applySidebarState(saved === "1");
     }
 
+    let isFullscreenMode = false;
+    function toggleFullscreenMode(e) {
+      if(e) e.stopPropagation();
+      isFullscreenMode = !isFullscreenMode;
+      if (isFullscreenMode) {
+        document.body.classList.add('fullscreen-mode');
+        applySidebarState(false);
+      } else {
+        document.body.classList.remove('fullscreen-mode');
+      }
+      updateScale();
+    }
+
     function updateScale(){
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      // Margin rule:
-      // - Mobile: 16px
-      // - Everything else: 20% margin on all sides (axis-relative)
       const isMobile = vw <= 640;
-      const edgeX = isMobile ? 16 : Math.round(vw * 0.20);
-      const edgeY = isMobile ? 16 : Math.round(vh * 0.20);
+      let edgeX, edgeY;
+      if (isFullscreenMode) {
+        edgeY = Math.round(vh * 0.10);
+        edgeX = Math.round(vw * 0.10);
+      } else {
+        edgeX = isMobile ? 16 : Math.round(vw * 0.20);
+        edgeY = isMobile ? 16 : Math.round(vh * 0.20);
+      }
 
       document.documentElement.style.setProperty('--edge-x', `${edgeX}px`);
       document.documentElement.style.setProperty('--edge-y', `${edgeY}px`);
@@ -845,7 +906,8 @@
 
       const sW = availW / baseW;
       const sH = availH / baseH;
-      const s = Math.max(0.6, Math.min(1.5, Math.min(sW, sH)));
+      const sMax = isFullscreenMode ? 5.0 : 1.5;
+      const s = Math.max(0.6, Math.min(sMax, Math.min(sW, sH)));
       document.documentElement.style.setProperty('--scale', String(s));
     }
 
@@ -2350,9 +2412,18 @@ console.log("applySelectedAlbumAndStart START", selected);
             handlePress(null, 'play');
           }
         }
+      } else if (e.code === 'KeyF') {
+        e.preventDefault();
+        toggleFullscreenMode();
       } else if (e.code === 'Escape') {
         e.preventDefault();
-        handlePress(null, 'stop');
+        if (isFullscreenMode) {
+          isFullscreenMode = false;
+          document.body.classList.remove('fullscreen-mode');
+          updateScale();
+        } else {
+          handlePress(null, 'stop');
+        }
       } else if (e.code === 'Backspace') {
         e.preventDefault();
         const flipBtn = document.getElementById('flipNavBtn') || document.querySelector('.flip-nav-btn');
@@ -2373,5 +2444,11 @@ console.log("applySelectedAlbumAndStart START", selected);
     });
 
   </script>
+
+  <div class="nav-btn" id="fullscreenBtn" onclick="toggleFullscreenMode(event)" aria-label="Fullscreen" title="Fullscreen (F)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+    </svg>
+  </div>
 </body>
 </html>
