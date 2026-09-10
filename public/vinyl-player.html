@@ -511,12 +511,12 @@
     .vinyl-label:after{content:"";position:absolute;inset:19%;border-radius:50%;border:1px solid rgba(22,22,22,.22);pointer-events:none}
     .label-standard{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
     .label-header{position:absolute;top:24%;left:12%;right:12%;display:flex;flex-direction:column;align-items:center;gap:2px}
-    #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:2.8px;font-weight:400;letter-spacing:.3px;line-height:1.1;color:#ececec;text-align:center;text-transform:uppercase;opacity:1}
-    #labelTitle,.label-title{font-family:Inter,system-ui,sans-serif;font-size:4.2px;font-weight:900;letter-spacing:.3px;color:#f3f3f3;text-align:center;line-height:1;text-transform:uppercase}
-    .label-midband{position:absolute;left:4.8%;right:4.8%;top:calc(50% - 6.5% + 0px);height:13%;background:#181818;border-top:1px solid #1f1f1f;border-bottom:1px solid #1f1f1f;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;font-size:3.5px;font-weight:400;letter-spacing:.2px;color:#f1f1f1;text-transform:uppercase}
+    #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:3.9px;font-weight:400;letter-spacing:.35px;line-height:1.1;color:#ececec;text-align:center;text-transform:uppercase;opacity:1}
+    #labelTitle,.label-title{font-family:Inter,system-ui,sans-serif;font-size:5.8px;font-weight:900;letter-spacing:.4px;color:#f3f3f3;text-align:center;line-height:1;text-transform:uppercase}
+    .label-midband{position:absolute;left:4.8%;right:4.8%;top:calc(50% - 6.5% + 0px);height:13%;background:#181818;border-top:1px solid #1f1f1f;border-bottom:1px solid #1f1f1f;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;font-size:4.3px;font-weight:400;letter-spacing:.2px;color:#f1f1f1;text-transform:uppercase}
     .label-midband span{text-align:center}
-    .label-side{position:absolute;left:0;right:0;top:64.7%;font-family:Inter,system-ui,sans-serif;font-size:4.2px;font-weight:400;letter-spacing:.2px;color:#f1f1f1;text-transform:uppercase;text-align:center}
-    .label-metadata,#labelMeta,.label-meta{position:absolute;left:12%;right:12%;top:76.1%;font-family:Inter,system-ui,sans-serif;font-size:2.0px;font-weight:300;letter-spacing:.2px;color:#e9e9e9;text-transform:uppercase;text-align:center;line-height:1.2;opacity:1}
+    .label-side{position:absolute;left:0;right:0;top:64.7%;font-family:Inter,system-ui,sans-serif;font-size:5.8px;font-weight:400;letter-spacing:.2px;color:#f1f1f1;text-transform:uppercase;text-align:center}
+    .label-metadata,#labelMeta,.label-meta{position:absolute;left:12%;right:12%;top:76.1%;font-family:Inter,system-ui,sans-serif;font-size:2.8px;font-weight:300;letter-spacing:.2px;color:#e9e9e9;text-transform:uppercase;text-align:center;line-height:1.2;opacity:1}
     #sideStamp{display:none}
     #editionSub{display:none}
     .label-hole-clear{position:absolute;left:50%;top:50%;width:14%;height:14%;transform:translate(-50%,-50%);border-radius:50%;background:transparent;box-shadow:0 0 0 .75px #181818 inset}
@@ -1030,6 +1030,10 @@
       }
       archiveLayer?.classList.remove("open");
       archiveLayer?.setAttribute("aria-hidden","true");
+      if (archiveFrame) {
+        archiveFrame.src = "about:blank";
+        archiveFrameReady = false;
+      }
       if(useFade && overlay){
         overlay.style.transition = "opacity 360ms cubic-bezier(0.16, 1, 0.3, 1)";
         overlay.classList.remove("on");
@@ -2497,6 +2501,9 @@ console.log("applySelectedAlbumAndStart START", selected);
       } else if (e.key === '.' || e.code === 'Period' || e.code === 'NumpadDecimal') {
         e.preventDefault();
         toggleFullscreenMode();
+      } else if (e.code === 'Digit9' || e.code === 'Numpad9' || e.key === '9') {
+        e.preventDefault();
+        toggleTheme();
       }
     });
 
