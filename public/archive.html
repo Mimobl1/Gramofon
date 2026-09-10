@@ -1918,8 +1918,8 @@
             camera.layers.enable(0);
             camera.layers.enable(DISK_LAYER);
 
-            renderer = new THREE.WebGLRenderer({ antialias: !isAndroidTV });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isAndroidTV ? 1 : (isMob ? 1.5 : 2)));
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMob ? 1.5 : 2));
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.outputEncoding = THREE.sRGBEncoding;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
