@@ -1986,7 +1986,7 @@
 
             window.addEventListener('wheel', (e) => {
                 if (isEditModalActive() || launchIndex !== -1) return;
-                targetScroll += e.deltaY; 
+                targetScroll -= e.deltaY; 
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 pendingOpenIndex = -1; 
                 if (Math.abs(e.deltaY) > 5) openStates.fill(false);
@@ -2033,7 +2033,7 @@
                 const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                 if (distance > 1.5) {
                     isTouchMove = true;
-                    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX * 4 : deltaY * 3.5;
+                    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX * 4 : -deltaY * 3.5;
                     targetScroll += delta; 
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                     
