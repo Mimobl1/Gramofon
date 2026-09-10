@@ -3100,9 +3100,6 @@
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
                 }
-
-                    }
-                }
             } else if (e.key === "2") {
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: "archive-close" }, "*");
