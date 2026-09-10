@@ -2465,6 +2465,38 @@ console.log("applySelectedAlbumAndStart START", selected);
         if (archiveLayer && archiveLayer.classList.contains('open')) {
           closeArchiveLayer(true);
         }
+      } else if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') {
+        e.preventDefault();
+        if (!powered) {
+          togglePower();
+          setTimeout(() => handlePress(null, 'play'), 250);
+        } else {
+          if (playing) {
+            handlePress(null, 'pause');
+          } else {
+            handlePress(null, 'play');
+          }
+        }
+      } else if (e.code === 'Digit3' || e.code === 'Numpad3' || e.key === '3') {
+        e.preventDefault();
+        if (!powered) {
+          togglePower();
+          setTimeout(() => handlePress(null, 'play'), 250);
+        } else {
+          handlePress(null, 'play');
+        }
+      } else if (e.code === 'Digit4' || e.code === 'Numpad4' || e.key === '4') {
+        e.preventDefault();
+        handlePress(null, 'stop');
+      } else if (e.code === 'Digit6' || e.code === 'Numpad6' || e.key === '6') {
+        e.preventDefault();
+        const flipBtn = document.getElementById('flipNavBtn') || document.querySelector('.flip-nav-btn');
+        if (flipBtn && !flipBtn.hasAttribute('disabled')) {
+          flipBtn.click();
+        }
+      } else if (e.key === '.' || e.code === 'Period' || e.code === 'NumpadDecimal') {
+        e.preventDefault();
+        toggleFullscreenMode();
       }
     });
 

@@ -1909,6 +1909,7 @@
             scene.background = generateArchiveBackgroundTexture();
             scene.fog = null;
 
+            const isAndroidTV = /Android|Android TV|SmartTV|AFTB/i.test(navigator.userAgent) || window.innerWidth <= 1280;
             const isMob = window.innerWidth < 768 || window.innerHeight < 768;
             camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.lookAt(0, 3, 0);
@@ -1917,8 +1918,8 @@
             camera.layers.enable(0);
             camera.layers.enable(DISK_LAYER);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMob ? 1.5 : 2));
+            renderer = new THREE.WebGLRenderer({ antialias: !isAndroidTV });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isAndroidTV ? 1 : (isMob ? 1.5 : 2)));
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.outputEncoding = THREE.sRGBEncoding;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
@@ -3020,17 +3021,17 @@
                 return;
             }
 
-            if (e.key === "ArrowDown") {
+            if (e.key === "ArrowDown" || e.code === "Digit8" || e.code === "Numpad8" || e.key === "8") {
                 targetScroll += scrollSensitivity;
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 openStates.fill(false);
                 pendingOpenIndex = -1;
-            } else if (e.key === "ArrowUp") {
+            } else if (e.key === "ArrowUp" || e.code === "Digit5" || e.code === "Numpad5" || e.key === "5") {
                 targetScroll -= scrollSensitivity;
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 openStates.fill(false);
                 pendingOpenIndex = -1;
-            } else if (e.key === "ArrowRight") {
+            } else if (e.key === "ArrowRight" || e.code === "Digit6" || e.code === "Numpad6" || e.key === "6") {
                 const currentIdx = Math.round(currentScroll / scrollSensitivity);
                 const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
                 if (!openStates[clampedIdx]) {
@@ -3044,9 +3045,10 @@
                 if (openStates[clampedIdx]) {
                     openStates[clampedIdx] = false;
                 }
-            } else if (e.key === "Enter") {
+            } else if (e.key === "Enter" || e.code === "Digit3" || e.code === "Numpad3" || e.key === "3") {
                 const currentIdx = Math.round(currentScroll / scrollSensitivity);
                 const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                if (isPlayingLockedIndex(clampedIdx)) return;
                 if (clampedIdx >= 0 && clampedIdx < collection.length) {
                     try { localStorage.setItem("vinyl_record_loaded_v1", "1"); } catch(_) {}
                     const selected = collection[clampedIdx];
@@ -3063,9 +3065,42 @@
                             duration: selected.duration || "",
                             folder: selected.folder || ""
                         });
-                        if (typeof startLaunchToPlayer === "function") {
-                            startLaunchToPlayer(clampedIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+                        startLaunchToPlayer(clampedIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+                    }
+                }
+            } else if (e.code === "Digit0" || e.code === "Numpad0" || e.key === "0") {
+                e.preventDefault();
+                if (bgBridge.active) {
+                    if (archiveDeck.paused) { archiveDeck.play().catch(()=>{}); saveBridgePlaybackState(true); }
+                    else { archiveDeck.pause(); saveBridgePlaybackState(false); }
+                } else {
+                    const currentIdx = Math.round(currentScroll / scrollSensitivity);
+                    const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                    if (!isPlayingLockedIndex(clampedIdx) && clampedIdx >= 0 && clampedIdx < collection.length) {
+                        const selected = collection[clampedIdx];
+                        if (selected && selected.files && selected.files.length > 0) {
+                            bgBridge.active = true;
+                            bgBridge.currentAlbum = selected;
+                            bgBridge.currentTrackIndex = 0;
+                            setBridgeSourceByIndex(0);
+                            archiveDeck.play().catch(()=>{});
+                            saveBridgePlaybackState(true);
                         }
+                    }
+                }
+            } else if (e.code === "Digit4" || e.code === "Numpad4" || e.key === "4") {
+                e.preventDefault();
+                archiveDeck.pause();
+                bgBridge.active = false;
+                saveBridgePlaybackState(false);
+            } else if (e.key === "." || e.code === "Period" || e.code === "NumpadDecimal") {
+                e.preventDefault();
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+                }
+
                     }
                 }
             } else if (e.key === "2") {
