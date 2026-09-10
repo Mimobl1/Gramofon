@@ -107,23 +107,14 @@ window.VINYL_COLLECTION = [
     "folder": "Vinyl Collection/The Doors - Morrison Hotel",
     "cover": "",
     "tracks": [
-      "The Doors - Blue Sunday-1.MP3",
       "The Doors - Blue Sunday.MP3",
-      "The Doors - Indian Summer-1.MP3",
       "The Doors - Indian Summer.MP3",
-      "The Doors - Land Ho!-1.MP3",
       "The Doors - Land Ho!.MP3",
-      "The Doors - Peace Frog-1.MP3",
       "The Doors - Peace Frog.MP3",
-      "The Doors - Queen Of The Highway-1.MP3",
       "The Doors - Queen Of The Highway.MP3",
-      "The Doors - Roadhouse Blues-1.MP3",
       "The Doors - Roadhouse Blues.MP3",
-      "The Doors - Ship Of Fools-1.MP3",
       "The Doors - Ship Of Fools.MP3",
-      "The Doors - The Spy-1.MP3",
       "The Doors - The Spy.MP3",
-      "The Doors - Waiting For The Sun-1.MP3",
       "The Doors - Waiting For The Sun.MP3"
     ]
   },
