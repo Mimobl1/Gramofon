@@ -1658,7 +1658,7 @@
                 }
                 return v.toLowerCase();
             };
-            const desaturateAndDarken = (hex, desat = 0.45, darken = 0.34) => {
+            const desaturateAndDarken = (hex, desat = 0.45, darken = 0.18) => {
                 const norm = toHex(hex);
                 if (!norm) return "#262626";
                 const r = parseInt(norm.slice(1, 3), 16);
@@ -2062,6 +2062,7 @@
                 e.stopPropagation();
                 if (!totalMeshes) return;
                 const currentIdx = interactiveIndex !== -1 ? interactiveIndex : Math.round(currentScroll / scrollSensitivity);
+                if (isPlayingLockedIndex(currentIdx)) return;
                 try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
                 hasLoadedRecord = true;
                 const selected = collection[currentIdx];
@@ -2500,6 +2501,10 @@
                 checkAuthAndRun(() => {
                     let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
                     if (targetIdx >= 0 && targetIdx < collection.length) {
+                        if (isPlayingLockedIndex(targetIdx)) {
+                            alert("Trenutno puštena ploča se ne može obrisati ili izbaciti.");
+                            return;
+                        }
                         lastIndex = targetIdx; // set it so confirmOkBtn uses the right one
                         const customConfirmOverlay = document.getElementById("customConfirmOverlay");
                         if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
@@ -2963,6 +2968,10 @@
             confirmOkBtn.addEventListener("click", () => {
                 customConfirmOverlay.classList.remove("active");
                 if (lastIndex >= 0 && lastIndex < collection.length) {
+                    if (isPlayingLockedIndex(lastIndex)) {
+                        alert("Trenutno puštena ploča se ne može obrisati ili izbaciti.");
+                        return;
+                    }
                     const item = collection[lastIndex];
                     const folderKey = item._uid;
                     

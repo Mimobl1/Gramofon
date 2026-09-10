@@ -489,8 +489,8 @@
     .vinyl-label{width:33%;height:33%;background:#efe9d8;border-radius:50%;border:2px solid #252525;box-sizing:border-box;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 0 10px rgba(0,0,0,.5);opacity:1;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden;isolation:isolate;cursor:grab}
     .vinyl-label:active{cursor:grabbing}
     body[data-theme="dark"] .vinyl-label {
-      opacity: 0.7 !important;
-      filter: brightness(0.6) saturate(0.6) !important;
+      opacity: 0.92 !important;
+      filter: brightness(0.9) saturate(0.8) !important;
     }
     body[data-theme="light"] .vinyl-label {
       opacity: 1 !important;
@@ -528,13 +528,13 @@
       .tonearm-assembly {
         right: 105px !important;
         top: calc(20% - 50px) !important;
-        width: 76px !important;
+        width: 80px !important;
         height: 230px !important;
       }
       .tonearm-rod-svg {
-        width: 76px !important;
+        width: 80px !important;
         height: 320px !important;
-        transform-origin: 38px 28px !important;
+        transform-origin: 40px 18px !important;
       }
     }
 
@@ -699,7 +699,7 @@
         </div>
         <div class="tonearm-assembly" aria-hidden="true">
           <div class="tonearm-base"><div class="tonearm-pivot"></div></div>
-          <svg class="tonearm-rod-svg" id="tonearmRod" viewBox="0 0 80 320">
+          <svg class="tonearm-rod-svg" id="tonearmRod" viewBox="0 0 80 320" preserveAspectRatio="none">
             <defs>
               <linearGradient id="rodGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:color-mix(in srgb,var(--rodE),#fff 28%)"/>
