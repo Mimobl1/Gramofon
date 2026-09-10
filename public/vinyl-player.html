@@ -745,12 +745,12 @@
             <circle cx="40" cy="18" r="7.8" fill="url(#pivotMetalGrad)" stroke="var(--rodStroke)" stroke-width=".7"/>
             <circle cx="40" cy="18" r="7.8" fill="url(#pivotAnisoSheen)" opacity=".58"/>
             <circle cx="40" cy="18" r="7.8" fill="url(#pivotBrushLines)" opacity=".38"/>
-            <foreignObject x="16" y="172" width="60" height="64">
-              <div xmlns="http://www.w3.org/1999/xhtml" class="headshell-wrap">
-                <div class="headshell-joint"></div>
-                <div class="headshell-pro"><div class="needle-point"></div></div>
-              </div>
-            </foreignObject>
+            <g transform="translate(40, 182) rotate(25)">
+              <rect x="-5" y="-12" width="10" height="8" rx="2" fill="var(--head)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>
+              <rect x="-8.8" y="-4" width="17.6" height="35.2" rx="2" fill="var(--head)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>
+              <rect x="-1" y="31.2" width="2" height="6" fill="var(--needle)" rx="1"/>
+              <rect x="8.8" y="10" width="10" height="2" rx="1" fill="var(--lift)"/>
+            </g>
             <rect x="30.5" y="-11" width="19" height="10" rx="1" fill="url(#topCapGrad)" stroke="var(--rodStroke)" stroke-width=".7" stroke-opacity=".9"/>
             <rect x="23" y="-27" width="33" height="18" rx="1" fill="url(#topCapGrad)" stroke="var(--rodStroke)" stroke-width=".7" stroke-opacity=".9"/>
           </svg>
@@ -884,14 +884,17 @@
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      const isMobile = vw <= 640;
+      const isMobile = vw <= 768;
       let edgeX, edgeY;
       if (isFullscreenMode) {
         edgeY = Math.round(vh * 0.10);
         edgeX = Math.round(vw * 0.10);
+      } else if (isMobile) {
+        edgeX = 8;
+        edgeY = 8;
       } else {
-        edgeX = isMobile ? 16 : Math.round(vw * 0.20);
-        edgeY = isMobile ? 16 : Math.round(vh * 0.20);
+        edgeX = Math.round(vw * 0.20);
+        edgeY = Math.round(vh * 0.20);
       }
 
       document.documentElement.style.setProperty('--edge-x', `${edgeX}px`);
@@ -905,8 +908,8 @@
 
       const sW = availW / baseW;
       const sH = availH / baseH;
-      const sMax = isFullscreenMode ? 5.0 : 1.5;
-      const s = Math.max(0.6, Math.min(sMax, Math.min(sW, sH)));
+      const sMax = isFullscreenMode ? 5.0 : 2.2;
+      const s = isMobile ? Math.max(0.5, Math.min(sMax, sW)) : Math.max(0.6, Math.min(sMax, Math.min(sW, sH)));
       document.documentElement.style.setProperty('--scale', String(s));
     }
 

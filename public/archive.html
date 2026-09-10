@@ -821,7 +821,17 @@
 
         function normalizeCollectionItem(item, idx) {
             if (!item || typeof item !== "object") return null;
-            const tracks = Array.isArray(item.tracks) ? item.tracks : [];
+            const rawTracks = Array.isArray(item.tracks) ? item.tracks : [];
+            const seen = new Set();
+            const tracks = [];
+            for (const t of rawTracks) {
+                const nameStr = String(t || "").trim();
+                const key = nameStr.toLowerCase();
+                if (key && !seen.has(key)) {
+                    seen.add(key);
+                    tracks.push(nameStr);
+                }
+            }
             return {
                 name: String(item.name || "UNKNOWN ALBUM").toUpperCase(),
                 author: String(item.author || "UNKNOWN ARTIST").toUpperCase(),
@@ -2562,14 +2572,29 @@
 
                 const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : "Novi Album";
                 
+                const seenFileTracks = new Set();
+                const uniqueFileTracks = [];
+                const uniqueFiles = [];
+                for (let i = 0; i < fileData.length; i++) {
+                    const f = fileData[i];
+                    const nameStr = String(f.name || "").trim();
+                    const key = nameStr.toLowerCase();
+                    if (key && !seenFileTracks.has(key)) {
+                        seenFileTracks.add(key);
+                        uniqueFileTracks.push(nameStr);
+                        uniqueFiles.push(f);
+                    }
+                }
+                uniqueFileTracks.sort();
+
                 const newAlbumRecord = {
                     id: albumId,
                     name: folderName.toUpperCase(),
                     author: "UPLOADED ALBUM",
                     color: "#1a1a1a",
                     folder: "LOCAL://" + albumId,
-                    tracks: fileData.map(f => f.name).sort(),
-                    files: fileData,
+                    tracks: uniqueFileTracks,
+                    files: uniqueFiles,
                     coverData: coverData,
                     coverType: coverType,
                     customCover: customCoverUrl
