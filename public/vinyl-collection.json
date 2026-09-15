@@ -1,8 +1,19 @@
 [
   {
+    "name": "BIGTEST",
+    "author": "BIGTESTER",
+    "color": "#2a333a",
+    "duration": "",
+    "folder": "Vinyl Collection/BIGTESTER - BIGTEST",
+    "cover": "",
+    "tracks": [
+      "dummy_45mb.mp3"
+    ]
+  },
+  {
     "name": "THE BEST OF VOL 2",
     "author": "JOHN COLTRANE",
-    "color": "#3A4430",
+    "color": "#7C106E",
     "duration": "",
     "folder": "Vinyl Collection/John Coltrane - The Best Of Vol 2",
     "cover": "",
@@ -28,7 +39,7 @@
   {
     "name": "SAMPLE ALBUM",
     "author": "LOREM IPSUM",
-    "color": "#691A65",
+    "color": "#021535",
     "duration": "",
     "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
     "cover": "",
@@ -64,6 +75,17 @@
       "03 Stormy Monday Blues 8.mp3",
       "04 Please Come Back To Me.mp3",
       "07 Louisiana Bayou Drive.mp3"
+    ]
+  },
+  {
+    "name": "TEST CLOUD ALBUM",
+    "author": "TEST ARTIST",
+    "color": "#05451A",
+    "duration": "",
+    "folder": "Vinyl Collection/TEST ARTIST - TEST CLOUD ALBUM",
+    "cover": "",
+    "tracks": [
+      "01 Test Track.mp3"
     ]
   },
   {
@@ -108,7 +130,7 @@
   {
     "name": "NOVI ALBUM TEST",
     "author": "UNKNOWN ARTIST",
-    "color": "#271F78",
+    "color": "#584949",
     "duration": "",
     "folder": "Vinyl Collection/Unknown Artist - NOVI ALBUM TEST",
     "cover": "",

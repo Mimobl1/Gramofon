@@ -173,7 +173,7 @@ async function startServer() {
       }
 
       const trackNames: string[] = [];
-      const compressionResults: any[] = [];
+      const trackPaths: string[] = [];
 
       // Sort audio files by original filename
       audioFiles.sort((a, b) => a.originalname.localeCompare(b.originalname));
@@ -185,16 +185,10 @@ async function startServer() {
         const outFileName = `${baseName}.mp3`;
         const finalOutPath = path.join(targetDir, outFileName);
 
-        // Copy original file to final path first, then compress in place
+        // Copy original file to final path immediately
         await fsPromises.copyFile(file.path, finalOutPath);
-        const result = await compressAudioFile(finalOutPath);
         trackNames.push(outFileName);
-        compressionResults.push({
-          file: outFileName,
-          originalMB: (result.originalSize ? (result.originalSize / (1024 * 1024)).toFixed(1) : "N/A"),
-          newMB: (result.newSize ? (result.newSize / (1024 * 1024)).toFixed(1) : (result.sizeMb ? result.sizeMb.toFixed(1) : "N/A")),
-          bitrate: result.bitrate || 192
-        });
+        trackPaths.push(finalOutPath);
       }
 
       // Cleanup multer temp files
@@ -202,8 +196,17 @@ async function startServer() {
         try { await fsPromises.unlink(f.path); } catch (_) {}
       }
 
-      // Rebuild local manifests for fallback
-      await updateCollection().catch(() => {});
+      // Find lowest order in Firestore so the new album is prepended to the front (order: minOrder - 1)
+      let minOrder = 0;
+      try {
+        const colRef = collection(db, "albums");
+        const snap = await getDocs(colRef);
+        snap.forEach(d => {
+          const ord = d.data().order;
+          if (typeof ord === "number" && ord < minOrder) minOrder = ord;
+        });
+      } catch (_) {}
+      const newOrder = minOrder - 1;
 
       const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
       const firestoreAlbum = {
@@ -216,22 +219,41 @@ async function startServer() {
         color: "#1a1a1a",
         genre: req.body.genre || "",
         year: req.body.year || "",
-        order: Date.now(),
+        order: newOrder,
         createdAt: new Date().toISOString()
       };
 
-      // Save to Firebase Firestore
+      // Save to Firebase Firestore immediately
       try {
         await setDoc(doc(db, "albums", albumDocId), firestoreAlbum);
+        console.log(`Successfully saved new album "${albumName}" to Firestore with id ${albumDocId} (order: ${newOrder})`);
       } catch (fErr) {
         console.error("Failed to write new album to Firestore:", fErr);
       }
 
+      // Rebuild local manifests for fallback
+      await updateCollection().catch(() => {});
+
+      // Respond immediately to the client so upload completes in seconds and never times out!
       res.json({
         status: "ok",
-        album: firestoreAlbum,
-        compressionResults
+        album: firestoreAlbum
       });
+
+      // Run 5-9MB audio compression in the background asynchronously
+      (async () => {
+        console.log(`Starting background compression for ${trackPaths.length} tracks in album "${albumName}"...`);
+        for (const outPath of trackPaths) {
+          try {
+            const res = await compressAudioFile(outPath);
+            console.log(`Compressed ${path.basename(outPath)}:`, res.bitrate ? `${res.bitrate}kbps` : "done");
+          } catch (e) {
+            console.warn(`Compression warning on ${outPath}:`, e);
+          }
+        }
+        await updateCollection().catch(() => {});
+        console.log(`Background compression complete for album "${albumName}".`);
+      })();
     } catch (err: any) {
       console.error("Upload error:", err);
       res.status(500).json({ error: err.message });

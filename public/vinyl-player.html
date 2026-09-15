@@ -348,7 +348,7 @@
 
     /* GRAMOPHONE CORE */
     .nosac{width:var(--w);height:var(--h);aspect-ratio:570/380;background:var(--case);border-radius:18px;position:relative;box-shadow:var(--case-s);border:var(--case-b);display:flex;align-items:center;justify-content:center;transition:.3s ease-out;overflow:visible;flex-shrink:0}
-    .nosac:before{content:"";position:absolute;inset:0;background-image:var(--noise);pointer-events:none;mix-blend-mode:overlay;opacity:.9}
+    .nosac:before{content:"";position:absolute;inset:0;border-radius:inherit;background-image:var(--noise);pointer-events:none;mix-blend-mode:overlay;opacity:.9}
     .nosac:after{
       content:"";
       position:absolute;
@@ -382,9 +382,9 @@
     body.dragging-arm, body.dragging-arm * {
       cursor: grabbing !important;
     }
-    .record-shadow{position:absolute;left:50%;top:50%;width:95%;height:95%;transform:translate(-50%,-50%) translateX(var(--drop-x,0px)) scale(var(--lift-scale,1));transform-origin:center;border-radius:50%;pointer-events:none;z-index:2;background:radial-gradient(circle at center,rgba(0,0,0,.42) 0%,rgba(0,0,0,.34) 42%,rgba(0,0,0,.08) 64%,rgba(0,0,0,0) 74%);filter:blur(8px);opacity:var(--record-shadow-opacity,1);transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 420ms cubic-bezier(0.22, 1, 0.36, 1)}
+    .record-shadow{position:absolute;left:50%;top:50%;width:95%;height:95%;transform:translate3d(-50%,-50%,0) translate3d(var(--drop-x,0px),0,0) scale(var(--lift-scale,1));transform-origin:center;border-radius:50%;pointer-events:none;z-index:2;background:radial-gradient(circle at center,rgba(0,0,0,.42) 0%,rgba(0,0,0,.34) 42%,rgba(0,0,0,.08) 64%,rgba(0,0,0,0) 74%);filter:blur(8px);opacity:var(--record-shadow-opacity,1);transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);will-change:transform}
     body.no-record .record-shadow{opacity:0;pointer-events:none}
-    .record-stage{position:absolute;inset:0;transform:perspective(1400px) translateX(var(--drop-x,0px)) rotate(var(--drop-rot,0deg)) scale(var(--lift-scale,1)) rotateX(var(--flip-rot,0deg));transform-origin:center;transform-style:preserve-3d;backface-visibility:visible;transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);z-index:3;opacity:1;will-change:transform}
+    .record-stage{position:absolute;inset:0;transform:perspective(1400px) translate3d(var(--drop-x,0px),0,0) rotate(var(--drop-rot,0deg)) scale(var(--lift-scale,1)) rotateX(var(--flip-rot,0deg));transform-origin:center;transform-style:preserve-3d;backface-visibility:hidden;-webkit-backface-visibility:hidden;transition:transform 700ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);z-index:3;opacity:1;will-change:transform}
     body.no-record .record-stage{opacity:0;pointer-events:none}
     body.no-record .flip-nav-container{opacity:0;pointer-events:none}
     body.no-record .button-bank .skeuo-btn{opacity:.35;pointer-events:none}
@@ -1437,24 +1437,18 @@
     };
 
     const loadSideDurationsFromMetadata=async()=>{
-      
       const readDuration=async(src, idx)=>{
         return new Promise(async(resolve)=>{
             const a=new Audio();
             a.preload="metadata";
             let absoluteUrl = "";
+            let createdBlobUrl = false;
             
             if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
                 const albumId = currentAlbumFolder.replace("LOCAL://", "");
                 try {
                     const db = await new Promise((res, rej) => {
                         const req = indexedDB.open("VinylCollectionDB", 1);
-                        req.onupgradeneeded = (e) => {
-                            const db = e.target.result;
-                            if (!db.objectStoreNames.contains("albums")) {
-                                db.createObjectStore("albums", { keyPath: "id" });
-                            }
-                        };
                         req.onsuccess = () => res(req.result);
                         req.onerror = () => rej(req.error);
                     });
@@ -1470,6 +1464,7 @@
                         if (file) {
                             const blob = new Blob([file.data], { type: file.type || "audio/mpeg" });
                             absoluteUrl = URL.createObjectURL(blob);
+                            createdBlobUrl = true;
                         }
                     }
                 } catch(e) {}
@@ -1483,9 +1478,15 @@
                 absoluteUrl = encodeURI(fullPath);
             }
             
-            a.src=absoluteUrl;
             const fallback = getRealisticFallbackDuration(src, idx);
+            let settled = false;
             const done=(value)=>{
+                if (settled) return;
+                settled = true;
+                try { a.src = ""; a.load(); } catch(_) {}
+                if (createdBlobUrl && absoluteUrl) {
+                    try { URL.revokeObjectURL(absoluteUrl); } catch(_) {}
+                }
                 const num = Number(value);
                 if (Number.isFinite(num) && num > 5 && num < 3600) {
                     if (num % 60 === 0) {
@@ -1499,16 +1500,22 @@
             };
             a.addEventListener("loadedmetadata",()=>done(a.duration),{once:true});
             a.addEventListener("error",()=>done(fallback),{once:true});
-            setTimeout(()=>done(fallback),2500);
+            setTimeout(()=>done(fallback),2000);
+            a.src=absoluteUrl;
         });
       };
 
-      const durations=await Promise.all(albumTracks.map((src, idx)=>readDuration(src, idx)));
-      trackDurationsSec = durations.map((d, idx)=> Math.round(d) || getRealisticFallbackDuration(albumTracks[idx], idx));
+      // Sequential staggered processing so browser main thread and audio decoders are never clogged
+      for (let i = 0; i < albumTracks.length; i++) {
+        await new Promise(r => setTimeout(r, 40));
+        const dur = await readDuration(albumTracks[i], i);
+        trackDurationsSec[i] = Math.round(dur) || getRealisticFallbackDuration(albumTracks[i], i);
+      }
+
       const half=tracksBySide.A.length;
       sideDurations={
-        A: Math.round(durations.slice(0,half).reduce((s,v)=>s+v,0)),
-        B: Math.round(durations.slice(half).reduce((s,v)=>s+v,0))
+        A: Math.round(trackDurationsSec.slice(0,half).reduce((s,v)=>s+v,0)),
+        B: Math.round(trackDurationsSec.slice(half).reduce((s,v)=>s+v,0))
       };
       if(!sideDurations.B) sideDurations.B=sideDurations.A;
       renderSidebarTrackLists();
@@ -1791,7 +1798,7 @@
       return true;
     }
 
-    async function applyAlbumFromQuery(selectedOverride = null) {
+    async function applyAlbumFromQuery(selectedOverride = null, deferAudio = false) {
       let selectedFromStorage = selectedOverride;
       if(!selectedFromStorage){
         try {
@@ -1800,7 +1807,7 @@
       }
       const params = new URLSearchParams(window.location.search);
       const hasQuerySelection = !!(params.get("name") || params.get("album"));
-      if(!selectedOverride && !hasQuerySelection){
+      if(!selectedOverride && !hasQuerySelection && !selectedFromStorage){
         return clearSelectedAlbumUi();
       }
       const name = (selectedOverride?.name || params.get("name") || params.get("album") || selectedFromStorage?.name);
@@ -1824,21 +1831,27 @@
       if (sidebarArtist) sidebarArtist.textContent = author || "Unknown Artist";
       if (sidebarMeta) sidebarMeta.textContent = duration ? `Length: ${duration}` : "";
       if (vinylLabel && isHexColor(color)) {
-        const isLightTheme = document.body?.dataset?.theme === "light";
-        let mutedLabel = color;
-        // Let CSS handle the theme-based opacity and filtering
         vinylLabel.style.background = color;
       }
       const folder = (selectedOverride?.folder || params.get("folder") || selectedFromStorage?.folder || "");
       currentAlbumFolder = folder;
       currentAlbumName = String(name);
       albumTracks = tracks.slice();
-      trackDurationsSec = [];
+      trackDurationsSec = albumTracks.map((t, idx) => getRealisticFallbackDuration(t, idx));
       if(albumTracks.length){
         splitAlbumSides(albumTracks);
         currentTrackIndex = 0;
-        await setDeckSourceByIndex(currentTrackIndex);
-        loadSideDurationsFromMetadata().catch(e => console.error("loadSideDurationsFromMetadata error", e));
+        const half = tracksBySide.A.length;
+        sideDurations = {
+          A: Math.round(trackDurationsSec.slice(0, half).reduce((s, v) => s + v, 0)),
+          B: Math.round(trackDurationsSec.slice(half).reduce((s, v) => s + v, 0))
+        };
+        if (!sideDurations.B) sideDurations.B = sideDurations.A;
+        renderSidebarTrackLists();
+        if(!deferAudio){
+          await setDeckSourceByIndex(currentTrackIndex);
+          loadSideDurationsFromMetadata().catch(e => console.error("loadSideDurationsFromMetadata error", e));
+        }
       } else {
         tracksBySide={A:[],B:[]};
         renderSidebarTrackLists();
@@ -1849,7 +1862,6 @@
     }
 
     async function applySelectedAlbumAndStart(selected){
-console.log("applySelectedAlbumAndStart START", selected);
       if(!selected || !selected.name) return;
       try { localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selected)); } catch(_) {}
       // Reset transport button visual state when switching albums.
@@ -1870,9 +1882,10 @@ console.log("applySelectedAlbumAndStart START", selected);
       elapsedMs = 0;
       rot = 0;
       setRecordRotation(0);
-      await applyAlbumFromQuery(selected);
+      
+      // 1. Defer heavy audio loading during drop-in animation
+      await applyAlbumFromQuery(selected, true);
       ensureTrackIndexInCurrentSide();
-      await setDeckSourceByIndex(currentTrackIndex);
       syncDisplay();
       if(sidebarScrollEl) {
         sidebarScrollEl.scrollTop = 0;
@@ -1881,7 +1894,14 @@ console.log("applySelectedAlbumAndStart START", selected);
       setTimer(getSideDuration());
       updatePowerUi();
       document.body.classList.remove("no-record");
-      console.log("Before runDropInAnimation"); await runDropInAnimation(); console.log("After runDropInAnimation");
+      
+      // 2. Buttery smooth drop-in animation (zero CPU/audio thread contention)
+      await runDropInAnimation();
+      
+      // 3. Now that the record has physically landed on the turntable, load audio
+      await setDeckSourceByIndex(currentTrackIndex);
+      loadSideDurationsFromMetadata().catch(e => console.error("loadSideDurationsFromMetadata error", e));
+      
       if(powered){
         handlePress($("playBtn"), "play");
       } else {
@@ -1926,13 +1946,15 @@ console.log("applySelectedAlbumAndStart START", selected);
       if (recordStage) recordStage.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.06, 0.84, 0.2, 1)`;
 
       requestAnimationFrame(() => {
-        if (recordEl) {
-          recordEl.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.16, 0.72, 0.22, 1)`;
-          recordEl.style.transform = `rotate(${ENTRY_SPIN_DEG}deg)`;
-        }
-        document.documentElement.style.setProperty('--drop-x', '0px');
-        document.documentElement.style.setProperty('--drop-rot', '-1.4deg');
-        document.documentElement.style.setProperty('--lift-scale', '1.24');
+        requestAnimationFrame(() => {
+          if (recordEl) {
+            recordEl.style.transition = `transform ${ENTRY_TO_CENTER_MS}ms cubic-bezier(0.16, 0.72, 0.22, 1)`;
+            recordEl.style.transform = `rotate(${ENTRY_SPIN_DEG}deg)`;
+          }
+          document.documentElement.style.setProperty('--drop-x', '0px');
+          document.documentElement.style.setProperty('--drop-rot', '-1.4deg');
+          document.documentElement.style.setProperty('--lift-scale', '1.24');
+        });
       });
 
       await sleep(ENTRY_TO_CENTER_MS + 40);

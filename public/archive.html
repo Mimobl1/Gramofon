@@ -2435,35 +2435,69 @@
             };
         });
         
-        // Load custom albums on startup
+        // Load custom albums on startup and auto-sync any unsynced local albums to Firestore/server
         dbPromise.then(db => {
-            const tx = db.transaction("albums", "readonly");
-            const store = tx.objectStore("albums");
-            const req = store.getAll();
-            req.onsuccess = () => {
-                const customAlbums = req.result || [];
-                if(customAlbums.length > 0) {
-                    customAlbums.forEach(ca => {
-                        const newItem = {
-                            name: ca.name,
-                            author: ca.author,
-                            color: ca.color,
-                            folder: ca.folder,
-                            cover: ca.customCover || "",
-                            tracks: ca.tracks,
-                            customCover: ca.customCover || "",
-                            useCustomCover: !!ca.customCover,
-                            _uid: ca.folder
-                        };
-                        collection.unshift(newItem);
-                        originalCollection.unshift(newItem);
-                    });
-                    groups.forEach(g => { if(g) scene.remove(g); });
-                    groups = [];
-                    rebuildMeshes();
-                    filterCollection();
-                }
-            };
+            try {
+                const tx = db.transaction("albums", "readonly");
+                const store = tx.objectStore("albums");
+                const req = store.getAll();
+                req.onsuccess = async () => {
+                    const customAlbums = req.result || [];
+                    if(customAlbums.length > 0) {
+                        console.log("Found local custom albums in IndexedDB:", customAlbums.length);
+                        for(const ca of customAlbums) {
+                            // If it has files data, upload it to the server so it persists to Firestore and across devices/incognito!
+                            if(ca.files && ca.files.length > 0) {
+                                try {
+                                    const formData = new FormData();
+                                    formData.append("albumName", ca.name || "NEW ALBUM");
+                                    formData.append("artistName", ca.author || "ARTIST");
+                                    if (ca.coverData) {
+                                        formData.append("files", new Blob([ca.coverData], { type: ca.coverType || "image/jpeg" }), "cover.jpg");
+                                    }
+                                    ca.files.forEach(f => {
+                                        if (f.data) {
+                                            formData.append("files", new Blob([f.data], { type: f.type || "audio/mpeg" }), f.name);
+                                        }
+                                    });
+                                    const syncRes = await fetch("/api/upload-album", { method: "POST", body: formData });
+                                    if(syncRes.ok) {
+                                        const syncData = await syncRes.json();
+                                        console.log("Successfully migrated local album to Firestore database:", syncData);
+                                        // Remove from local IndexedDB now that it is permanently in Firestore
+                                        const delTx = db.transaction("albums", "readwrite");
+                                        delTx.objectStore("albums").delete(ca.id);
+                                        loadCollectionManifest();
+                                        continue;
+                                    }
+                                } catch(syncErr) {
+                                    console.warn("Auto-sync to Firestore failed:", syncErr);
+                                }
+                            }
+                            // Fallback display if not yet synced
+                            const newItem = {
+                                name: ca.name,
+                                author: ca.author,
+                                color: ca.color,
+                                folder: ca.folder,
+                                cover: ca.customCover || "",
+                                tracks: ca.tracks,
+                                customCover: ca.customCover || "",
+                                useCustomCover: !!ca.customCover,
+                                _uid: ca.folder
+                            };
+                            collection.unshift(newItem);
+                            originalCollection.unshift(newItem);
+                        }
+                        groups.forEach(g => { if(g) scene.remove(g); });
+                        groups = [];
+                        rebuildMeshes();
+                        filterCollection();
+                    }
+                };
+            } catch(e) {
+                console.warn("IndexedDB check error:", e);
+            }
         });
 
         let pendingAction = null;
@@ -2556,7 +2590,7 @@
                         formData.append("files", f);
                     });
 
-                    progressEl.innerText = `Kompresovanje i prenos ${audioFiles.length} pesama na server...`;
+                    progressEl.innerText = `Slanje ${audioFiles.length} pesama na server i čuvanje u bazi...`;
 
                     const response = await fetch("/api/upload-album", {
                         method: "POST",
@@ -2579,8 +2613,11 @@
                             rebuildMeshes();
                             filterCollection();
 
-                            progressEl.innerText = `Uspešno sačuvano na serveru! (${audioFiles.length} pesama u 5-9MB)`;
-                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+                            // Ensure fresh order from Firestore
+                            loadCollectionManifest().catch(() => {});
+
+                            progressEl.innerText = `Uspešno sačuvano u bazi i na serveru! (${audioFiles.length} pesama)`;
+                            setTimeout(() => { progressEl.style.display = 'none'; }, 3500);
                             uploadAlbumInput.value = "";
                             return;
                         }
