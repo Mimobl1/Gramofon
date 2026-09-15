@@ -6,9 +6,27 @@ import multer from "multer";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createServer as createViteServer } from "vite";
+import { initializeApp } from "firebase/app";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy, 
+  query 
+} from "firebase/firestore";
+import firebaseConfig from "./firebase-applet-config.json";
 import { updateCollection } from "./update-collection.js";
 
 const execFileAsync = promisify(execFile);
+
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
 const tmpDir = path.join(process.cwd(), "tmp_uploads");
 if (!fs.existsSync(tmpDir)) {
@@ -91,20 +109,57 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    res.json({ status: "ok", firebase: "connected" });
   });
 
   app.get("/api/albums", async (req, res) => {
     try {
+      const colRef = collection(db, "albums");
+      const snap = await getDocs(query(colRef, orderBy("order", "asc")));
+      if (!snap.empty) {
+        const albums = snap.docs.map(d => ({
+          ...d.data(),
+          _uid: d.data().folder || d.id
+        }));
+        return res.json(albums);
+      }
+      
+      // If Firestore is empty, seed from local manifest
       const manifestPath = path.join(process.cwd(), "public", "vinyl-collection.json");
       if (fs.existsSync(manifestPath)) {
+        const raw = await fsPromises.readFile(manifestPath, "utf-8");
+        const parsed = JSON.parse(raw);
+        for (let i = 0; i < parsed.length; i++) {
+          const a = parsed[i];
+          const id = (a.folder || a.name).replace(/[^a-zA-Z0-9_-]/g, "_");
+          await setDoc(doc(db, "albums", id), {
+            id,
+            name: a.name,
+            author: a.author,
+            color: a.color || "#1a1a1a",
+            folder: a.folder,
+            cover: a.cover || "",
+            tracks: a.tracks || [],
+            genre: a.genre || "",
+            year: a.year || "",
+            order: i,
+            createdAt: new Date().toISOString()
+          }).catch(() => {});
+        }
+        return res.json(parsed);
+      }
+
+      const collectionList = await updateCollection();
+      res.json(collectionList);
+    } catch (err: any) {
+      console.warn("Firestore read failed, falling back to local file:", err.message);
+      try {
+        const manifestPath = path.join(process.cwd(), "public", "vinyl-collection.json");
         const data = await fsPromises.readFile(manifestPath, "utf-8");
         return res.json(JSON.parse(data));
+      } catch (_) {
+        res.status(500).json({ error: err.message });
       }
-      const collection = await updateCollection();
-      res.json(collection);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
     }
   });
 
@@ -193,19 +248,34 @@ async function startServer() {
         try { await fsPromises.unlink(f.path); } catch (_) {}
       }
 
-      // Rebuild manifests
-      const updatedCollection = await updateCollection();
-      const createdAlbum = updatedCollection.find((a: any) => a.folder === `Vinyl Collection/${folderName}`);
+      // Rebuild local manifests for fallback
+      await updateCollection().catch(() => {});
+
+      const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const firestoreAlbum = {
+        id: albumDocId,
+        name: albumName,
+        author: artistName,
+        folder: `Vinyl Collection/${folderName}`,
+        cover: coverPath,
+        tracks: trackNames,
+        color: "#1a1a1a",
+        genre: req.body.genre || "",
+        year: req.body.year || "",
+        order: Date.now(),
+        createdAt: new Date().toISOString()
+      };
+
+      // Save to Firebase Firestore
+      try {
+        await setDoc(doc(db, "albums", albumDocId), firestoreAlbum);
+      } catch (fErr) {
+        console.error("Failed to write new album to Firestore:", fErr);
+      }
 
       res.json({
         status: "ok",
-        album: createdAlbum || {
-          name: albumName,
-          author: artistName,
-          folder: `Vinyl Collection/${folderName}`,
-          cover: coverPath,
-          tracks: trackNames
-        },
+        album: firestoreAlbum,
         compressionResults
       });
     } catch (err: any) {
@@ -214,16 +284,60 @@ async function startServer() {
     }
   });
 
+  app.post("/api/update-album", async (req, res) => {
+    try {
+      const { folder, name, author, genre, year, color } = req.body;
+      if (!folder) return res.status(400).json({ error: "Folder is required" });
+      const albumDocId = folder.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (author) updateData.author = author;
+      if (genre !== undefined) updateData.genre = genre;
+      if (year !== undefined) updateData.year = year;
+      if (color) updateData.color = color;
+
+      const albumRef = doc(db, "albums", albumDocId);
+      await setDoc(albumRef, updateData, { merge: true });
+      res.json({ status: "ok" });
+    } catch (err: any) {
+      console.error("Update album error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/reorder-albums", async (req, res) => {
+    try {
+      const { order } = req.body;
+      if (!Array.isArray(order)) return res.status(400).json({ error: "Order array required" });
+      for (let i = 0; i < order.length; i++) {
+        const folderKey = order[i];
+        const albumDocId = folderKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+        await setDoc(doc(db, "albums", albumDocId), { order: i }, { merge: true }).catch(() => {});
+      }
+      res.json({ status: "ok" });
+    } catch (err: any) {
+      console.error("Reorder albums error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete("/api/albums", async (req, res) => {
     try {
       const { folder } = req.body;
       if (!folder) return res.status(400).json({ error: "Folder required" });
+      
       const safeFolder = path.basename(folder);
       const targetDir = path.join(process.cwd(), "public", "Vinyl Collection", safeFolder);
       if (fs.existsSync(targetDir)) {
         await fsPromises.rm(targetDir, { recursive: true, force: true });
-        await updateCollection();
+        await updateCollection().catch(() => {});
       }
+
+      // Delete from Firestore
+      const albumDocId = folder.replace(/[^a-zA-Z0-9_-]/g, "_");
+      await deleteDoc(doc(db, "albums", albumDocId)).catch(() => {});
+
       res.json({ status: "ok" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

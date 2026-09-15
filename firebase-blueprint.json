@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "Album": {
+      "title": "Album",
+      "description": "A vinyl record album in the collection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the album" },
+        "name": { "type": "string", "description": "Album title" },
+        "author": { "type": "string", "description": "Artist or author of the album" },
+        "genre": { "type": "string", "description": "Musical genre" },
+        "year": { "type": "string", "description": "Release year" },
+        "color": { "type": "string", "description": "Dominant hex color for the sleeve" },
+        "folder": { "type": "string", "description": "Folder path or stream location" },
+        "cover": { "type": "string", "description": "Cover art URL or path" },
+        "tracks": { "type": "array", "description": "List of track filenames or titles" },
+        "order": { "type": "number", "description": "Custom sorting order index" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "name", "author", "folder", "tracks"]
+    }
+  },
+  "firestore": {
+    "/albums/{albumId}": {
+      "schema": "Album",
+      "description": "Collection of vinyl albums"
+    }
+  }
+}

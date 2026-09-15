@@ -1183,20 +1183,11 @@
         }
 
         async function loadCollectionManifest() {
-            if (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length > 0) {
-                console.log("Loaded collection from window.VINYL_COLLECTION:", window.VINYL_COLLECTION.length, "albums");
-                applyCollectionData(window.VINYL_COLLECTION);
-                
-                enrichAlbumDurations(window.VINYL_COLLECTION).catch(err => console.warn("Background enrichment failed:", err));
-                return;
-            }
-
-            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 10000));
+            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
             try {
-                console.log("Fetching manifest from:", COLLECTION_MANIFEST_URL);
-                const fetchPromise = fetch(`${COLLECTION_MANIFEST_URL}?t=${Date.now()}`, { 
-                    cache: "no-store",
-                    credentials: "include"
+                console.log("Fetching live Firestore albums from /api/albums...");
+                const fetchPromise = fetch(`/api/albums?t=${Date.now()}`, { 
+                    cache: "no-store"
                 });
                 const res = await Promise.race([fetchPromise, timeoutPromise]);
                 
@@ -1205,21 +1196,22 @@
                     const parsed = Array.isArray(data) ? data : [];
                     if (parsed.length) {
                         applyCollectionData(parsed);
-                        console.log("Collection loaded successfully:", parsed.length, "albums");
-                        
+                        console.log("Live Firestore collection loaded successfully:", parsed.length, "albums");
                         enrichAlbumDurations(parsed).catch(err => console.warn("Background enrichment failed:", err));
                         return;
-                    } else {
-                        
                     }
-                } else {
-                    console.warn("Manifest fetch timed out or failed");
-                    
                 }
             } catch (e) {
-                console.warn("Manifest fetch error:", e);
-                
+                console.warn("Live collection fetch error, trying local fallback:", e);
             }
+
+            if (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length > 0) {
+                console.log("Loaded collection from window.VINYL_COLLECTION:", window.VINYL_COLLECTION.length, "albums");
+                applyCollectionData(window.VINYL_COLLECTION);
+                enrichAlbumDurations(window.VINYL_COLLECTION).catch(err => console.warn("Background enrichment failed:", err));
+                return;
+            }
+
             console.log("Using default collection as fallback");
             applyCollectionData(DEFAULT_COLLECTION);
         }
@@ -2845,6 +2837,20 @@
                 // Do not store base64 in localStorage to avoid QuotaExceededError
                 delete overrides[folderKey].customCover;
                 localStorage.setItem('vinyl_album_overrides_v1', JSON.stringify(overrides));
+
+                // Synchronize album edit with Firebase Firestore
+                fetch('/api/update-album', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folder: folderKey,
+                        name: newName,
+                        author: newAuthor,
+                        genre: newGenre,
+                        year: newYear,
+                        color: newColor
+                    })
+                }).catch(err => console.warn("Firestore update sync failed:", err));
                 
                 // Save custom cover to IndexedDB
                 if (item.customCover) {
@@ -3325,6 +3331,13 @@
             reorderSaveBtn.addEventListener("click", () => {
                 const newOrder = Array.from(reorderList.children).map(child => child.dataset.uid);
                 localStorage.setItem('vinyl_album_order_v1', JSON.stringify(newOrder));
+                
+                // Synchronize custom order with Firebase Firestore
+                fetch('/api/reorder-albums', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: newOrder })
+                }).catch(err => console.warn("Firestore reorder sync failed:", err));
                 
                 // Re-sort originalCollection
                 originalCollection.sort((a, b) => {
