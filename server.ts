@@ -39,11 +39,84 @@ const upload = multer({
   limits: { fileSize: 300 * 1024 * 1024 } // 300MB max per file
 });
 
+async function syncDiskAndFirestore() {
+  try {
+    const colRef = collection(db, "albums");
+    const snap = await getDocs(colRef);
+    const existingFolders = new Set<string>();
+    const existingIds = new Set<string>();
+    let lowestOrder = 0;
+
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.folder) existingFolders.add(data.folder);
+      if (data.id) existingIds.add(data.id);
+      existingIds.add(d.id);
+      const ord = data.order;
+      if (typeof ord === "number" && ord < lowestOrder) lowestOrder = ord;
+    });
+
+    const collectionDir = path.join(process.cwd(), "public", "Vinyl Collection");
+    if (!fs.existsSync(collectionDir)) return;
+    const folders = await fsPromises.readdir(collectionDir);
+
+    for (const f of folders) {
+      if (f.startsWith(".")) continue;
+      const folderPath = path.join(collectionDir, f);
+      const stat = await fsPromises.stat(folderPath).catch(() => null);
+      if (!stat || !stat.isDirectory()) continue;
+
+      const fullFolderKey = `Vinyl Collection/${f}`;
+      const docId = `Vinyl_Collection_${f}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      if (existingFolders.has(fullFolderKey) || existingIds.has(docId)) {
+        continue;
+      }
+
+      // Check if folder has audio files
+      const items = await fsPromises.readdir(folderPath).catch(() => []);
+      const audioFiles = items.filter(x => x.match(/\.(mp3|wav|flac|m4a|ogg|aac)$/i)).sort();
+      const imageFile = items.find(x => x.match(/\.(jpg|jpeg|png|webp)$/i)) || "";
+
+      let artist = "UNKNOWN ARTIST";
+      let name = f;
+      if (f.includes(" - ")) {
+        const parts = f.split(" - ");
+        artist = parts[0].trim();
+        name = parts.slice(1).join(" - ").trim();
+      }
+
+      lowestOrder -= 1;
+      const newAlbum = {
+        id: docId,
+        name: name.toUpperCase(),
+        author: artist.toUpperCase(),
+        folder: fullFolderKey,
+        cover: imageFile ? `${fullFolderKey}/${imageFile}` : "",
+        tracks: audioFiles,
+        color: "#2a333a",
+        genre: "",
+        year: "",
+        order: lowestOrder,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, "albums", docId), newAlbum);
+      console.log(`[Auto-Sync] Registered folder "${f}" into Firestore with id "${docId}" (${audioFiles.length} tracks)`);
+      existingFolders.add(fullFolderKey);
+      existingIds.add(docId);
+    }
+  } catch (err) {
+    console.warn("[Auto-Sync] Disk and Firestore sync error:", err);
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -66,6 +139,8 @@ async function startServer() {
 
   app.get("/api/albums", async (req, res) => {
     try {
+      await syncDiskAndFirestore().catch(() => {});
+
       const colRef = collection(db, "albums");
       const snap = await getDocs(query(colRef, orderBy("order", "asc")));
       if (!snap.empty) {
@@ -300,19 +375,32 @@ async function startServer() {
 
   app.delete("/api/albums", async (req, res) => {
     try {
-      const { folder } = req.body;
-      if (!folder) return res.status(400).json({ error: "Folder required" });
+      const { folder, id } = req.body;
+      const target = folder || id;
+      if (!target) return res.status(400).json({ error: "Folder or id required" });
       
-      const safeFolder = path.basename(folder);
+      const safeFolder = path.basename(target);
       const targetDir = path.join(process.cwd(), "public", "Vinyl Collection", safeFolder);
       if (fs.existsSync(targetDir)) {
         await fsPromises.rm(targetDir, { recursive: true, force: true });
         await updateCollection().catch(() => {});
       }
 
-      // Delete from Firestore
-      const albumDocId = folder.replace(/[^a-zA-Z0-9_-]/g, "_");
-      await deleteDoc(doc(db, "albums", albumDocId)).catch(() => {});
+      // Delete from Firestore by document ID and matching folder query
+      const primaryDocId = target.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const altDocId = `Vinyl_Collection_${safeFolder}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      await deleteDoc(doc(db, "albums", primaryDocId)).catch(() => {});
+      await deleteDoc(doc(db, "albums", altDocId)).catch(() => {});
+
+      const colRef = collection(db, "albums");
+      const snap = await getDocs(colRef);
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (d.id === target || data.folder === target || data.folder === `Vinyl Collection/${safeFolder}`) {
+          await deleteDoc(doc(db, "albums", d.id)).catch(() => {});
+          console.log(`[Firestore] Deleted album document: ${d.id}`);
+        }
+      }
 
       res.json({ status: "ok" });
     } catch (err: any) {

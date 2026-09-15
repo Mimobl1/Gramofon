@@ -866,40 +866,20 @@
 
         function applyCollectionData(data) {
             const normalized = Array.isArray(data) ? data.map(normalizeCollectionItem).filter(Boolean) : [];
-            let overrides = {};
-            try {
-                overrides = JSON.parse(localStorage.getItem('vinyl_album_overrides_v1')) || {};
-            } catch(e) {}
             
+            // Central Firestore database is the single source of truth for all devices
             originalCollection = normalized.map((item, idx) => {
-                const folderKey = item._uid;
-                const folderOverrides = overrides[folderKey] || {};
-                if (folderOverrides.deleted) return null;
                 return {
                     ...item,
-                    color: folderOverrides.color || uniqueAlbumColorByIndex(idx),
-                    name: folderOverrides.name || item.name,
-                    author: folderOverrides.author || item.author,
-                    genre: folderOverrides.genre || item.genre || "",
-                    year: folderOverrides.year || item.year || "",
-                    customCover: folderOverrides.customCover || item.customCover || "",
-                    useCustomCover: folderOverrides.useCustomCover !== undefined ? folderOverrides.useCustomCover : (item.useCustomCover !== undefined ? item.useCustomCover : true)
+                    color: item.color || uniqueAlbumColorByIndex(idx),
+                    name: item.name,
+                    author: item.author,
+                    genre: item.genre || "",
+                    year: item.year || "",
+                    customCover: item.customCover || "",
+                    useCustomCover: item.useCustomCover !== undefined ? item.useCustomCover : true
                 };
-            }).filter(Boolean);
-            
-            try {
-                const savedOrder = JSON.parse(localStorage.getItem('vinyl_album_order_v1'));
-                if (savedOrder && Array.isArray(savedOrder)) {
-                    originalCollection.sort((a, b) => {
-                        const idxA = savedOrder.indexOf(a._uid);
-                        const idxB = savedOrder.indexOf(b._uid);
-                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                        if (idxA !== -1) return -1; // a comes first
-                        if (idxB !== -1) return 1;  // b comes first
-                        return 0; 
-                    });
-                }
-            } catch(e) {}
+            });
             
             filterCollection();
         }
@@ -1183,26 +1163,31 @@
         }
 
         async function loadCollectionManifest() {
-            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
-            try {
-                console.log("Fetching live Firestore albums from /api/albums...");
-                const fetchPromise = fetch(`/api/albums?t=${Date.now()}`, { 
-                    cache: "no-store"
-                });
-                const res = await Promise.race([fetchPromise, timeoutPromise]);
-                
-                if (res && res.ok) {
-                    const data = await res.json();
-                    const parsed = Array.isArray(data) ? data : [];
-                    if (parsed.length) {
-                        applyCollectionData(parsed);
-                        console.log("Live Firestore collection loaded successfully:", parsed.length, "albums");
-                        enrichAlbumDurations(parsed).catch(err => console.warn("Background enrichment failed:", err));
-                        return;
+            console.log("Fetching live Firestore albums from /api/albums...");
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 10000));
+                    const fetchPromise = fetch(`/api/albums?t=${Date.now()}`, { 
+                        cache: "no-store"
+                    });
+                    const res = await Promise.race([fetchPromise, timeoutPromise]);
+                    
+                    if (res && res.ok) {
+                        const data = await res.json();
+                        const parsed = Array.isArray(data) ? data : [];
+                        if (parsed.length) {
+                            applyCollectionData(parsed);
+                            console.log(`Live Firestore collection loaded successfully (attempt ${attempt}):`, parsed.length, "albums");
+                            enrichAlbumDurations(parsed).catch(err => console.warn("Background enrichment failed:", err));
+                            return;
+                        }
                     }
+                } catch (e) {
+                    console.warn(`Live collection fetch error (attempt ${attempt}):`, e);
                 }
-            } catch (e) {
-                console.warn("Live collection fetch error, trying local fallback:", e);
+                if (attempt === 1) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
             }
 
             if (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length > 0) {
@@ -2328,8 +2313,12 @@
                 });
             });
 
-            // Verify collection source before app init so archive is ready immediately.
-            try { localStorage.removeItem("vinyl_archive_albums_v1"); } catch(_) {}
+            // Clear any local overrides and order so Firestore is always the single source of truth
+            try {
+                localStorage.removeItem("vinyl_archive_albums_v1");
+                localStorage.removeItem("vinyl_album_overrides_v1");
+                localStorage.removeItem("vinyl_album_order_v1");
+            } catch(_) {}
             await loadCollectionManifest();
             if (!collection.length) {
                 console.warn("Collection empty, applying defaults");
@@ -2398,45 +2387,53 @@
 
         // Edit Modal Logic
         
-        const dbPromise = new Promise((resolve, reject) => {
-            const req = indexedDB.open("VinylCollectionDB", 1);
-            req.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains("albums")) {
-                    db.createObjectStore("albums", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("covers")) {
-                    db.createObjectStore("covers", { keyPath: "id" });
-                }
-            };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
+        const dbPromise = new Promise((resolve) => {
+            try {
+                const req = indexedDB.open("VinylCollectionDB", 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains("albums")) {
+                        db.createObjectStore("albums", { keyPath: "id" });
+                    }
+                    if (!db.objectStoreNames.contains("covers")) {
+                        db.createObjectStore("covers", { keyPath: "id" });
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            } catch(_) {
+                resolve(null);
+            }
         });
 
         // Load covers from IndexedDB
         dbPromise.then(db => {
-            const tx = db.transaction("covers", "readonly");
-            const store = tx.objectStore("covers");
-            const req = store.getAll();
-            req.onsuccess = () => {
-                const covers = req.result || [];
-                covers.forEach(c => {
-                    const item = originalCollection.find(x => x._uid === c.id);
-                    if (item) {
-                        item.customCover = c.coverData;
-                        item.useCustomCover = true;
+            if (!db) return;
+            try {
+                const tx = db.transaction("covers", "readonly");
+                const store = tx.objectStore("covers");
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const covers = req.result || [];
+                    covers.forEach(c => {
+                        const item = originalCollection.find(x => x._uid === c.id);
+                        if (item) {
+                            item.customCover = c.coverData;
+                            item.useCustomCover = true;
+                        }
+                    });
+                    if(covers.length > 0) {
+                        groups.forEach(g => { if(g) scene.remove(g); });
+                        groups = [];
+                        filterCollection();
                     }
-                });
-                if(covers.length > 0) {
-                    groups.forEach(g => { if(g) scene.remove(g); });
-                    groups = [];
-                    filterCollection();
-                }
-            };
+                };
+            } catch(_) {}
         });
         
-        // Load custom albums on startup and auto-sync any unsynced local albums to Firestore/server
+        // Background migration: if any old albums exist in browser IndexedDB, migrate them to the server
         dbPromise.then(db => {
+            if (!db) return;
             try {
                 const tx = db.transaction("albums", "readonly");
                 const store = tx.objectStore("albums");
@@ -2444,9 +2441,8 @@
                 req.onsuccess = async () => {
                     const customAlbums = req.result || [];
                     if(customAlbums.length > 0) {
-                        console.log("Found local custom albums in IndexedDB:", customAlbums.length);
+                        console.log("Migrating local IndexedDB albums to server:", customAlbums.length);
                         for(const ca of customAlbums) {
-                            // If it has files data, upload it to the server so it persists to Firestore and across devices/incognito!
                             if(ca.files && ca.files.length > 0) {
                                 try {
                                     const formData = new FormData();
@@ -2462,41 +2458,20 @@
                                     });
                                     const syncRes = await fetch("/api/upload-album", { method: "POST", body: formData });
                                     if(syncRes.ok) {
-                                        const syncData = await syncRes.json();
-                                        console.log("Successfully migrated local album to Firestore database:", syncData);
-                                        // Remove from local IndexedDB now that it is permanently in Firestore
+                                        console.log("Successfully migrated local album to server Firestore:", ca.name);
                                         const delTx = db.transaction("albums", "readwrite");
                                         delTx.objectStore("albums").delete(ca.id);
-                                        loadCollectionManifest();
-                                        continue;
+                                        await loadCollectionManifest();
                                     }
                                 } catch(syncErr) {
-                                    console.warn("Auto-sync to Firestore failed:", syncErr);
+                                    console.warn("Migration to server failed:", syncErr);
                                 }
                             }
-                            // Fallback display if not yet synced
-                            const newItem = {
-                                name: ca.name,
-                                author: ca.author,
-                                color: ca.color,
-                                folder: ca.folder,
-                                cover: ca.customCover || "",
-                                tracks: ca.tracks,
-                                customCover: ca.customCover || "",
-                                useCustomCover: !!ca.customCover,
-                                _uid: ca.folder
-                            };
-                            collection.unshift(newItem);
-                            originalCollection.unshift(newItem);
                         }
-                        groups.forEach(g => { if(g) scene.remove(g); });
-                        groups = [];
-                        rebuildMeshes();
-                        filterCollection();
                     }
                 };
             } catch(e) {
-                console.warn("IndexedDB check error:", e);
+                console.warn("IndexedDB migration error:", e);
             }
         });
 
@@ -2600,101 +2575,24 @@
                     if (response.ok) {
                         const result = await response.json();
                         if (result.status === "ok" && result.album) {
-                            const newServerAlbum = {
-                                ...result.album,
-                                _uid: result.album.folder
-                            };
-
-                            collection.unshift(newServerAlbum);
-                            originalCollection.unshift(newServerAlbum);
-
+                            progressEl.innerText = `Uspešno sačuvano u bazi i na serveru! (${audioFiles.length} pesama)`;
+                            uploadAlbumInput.value = "";
+                            await loadCollectionManifest();
                             groups.forEach(g => { if (g) scene.remove(g); });
                             groups = [];
                             rebuildMeshes();
                             filterCollection();
-
-                            // Ensure fresh order from Firestore
-                            loadCollectionManifest().catch(() => {});
-
-                            progressEl.innerText = `Uspešno sačuvano u bazi i na serveru! (${audioFiles.length} pesama)`;
-                            setTimeout(() => { progressEl.style.display = 'none'; }, 3500);
-                            uploadAlbumInput.value = "";
+                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
                             return;
                         }
                     }
+                    throw new Error("Server response not ok");
                 } catch (serverErr) {
-                    console.warn("Server upload failed, falling back to local storage:", serverErr);
+                    console.error("Server upload failed:", serverErr);
+                    progressEl.style.display = 'none';
+                    uploadAlbumInput.value = "";
+                    alert("Greška pri čuvanju na serveru. Proverite internet vezu ili server i pokušajte ponovo.");
                 }
-
-                // 2. Fallback to browser IndexedDB if offline
-                progressEl.innerText = "Spremanje u lokalnu bazu...";
-                const db = await dbPromise;
-                const albumId = "custom_" + Date.now();
-                
-                const fileData = [];
-                let processed = 0;
-                for (let i = 0; i < audioFiles.length; i++) {
-                    const f = audioFiles[i];
-                    const buffer = await f.arrayBuffer();
-                    fileData.push({ name: f.name, type: f.type || (f.name.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : (f.name.toLowerCase().endsWith(".wav") ? "audio/wav" : "audio/mpeg")), data: buffer });
-                    processed++;
-                    progressEl.innerText = `Uploading... ${Math.round((processed/audioFiles.length)*100)}%`;
-                }
-
-                let customCoverUrl = "";
-                let coverData = null;
-                let coverType = null;
-                if (imageFile) {
-                    coverData = await imageFile.arrayBuffer();
-                    coverType = imageFile.type;
-                    const blob = new Blob([coverData], { type: coverType });
-                    customCoverUrl = URL.createObjectURL(blob);
-                }
-
-                const newAlbumRecord = {
-                    id: albumId,
-                    name: albumName.toUpperCase(),
-                    author: artistName.toUpperCase(),
-                    color: "#1a1a1a",
-                    folder: "LOCAL://" + albumId,
-                    tracks: fileData.map(f => f.name).sort(),
-                    files: fileData,
-                    coverData: coverData,
-                    coverType: coverType,
-                    customCover: customCoverUrl
-                };
-                
-                const tx = db.transaction("albums", "readwrite");
-                tx.objectStore("albums").put(newAlbumRecord);
-                await new Promise(r => tx.oncomplete = r);
-                
-                progressEl.style.display = 'none';
-
-                const newItem = {
-                    name: newAlbumRecord.name,
-                    author: newAlbumRecord.author,
-                    color: newAlbumRecord.color,
-                    folder: newAlbumRecord.folder,
-                    cover: customCoverUrl,
-                    tracks: newAlbumRecord.tracks,
-                    customCover: customCoverUrl,
-                    useCustomCover: !!customCoverUrl,
-                    _uid: newAlbumRecord.folder
-                };
-
-                collection.unshift(newItem);
-                originalCollection.unshift(newItem);
-                
-                // Clear existing groups array to rebuild meshes
-                groups.forEach(g => {
-                    if (g) scene.remove(g);
-                });
-                groups = [];
-                
-                rebuildMeshes();
-                filterCollection();
-                
-                uploadAlbumInput.value = "";
             });
         }
 
@@ -2848,15 +2746,6 @@
             if (lastIndex >= 0 && lastIndex < collection.length) {
                 const item = collection[lastIndex];
                 const folderKey = item._uid;
-                
-                let overrides = {};
-                try {
-                    overrides = JSON.parse(localStorage.getItem('vinyl_album_overrides_v1')) || {};
-                } catch(e) {}
-
-                if (!overrides[folderKey]) {
-                    overrides[folderKey] = {};
-                }
 
                 const newName = editAlbumName.value.trim() || item.name;
                 const newAuthor = editAlbumAuthor.value.trim() || item.author;
@@ -2864,18 +2753,22 @@
                 const newYear = editAlbumYear.value.trim();
                 const newColor = editAlbumColor.value.trim() || item.color;
 
-                overrides[folderKey].name = newName;
-                overrides[folderKey].author = newAuthor;
-                overrides[folderKey].genre = newGenre;
-                overrides[folderKey].year = newYear;
-                overrides[folderKey].color = newColor;
-                overrides[folderKey].useCustomCover = item.useCustomCover !== false;
-                
-                // Do not store base64 in localStorage to avoid QuotaExceededError
-                delete overrides[folderKey].customCover;
-                localStorage.setItem('vinyl_album_overrides_v1', JSON.stringify(overrides));
+                item.name = newName;
+                item.author = newAuthor;
+                item.genre = newGenre;
+                item.year = newYear;
+                item.color = newColor;
 
-                // Synchronize album edit with Firebase Firestore
+                const origItem = originalCollection.find(x => x._uid === folderKey);
+                if (origItem) {
+                    origItem.name = newName;
+                    origItem.author = newAuthor;
+                    origItem.genre = newGenre;
+                    origItem.year = newYear;
+                    origItem.color = newColor;
+                }
+
+                // Synchronize album edit with central Firebase Firestore
                 fetch('/api/update-album', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2892,29 +2785,16 @@
                 // Save custom cover to IndexedDB
                 if (item.customCover) {
                     dbPromise.then(db => {
+                        if (!db) return;
                         const tx = db.transaction("covers", "readwrite");
                         tx.objectStore("covers").put({ id: folderKey, coverData: item.customCover });
                     });
                 } else {
                     dbPromise.then(db => {
+                        if (!db) return;
                         const tx = db.transaction("covers", "readwrite");
                         tx.objectStore("covers").delete(folderKey);
                     }).catch(()=>{});
-                }
-
-                item.name = newName;
-                item.author = newAuthor;
-                item.genre = newGenre;
-                item.year = newYear;
-                item.color = newColor;
-
-                const origItem = originalCollection.find(x => x._uid === folderKey);
-                if (origItem) {
-                    origItem.name = newName;
-                    origItem.author = newAuthor;
-                    origItem.genre = newGenre;
-                    origItem.year = newYear;
-                    origItem.color = newColor;
                 }
             }
         };
@@ -3074,24 +2954,20 @@
                     const item = collection[lastIndex];
                     const folderKey = item._uid;
                     
+                    // Delete from server and Firestore
+                    fetch('/api/albums', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folder: folderKey, id: item.id || folderKey })
+                    }).catch(()=>{});
+
                     if (folderKey.startsWith("LOCAL://")) {
                          const albumId = folderKey.replace("LOCAL://", "");
                          dbPromise.then(db => {
                              const tx = db.transaction("albums", "readwrite");
                              tx.objectStore("albums").delete(albumId);
-                         });
-                    } else if (folderKey.startsWith("Vinyl Collection/")) {
-                         fetch('/api/albums', {
-                             method: 'DELETE',
-                             headers: { 'Content-Type': 'application/json' },
-                             body: JSON.stringify({ folder: folderKey })
                          }).catch(()=>{});
                     }
-                    
-                    // Remove from overrides
-                    const overrides = JSON.parse(localStorage.getItem('vinyl_album_overrides_v1') || '{}');
-                    overrides[folderKey] = { ...overrides[folderKey], deleted: true };
-                    localStorage.setItem('vinyl_album_overrides_v1', JSON.stringify(overrides));
                     
                     // Remove from collections
                     collection.splice(lastIndex, 1);
@@ -3102,7 +2978,7 @@
                     
                     groups.forEach(g => { if(g) scene.remove(g); });
                     groups = [];
-                    filterCollection(); // This calls rebuildMeshes inside!
+                    filterCollection();
                     
                     if(playingIndex === lastIndex) {
                        playingIndex = -1;
@@ -3367,14 +3243,6 @@
         if (reorderSaveBtn) {
             reorderSaveBtn.addEventListener("click", () => {
                 const newOrder = Array.from(reorderList.children).map(child => child.dataset.uid);
-                localStorage.setItem('vinyl_album_order_v1', JSON.stringify(newOrder));
-                
-                // Synchronize custom order with Firebase Firestore
-                fetch('/api/reorder-albums', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order: newOrder })
-                }).catch(err => console.warn("Firestore reorder sync failed:", err));
                 
                 // Re-sort originalCollection
                 originalCollection.sort((a, b) => {
@@ -3385,6 +3253,13 @@
                     if (idxB !== -1) return 1;
                     return 0;
                 });
+                
+                // Synchronize custom order with Firebase Firestore
+                fetch('/api/reorder-albums', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: newOrder })
+                }).catch(err => console.warn("Firestore reorder sync failed:", err));
                 
                 reorderModalOverlay.classList.remove("active");
                 
@@ -3417,12 +3292,14 @@
 
     </script>
 <script>
-    // Reset script to wipe defaults requested by user
-    if(!localStorage.getItem('wiped_defaults_v1')){
-        localStorage.removeItem('vinyl_album_overrides_v1');
-        indexedDB.deleteDatabase("VinylCollectionDB");
-        localStorage.setItem('wiped_defaults_v1', 'true');
-        location.reload();
+    // Wipe any legacy local overrides so all devices connect to the single server/Firestore database
+    if(!localStorage.getItem('firestore_unified_v2')){
+        try {
+            localStorage.removeItem('vinyl_album_overrides_v1');
+            localStorage.removeItem('vinyl_album_order_v1');
+            localStorage.removeItem('vinyl_archive_albums_v1');
+            localStorage.setItem('firestore_unified_v2', 'true');
+        } catch(_) {}
     }
 </script>
 <div id="uploadProgress" style="display:none; position:fixed; bottom:20px; left:20px; background:rgba(10,10,10,0.85); backdrop-filter:blur(10px); padding:12px 24px; border-radius:12px; color:#e5e5e5; z-index:9999; font-weight:500; font-family:'Roboto', sans-serif; border:1px solid rgba(255,255,255,0.1); box-shadow:0 8px 24px rgba(0,0,0,0.5); font-size:14px; letter-spacing:1px; text-transform:uppercase;">Uploading... 0%</div>

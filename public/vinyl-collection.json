@@ -11,55 +11,22 @@
     ]
   },
   {
-    "name": "THE BEST OF VOL 2",
-    "author": "JOHN COLTRANE",
-    "color": "#7C106E",
+    "name": "MORRISON HOTEL",
+    "author": "THE DOORS",
+    "color": "#2a3a35",
     "duration": "",
-    "folder": "Vinyl Collection/John Coltrane - The Best Of Vol 2",
-    "cover": "",
-    "tracks": []
-  },
-  {
-    "name": "SOB ROCK",
-    "author": "JOHN MAYER",
-    "color": "#2f2a3a",
-    "duration": "",
-    "folder": "Vinyl Collection/John Mayer - Sob Rock",
-    "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
-    "tracks": [
-      "01. Last Train Home.mp3",
-      "02. Shouldn't Matter but It Does.mp3",
-      "03. New Light.mp3",
-      "05. Wild Blue.mp3",
-      "06. Shot in the Dark.mp3",
-      "07. I Guess I Just Feel Like.mp3",
-      "10. All I Want Is to Be With You.mp3"
-    ]
-  },
-  {
-    "name": "SAMPLE ALBUM",
-    "author": "LOREM IPSUM",
-    "color": "#021535",
-    "duration": "",
-    "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
-    "cover": "",
-    "tracks": []
-  },
-  {
-    "name": "TOGETHER AGAIN",
-    "author": "RAY CHARLES",
-    "color": "#2a2a2f",
-    "duration": "",
-    "folder": "Vinyl Collection/Ray Charles - Together Again",
+    "folder": "Vinyl Collection/The Doors - Morrison Hotel",
     "cover": "",
     "tracks": [
-      "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-02.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-04.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-04.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-06.mp3"
+      "The Doors - Blue Sunday.MP3",
+      "The Doors - Indian Summer.MP3",
+      "The Doors - Land Ho!.mp3",
+      "The Doors - Peace Frog.MP3",
+      "The Doors - Queen Of The Highway.MP3",
+      "The Doors - Roadhouse Blues.mp3",
+      "The Doors - Ship Of Fools.MP3",
+      "The Doors - The Spy.mp3",
+      "The Doors - Waiting For The Sun.mp3"
     ]
   },
   {
@@ -78,14 +45,20 @@
     ]
   },
   {
-    "name": "TEST CLOUD ALBUM",
-    "author": "TEST ARTIST",
-    "color": "#05451A",
+    "name": "SOB ROCK",
+    "author": "JOHN MAYER",
+    "color": "#2f2a3a",
     "duration": "",
-    "folder": "Vinyl Collection/TEST ARTIST - TEST CLOUD ALBUM",
-    "cover": "",
+    "folder": "Vinyl Collection/John Mayer - Sob Rock",
+    "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
     "tracks": [
-      "01 Test Track.mp3"
+      "01. Last Train Home.mp3",
+      "02. Shouldn't Matter but It Does.mp3",
+      "03. New Light.mp3",
+      "05. Wild Blue.mp3",
+      "06. Shot in the Dark.mp3",
+      "07. I Guess I Just Feel Like.mp3",
+      "10. All I Want Is to Be With You.mp3"
     ]
   },
   {
@@ -109,31 +82,20 @@
     ]
   },
   {
-    "name": "MORRISON HOTEL",
-    "author": "THE DOORS",
-    "color": "#2a3a35",
+    "name": "TOGETHER AGAIN",
+    "author": "RAY CHARLES",
+    "color": "#2a2a2f",
     "duration": "",
-    "folder": "Vinyl Collection/The Doors - Morrison Hotel",
+    "folder": "Vinyl Collection/Ray Charles - Together Again",
     "cover": "",
     "tracks": [
-      "The Doors - Blue Sunday.MP3",
-      "The Doors - Indian Summer.MP3",
-      "The Doors - Land Ho!.mp3",
-      "The Doors - Peace Frog.MP3",
-      "The Doors - Queen Of The Highway.MP3",
-      "The Doors - Roadhouse Blues.mp3",
-      "The Doors - Ship Of Fools.MP3",
-      "The Doors - The Spy.mp3",
-      "The Doors - Waiting For The Sun.mp3"
+      "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
+      "Charles, Ray (1965) - Together Again, side A (archive)-02.mp3",
+      "Charles, Ray (1965) - Together Again, side A (archive)-04.mp3",
+      "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
+      "Charles, Ray (1965) - Together Again, side B (archive)-04.mp3",
+      "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3",
+      "Charles, Ray (1965) - Together Again, side B (archive)-06.mp3"
     ]
-  },
-  {
-    "name": "NOVI ALBUM TEST",
-    "author": "UNKNOWN ARTIST",
-    "color": "#584949",
-    "duration": "",
-    "folder": "Vinyl Collection/Unknown Artist - NOVI ALBUM TEST",
-    "cover": "",
-    "tracks": []
   }
 ]
