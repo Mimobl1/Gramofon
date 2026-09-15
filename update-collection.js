@@ -135,11 +135,14 @@ async function updateCollection() {
     await fs.writeFile(MANIFEST_PATH, JSON.stringify(newCollection, null, 2), 'utf-8');
     await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(newCollection, null, 2)};`, 'utf-8');
     console.log(`Successfully updated vinyl-collection.json with ${newCollection.length} albums.`);
-
+    return newCollection;
   } catch (err) {
     console.error('Error updating collection:', err);
+    throw err;
   }
 }
+
+export { updateCollection };
 
 async function run() {
   await updateCollection();
@@ -161,4 +164,6 @@ async function run() {
   }
 }
 
-run();
+if (process.argv[1] && process.argv[1].endsWith('update-collection.js')) {
+  run();
+}

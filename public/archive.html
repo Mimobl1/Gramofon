@@ -2531,8 +2531,8 @@
                 const files = Array.from(e.target.files);
                 if (!files.length) return;
 
-                const audioFiles = files.filter(f => f.type.startsWith('audio/') || f.name.match(/\.(mp3|wav|flac|m4a|ogg)$/i));
-                const imageFile = files.find(f => f.type.startsWith('image/') || f.name.match(/\.(jpg|jpeg|png)$/i));
+                const audioFiles = files.filter(f => f.type.startsWith('audio/') || f.name.match(/\.(mp3|wav|flac|m4a|ogg|aiff|aac)$/i));
+                const imageFile = files.find(f => f.type.startsWith('image/') || f.name.match(/\.(jpg|jpeg|png|webp)$/i));
 
                 if (!audioFiles.length) {
                     alert("No audio files found in the selected folder.");
@@ -2541,7 +2541,64 @@
                 
                 const progressEl = document.getElementById('uploadProgress');
                 progressEl.style.display = 'block';
+                progressEl.innerText = "Kompresovanje i slanje pesama (5-9MB)...";
 
+                const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : "Novi Album";
+                let artistName = "UPLOADED ARTIST";
+                let albumName = folderName;
+                if (folderName.includes(" - ")) {
+                    const p = folderName.split(" - ");
+                    artistName = p[0].trim();
+                    albumName = p.slice(1).join(" - ").trim();
+                }
+
+                // 1. Try server upload with automatic 5-9MB audio compressor
+                try {
+                    const formData = new FormData();
+                    formData.append("albumName", albumName);
+                    formData.append("artistName", artistName);
+                    if (imageFile) {
+                        formData.append("files", imageFile);
+                    }
+                    audioFiles.forEach(f => {
+                        formData.append("files", f);
+                    });
+
+                    progressEl.innerText = `Kompresovanje i prenos ${audioFiles.length} pesama na server...`;
+
+                    const response = await fetch("/api/upload-album", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.status === "ok" && result.album) {
+                            const newServerAlbum = {
+                                ...result.album,
+                                _uid: result.album.folder
+                            };
+
+                            collection.unshift(newServerAlbum);
+                            originalCollection.unshift(newServerAlbum);
+
+                            groups.forEach(g => { if (g) scene.remove(g); });
+                            groups = [];
+                            rebuildMeshes();
+                            filterCollection();
+
+                            progressEl.innerText = `Uspešno sačuvano na serveru! (${audioFiles.length} pesama u 5-9MB)`;
+                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+                            uploadAlbumInput.value = "";
+                            return;
+                        }
+                    }
+                } catch (serverErr) {
+                    console.warn("Server upload failed, falling back to local storage:", serverErr);
+                }
+
+                // 2. Fallback to browser IndexedDB if offline
+                progressEl.innerText = "Spremanje u lokalnu bazu...";
                 const db = await dbPromise;
                 const albumId = "custom_" + Date.now();
                 
@@ -2565,12 +2622,10 @@
                     customCoverUrl = URL.createObjectURL(blob);
                 }
 
-                const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : "Novi Album";
-                
                 const newAlbumRecord = {
                     id: albumId,
-                    name: folderName.toUpperCase(),
-                    author: "UPLOADED ALBUM",
+                    name: albumName.toUpperCase(),
+                    author: artistName.toUpperCase(),
                     color: "#1a1a1a",
                     folder: "LOCAL://" + albumId,
                     tracks: fileData.map(f => f.name).sort(),
@@ -2982,6 +3037,12 @@
                              const tx = db.transaction("albums", "readwrite");
                              tx.objectStore("albums").delete(albumId);
                          });
+                    } else if (folderKey.startsWith("Vinyl Collection/")) {
+                         fetch('/api/albums', {
+                             method: 'DELETE',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({ folder: folderKey })
+                         }).catch(()=>{});
                     }
                     
                     // Remove from overrides
