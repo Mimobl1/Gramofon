@@ -2,13 +2,11 @@
   {
     "name": "THE BEST OF VOL 2",
     "author": "JOHN COLTRANE",
-    "color": "#3a2f2a",
+    "color": "#3A4430",
     "duration": "",
     "folder": "Vinyl Collection/John Coltrane - The Best Of Vol 2",
     "cover": "",
-    "tracks": [
-      "01-Scar Tissue.flac"
-    ]
+    "tracks": []
   },
   {
     "name": "SOB ROCK",
@@ -30,13 +28,11 @@
   {
     "name": "SAMPLE ALBUM",
     "author": "LOREM IPSUM",
-    "color": "#3a2f2a",
+    "color": "#691A65",
     "duration": "",
     "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
     "cover": "",
-    "tracks": [
-      "Together Again.mp3"
-    ]
+    "tracks": []
   },
   {
     "name": "TOGETHER AGAIN",
@@ -98,37 +94,24 @@
     "folder": "Vinyl Collection/The Doors - Morrison Hotel",
     "cover": "",
     "tracks": [
-      "The Doors - Blue Sunday-1.MP3",
       "The Doors - Blue Sunday.MP3",
-      "The Doors - Indian Summer-1.MP3",
       "The Doors - Indian Summer.MP3",
-      "The Doors - Land Ho!-1.MP3",
-      "The Doors - Land Ho!.MP3",
-      "The Doors - Peace Frog-1.MP3",
+      "The Doors - Land Ho!.mp3",
       "The Doors - Peace Frog.MP3",
-      "The Doors - Queen Of The Highway-1.MP3",
       "The Doors - Queen Of The Highway.MP3",
-      "The Doors - Roadhouse Blues-1.MP3",
-      "The Doors - Roadhouse Blues.MP3",
-      "The Doors - Ship Of Fools-1.MP3",
+      "The Doors - Roadhouse Blues.mp3",
       "The Doors - Ship Of Fools.MP3",
-      "The Doors - The Spy-1.MP3",
-      "The Doors - The Spy.MP3",
-      "The Doors - Waiting For The Sun-1.MP3",
-      "The Doors - Waiting For The Sun.MP3"
+      "The Doors - The Spy.mp3",
+      "The Doors - Waiting For The Sun.mp3"
     ]
   },
   {
     "name": "NOVI ALBUM TEST",
     "author": "UNKNOWN ARTIST",
-    "color": "#2f2a3a",
+    "color": "#271F78",
     "duration": "",
     "folder": "Vinyl Collection/Unknown Artist - NOVI ALBUM TEST",
     "cover": "",
-    "tracks": [
-      "The Doors - Moonlight Drive.MP3",
-      "The Doors - My Eyes Have Seen You.MP3",
-      "The Doors - People Are Strange.MP3"
-    ]
+    "tracks": []
   }
 ]

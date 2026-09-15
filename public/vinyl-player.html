@@ -1184,7 +1184,6 @@
       elapsedMs = progress * sideMs;
       setTonearmAngle(angle, false);
       setTimer(Math.max(0, getSideDuration() - Math.floor(elapsedMs/1000)));
-      syncTrackFromElapsed();
     };
 
 
@@ -1570,9 +1569,26 @@
         const globalIdx = sideStart + i;
         const dur = Number(trackDurationsSec[globalIdx] || 180);
         if(remain <= dur || i === sideTracks.length - 1){
+          const targetOffset = Math.max(0, Math.min(dur - 0.05, remain));
           currentTrackIndex = globalIdx;
           await setDeckSourceByIndex(currentTrackIndex);
-          try { deckAudio.currentTime = Math.max(0, Math.min(dur - 0.05, remain)); } catch(_) {}
+          const applySeek = () => {
+            try {
+              if (Number.isFinite(deckAudio.duration) && deckAudio.duration > 0) {
+                deckAudio.currentTime = Math.min(Math.max(0, targetOffset), deckAudio.duration - 0.05);
+              } else {
+                deckAudio.currentTime = Math.max(0, targetOffset);
+              }
+            } catch(e) {
+              console.warn("Seek error:", e);
+            }
+          };
+
+          if (deckAudio.readyState >= 1) {
+            applySeek();
+          } else {
+            deckAudio.addEventListener("loadedmetadata", applySeek, { once: true });
+          }
           return;
         }
         remain -= dur;
@@ -2221,8 +2237,6 @@ console.log("applySelectedAlbumAndStart START", selected);
       elapsedMs = Math.max(0, Math.min(sideMs, elapsedMs + scrubMs));
       setTimer(Math.max(0, getSideDuration()-Math.floor(elapsedMs/1000)));
       setTonearmFromElapsed(false);
-      syncTrackFromElapsed();
-      try { deckAudio.currentTime = Math.max(0, Number(deckAudio.currentTime || 0)); } catch(_) {}
     };
     window.addEventListener("mousemove",onMove);
     window.addEventListener("touchmove",onMove,{passive:false});
@@ -2262,7 +2276,7 @@ console.log("applySelectedAlbumAndStart START", selected);
       pauseDeckTrack();
       syncVinylNoise();
     };
-    const endArmDrag=()=>{
+    const endArmDrag=async()=>{
       if(!dragArm) return;
       dragArm = false;
       document.body.classList.remove("dragging-arm");
@@ -2278,7 +2292,11 @@ console.log("applySelectedAlbumAndStart START", selected);
         speed = Math.max(speed, base);
         playStartMs = performance.now();
         deckAudio.playbackRate = Math.max(0.03, Math.min(3, base));
-        playDeckTrack().catch(()=>{});
+        await syncTrackFromElapsed();
+        try { 
+          const p = deckAudio.play();
+          if (p !== undefined) p.catch(()=>{});
+        } catch(_) {}
         syncVinylNoise();
       } else {
         // Snap back to rest if let go outside the record
@@ -2293,7 +2311,7 @@ console.log("applySelectedAlbumAndStart START", selected);
     };
     document.querySelector(".headshell-pro")?.addEventListener("mousedown", startArmDrag);
     document.querySelector(".headshell-pro")?.addEventListener("touchstart", startArmDrag, {passive:false});
-    const endDrag=()=>{
+    const endDrag=async()=>{
       if(!dragRec) return;
       dragRec=false;
       document.body.classList.remove("dragging-record");
@@ -2306,7 +2324,11 @@ console.log("applySelectedAlbumAndStart START", selected);
         speed = Math.max(speed, base);
         playStartMs = performance.now();
         deckAudio.playbackRate = Math.max(0.03, Math.min(3, base));
-        playDeckTrack().catch(()=>{});
+        await syncTrackFromElapsed();
+        try { 
+          const p = deckAudio.play();
+          if (p !== undefined) p.catch(()=>{});
+        } catch(_) {}
       } else {
         pauseDeckTrack();
       }

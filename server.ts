@@ -21,6 +21,7 @@ import {
 } from "firebase/firestore";
 import firebaseConfig from "./firebase-applet-config.json";
 import { updateCollection } from "./update-collection.js";
+import { compressAudioFile, optimizeAllAudio } from "./optimize-audio.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,69 +39,6 @@ const upload = multer({
   limits: { fileSize: 300 * 1024 * 1024 } // 300MB max per file
 });
 
-async function getAudioDuration(filePath: string): Promise<number> {
-  try {
-    const { stdout } = await execFileAsync("ffprobe", [
-      "-v", "error",
-      "-show_entries", "format=duration",
-      "-of", "default=noprint_wrappers=1:nokey=1",
-      filePath
-    ]);
-    const d = parseFloat(stdout.trim());
-    return isNaN(d) || d <= 0 ? 240 : d;
-  } catch (e) {
-    return 240; // default 4 mins
-  }
-}
-
-async function compressAudioToTargetRange(
-  inputPath: string, 
-  outputPath: string
-): Promise<{ originalSize: number; newSize: number; bitrate: number }> {
-  const stat = await fsPromises.stat(inputPath);
-  const originalSize = stat.size;
-
-  // If already an MP3 and size is between 4.8MB and 9.5MB, reuse directly
-  if (
-    inputPath.toLowerCase().endsWith(".mp3") &&
-    originalSize >= 4.8 * 1024 * 1024 &&
-    originalSize <= 9.5 * 1024 * 1024
-  ) {
-    await fsPromises.copyFile(inputPath, outputPath);
-    return { originalSize, newSize: originalSize, bitrate: 0 };
-  }
-
-  const duration = await getAudioDuration(inputPath);
-
-  // Target size ~6.8 MB (in bits: 6.8 * 1024 * 1024 * 8)
-  const targetKbps = Math.round((6.8 * 1024 * 1024 * 8) / (duration * 1000));
-
-  let chosenBitrate = 192;
-  if (targetKbps >= 288) chosenBitrate = 320;
-  else if (targetKbps >= 240) chosenBitrate = 256;
-  else if (targetKbps >= 208) chosenBitrate = 224;
-  else if (targetKbps >= 176) chosenBitrate = 192;
-  else if (targetKbps >= 144) chosenBitrate = 160;
-  else chosenBitrate = 128;
-
-  await execFileAsync("ffmpeg", [
-    "-y",
-    "-i", inputPath,
-    "-vn",
-    "-ar", "44100",
-    "-ac", "2",
-    "-b:a", `${chosenBitrate}k`,
-    outputPath
-  ]);
-
-  const newStat = await fsPromises.stat(outputPath);
-  return {
-    originalSize,
-    newSize: newStat.size,
-    bitrate: chosenBitrate
-  };
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -111,6 +49,20 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", firebase: "connected" });
   });
+
+  // Explicit static file serving with HTTP 206 Byte-Range support for smooth audio streaming and seeking
+  app.use("/Vinyl Collection", (req, res, next) => {
+    res.setHeader("Accept-Ranges", "bytes");
+    next();
+  }, express.static(path.join(process.cwd(), "public", "Vinyl Collection"), {
+    acceptRanges: true,
+    maxAge: 0
+  }));
+
+  app.use(express.static(path.join(process.cwd(), "public"), {
+    acceptRanges: true,
+    maxAge: 0
+  }));
 
   app.get("/api/albums", async (req, res) => {
     try {
@@ -233,13 +185,15 @@ async function startServer() {
         const outFileName = `${baseName}.mp3`;
         const finalOutPath = path.join(targetDir, outFileName);
 
-        const result = await compressAudioToTargetRange(file.path, finalOutPath);
+        // Copy original file to final path first, then compress in place
+        await fsPromises.copyFile(file.path, finalOutPath);
+        const result = await compressAudioFile(finalOutPath);
         trackNames.push(outFileName);
         compressionResults.push({
           file: outFileName,
-          originalMB: (result.originalSize / (1024 * 1024)).toFixed(1),
-          newMB: (result.newSize / (1024 * 1024)).toFixed(1),
-          bitrate: result.bitrate
+          originalMB: (result.originalSize ? (result.originalSize / (1024 * 1024)).toFixed(1) : "N/A"),
+          newMB: (result.newSize ? (result.newSize / (1024 * 1024)).toFixed(1) : (result.sizeMb ? result.sizeMb.toFixed(1) : "N/A")),
+          bitrate: result.bitrate || 192
         });
       }
 
@@ -339,6 +293,19 @@ async function startServer() {
       await deleteDoc(doc(db, "albums", albumDocId)).catch(() => {});
 
       res.json({ status: "ok" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/optimize-collection", async (req, res) => {
+    try {
+      // Run optimization in background and report status
+      optimizeAllAudio().then(async () => {
+        await updateCollection().catch(() => {});
+      }).catch(console.error);
+
+      res.json({ status: "ok", message: "Optimization started in background" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
