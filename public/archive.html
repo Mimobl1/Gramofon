@@ -250,10 +250,14 @@
             pointer-events: none;
             transition: opacity 0.3s ease;
             z-index: 1000;
+            touch-action: none;
+            overscroll-behavior: contain;
         }
-        .edit-modal-overlay.active {
+        .edit-modal-overlay.active, .modal.active, .modal-overlay.active {
             opacity: 1;
             pointer-events: auto;
+            touch-action: none;
+            overscroll-behavior: contain;
         }
         .edit-modal {
             background: #111;
@@ -263,6 +267,10 @@
             width: 90%;
             max-width: 400px;
             transform: translateY(20px);
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+            pointer-events: auto;
+            user-select: auto;
             transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             display: flex;
             flex-direction: column;
@@ -537,24 +545,97 @@
             </div>
         </div>
     </div>
-    <!-- Login Modal -->
-    <div class="edit-modal-overlay" id="loginModalOverlay" style="z-index: 3500;" onclick="event.stopPropagation()">
-        <div class="edit-modal" style="max-width: 360px;" onclick="event.stopPropagation()">
-            <h2 style="margin-top: 0; margin-bottom: 8px;">Account Login</h2>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-bottom: 16px;">
-                Login is required to edit, upload, and delete albums.
+    <!-- Upload Album Modal -->
+    <div class="edit-modal-overlay" id="uploadModalOverlay" style="z-index: 3500;" onclick="event.stopPropagation()">
+        <div class="edit-modal" style="max-width: 440px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Dodaj novi album</h2>
+                <button id="uploadModalCloseBtn" type="button" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px;">&times;</button>
+            </div>
+            
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 0; margin-bottom: 16px;">
+                Izaberite folder albuma ili selektujte pesme sa računara ili telefona:
             </p>
-            <label style="margin-bottom: 12px; display: block; font-size: 13px; color: #aaa;">
-                Email Address
-                <input type="email" id="loginEmailInput" placeholder="enter@email.com" value="" style="width: 100%; padding: 10px; margin-top: 4px; background: #222; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+
+            <!-- File Selection Pickers -->
+            <input type="file" id="uploadFolderInput" webkitdirectory directory multiple style="display: none;">
+            <input type="file" id="uploadFilesInput" multiple accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.aac" style="display: none;">
+            <input type="file" id="uploadCoverInput" accept="image/*,.jpg,.jpeg,.png,.webp" style="display: none;">
+
+            <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+                <button type="button" id="btnPickFolder" style="flex: 1; background: #222; border: 1px dashed #555; padding: 12px 8px; border-radius: 8px; cursor: pointer; color: #fff; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Izaberi ceo folder</span>
+                </button>
+                <button type="button" id="btnPickFiles" style="flex: 1; background: #222; border: 1px dashed #555; padding: 12px 8px; border-radius: 8px; cursor: pointer; color: #fff; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    <span>Izaberi audio pesme</span>
+                </button>
+            </div>
+
+            <!-- Summary of Selected Files -->
+            <div id="uploadFilesSummary" style="display: none; background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(79, 70, 229, 0.4); border-radius: 6px; padding: 10px; font-size: 12px; margin-bottom: 14px; color: #c7d2fe;">
+                <div id="uploadTrackCount" style="font-weight: bold; margin-bottom: 4px;">0 pesama izabrano</div>
+                <div id="uploadFileListPreview" style="max-height: 80px; overflow-y: auto; color: rgba(255,255,255,0.7); font-size: 11px;"></div>
+            </div>
+
+            <!-- Metadata Inputs -->
+            <label style="margin-bottom: 10px; display: block; font-size: 13px; color: #aaa;">
+                Izvođač / Artist
+                <input type="text" id="uploadArtistInput" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
             </label>
-            <label style="margin-bottom: 20px; display: block; font-size: 13px; color: #aaa;">
-                Password / PIN
-                <input type="password" id="loginPasswordInput" placeholder="Enter password..." value="" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+
+            <label style="margin-bottom: 10px; display: block; font-size: 13px; color: #aaa;">
+                Naziv albuma / Album Title
+                <input type="text" id="uploadAlbumInputNew" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
             </label>
-            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                <button class="edit-modal-btn cancel" id="loginCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button class="edit-modal-btn save" id="loginSubmitBtn" style="padding: 10px 18px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Sign In</button>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Žanr
+                    <select id="uploadGenreSelect" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+                        <option value="ROCK">ROCK</option>
+                        <option value="BLUES">BLUES</option>
+                        <option value="JAZZ">JAZZ</option>
+                        <option value="POP">POP</option>
+                        <option value="CLASSICAL">CLASSICAL</option>
+                        <option value="OSTALO">OSTALO</option>
+                    </select>
+                </label>
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Godina (opciono)
+                    <input type="text" id="uploadYearInput" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+                </label>
+            </div>
+
+            <!-- Cover Image Preview / Selector -->
+            <div style="margin-bottom: 16px;">
+                <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma (Cover)</span>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div id="uploadCoverThumb" style="width: 48px; height: 48px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0;">
+                        Omot
+                    </div>
+                    <button type="button" id="btnPickCover" style="background: transparent; border: 1px solid #555; padding: 8px 14px; border-radius: 6px; color: #ddd; font-size: 12px; cursor: pointer;">
+                        Izaberi sliku omota...
+                    </button>
+                    <button type="button" id="btnRemoveCover" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">
+                        Ukloni
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Progress indicator -->
+            <div id="uploadModalProgressBox" style="display: none; margin-bottom: 14px;">
+                <div style="background: #222; border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 6px;">
+                    <div id="uploadModalProgressBar" style="background: #4f46e5; width: 0%; height: 100%; transition: width 0.15s ease;"></div>
+                </div>
+                <div id="uploadModalProgressStatus" style="font-size: 12px; color: #c7d2fe; text-align: center; font-weight: 500;">Slanje pesama... 0%</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px;">
+                <button type="button" class="edit-modal-btn cancel" id="uploadModalCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Odustani</button>
+                <button type="button" class="edit-modal-btn save" id="uploadModalSubmitBtn" style="padding: 10px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Otpremi album</button>
             </div>
         </div>
     </div>
@@ -768,6 +849,8 @@
         let launchNavigated = false;
         let playingIndex = -1;
         let hasLoadedRecord = false;
+        let lastCountUpdated = -1;
+        let playBtnIsVisible = false;
         const LAUNCH_MS = 620;
         const WARM_FLAG_KEY = "vinyl_assets_warmed_v1";
         const PLAYING_UID_KEY = "archive_playing_uid_v1";
@@ -780,6 +863,9 @@
         const FEEDBACK_DELAY_MS = 30000;
         const routeFade = document.getElementById('route-fade');
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
+        const API_BASE = (window.location.hostname.includes("vercel.app") || (window.location.hostname === "localhost" && window.location.port !== "3000"))
+            ? "https://ais-pre-5nakrarwgavpcdfi7zggnn-439521790675.europe-west2.run.app"
+            : "";
         const archiveDeck = new Audio();
         archiveDeck.preload = "metadata";
         let bgBridge = {
@@ -818,6 +904,82 @@
             await Promise.race([Promise.all(loads), timeout]);
         }
 
+        // Universal modal barrier helpers in global scope so animate() and all event handlers can access them
+        const _KNOWN_MODAL_IDS = [
+            'editModalOverlay',
+            'reorderModalOverlay',
+            'customConfirmOverlay',
+            'uploadModalOverlay',
+            'rightColorPickerContainer'
+        ];
+        function isModalActive() {
+            for (let i = 0; i < _KNOWN_MODAL_IDS.length; i++) {
+                const el = document.getElementById(_KNOWN_MODAL_IDS[i]);
+                if (el && (el.classList.contains('active') || (el.style.display && el.style.display !== 'none' && parseFloat(el.style.opacity || '1') > 0))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function isEventOverModal(e) {
+            if (isModalActive()) return true;
+            if (e && e.target && typeof e.target.closest === "function") {
+                return !!e.target.closest('.edit-modal-overlay, .edit-modal, .modal-overlay, .modal, .custom-cp-container, [role="dialog"], [aria-modal="true"]');
+            }
+            return false;
+        }
+
+        const inMemoryImageCache = new Map();
+        function preloadCovers(albums) {
+            if (!Array.isArray(albums)) return;
+            albums.forEach(item => {
+                if (!item) return;
+                const coverSrc = (item.customCover && item.useCustomCover !== false)
+                    ? item.customCover
+                    : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+                if (coverSrc && !inMemoryImageCache.has(coverSrc)) {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.src = coverSrc;
+                    inMemoryImageCache.set(coverSrc, img);
+                }
+            });
+        }
+
+        let _cachedSharedNormalMap = null;
+        function getSharedVinylNormalMap() {
+            if (!_cachedSharedNormalMap) {
+                _cachedSharedNormalMap = generateVinylNormalMap(1024);
+            }
+            return _cachedSharedNormalMap;
+        }
+
+        let _cachedCoverGeo = null;
+        function getSharedCoverGeo() {
+            if (!_cachedCoverGeo) {
+                _cachedCoverGeo = new THREE.BoxGeometry(6, 6, 0.12);
+                _cachedCoverGeo.translate(0, 4, 0);
+            }
+            return _cachedCoverGeo;
+        }
+
+        let _sharedDiskGeo = null;
+        function getSharedDiskGeo() {
+            if (!_sharedDiskGeo) {
+                _sharedDiskGeo = new THREE.CylinderGeometry(2.85, 2.85, 0.05, 64);
+            }
+            return _sharedDiskGeo;
+        }
+
+        let _sharedLabelGeo = null;
+        function getSharedLabelGeo() {
+            if (!_sharedLabelGeo) {
+                _sharedLabelGeo = new THREE.CircleGeometry(1.05, 64);
+            }
+            return _sharedLabelGeo;
+        }
+
         function normalizeCollectionItem(item, idx) {
             if (!item || typeof item !== "object") return null;
             const tracks = Array.isArray(item.tracks) ? item.tracks : [];
@@ -829,6 +991,10 @@
                 folder: String(item.folder || ""),
                 cover: String(item.cover || ""),
                 tracks: tracks,
+                genre: String(item.genre || ""),
+                year: String(item.year || ""),
+                customCover: String(item.customCover || ""),
+                useCustomCover: item.useCustomCover !== undefined ? item.useCustomCover : true,
                 _uid: item._uid || (item.folder ? item.folder : "uid_" + idx + "_" + Math.random().toString(36).substr(2, 9))
             };
         }
@@ -917,9 +1083,8 @@
             groups.forEach(g => scene.remove(g));
             groups = [];
             
-            const coverGeo = new THREE.BoxGeometry(6, 6, 0.12);
-            coverGeo.translate(0, 4, 0);
-            const sharedDiskNormalMap = generateVinylNormalMap(1024);
+            const coverGeo = getSharedCoverGeo();
+            const sharedDiskNormalMap = getSharedVinylNormalMap();
 
             for (let i = 0; i < totalMeshes; i++) {
                 const group = new THREE.Group();
@@ -1140,34 +1305,45 @@
         async function enrichAlbumDurations(albums) {
             if (!Array.isArray(albums) || !albums.length) return albums;
             const cache = getDurationCache();
+            let missingQueue = [];
             for (const album of albums) {
-                if (!album || !album.folder || !Array.isArray(album.tracks)) continue;
+                if (!album || !album.folder || !Array.isArray(album.tracks) || !album.tracks.length) continue;
+                if (album.duration) continue;
                 const key = `${album.folder}::${album.tracks.length}`;
                 if (cache[key]) {
                     album.duration = cache[key];
-                    continue;
-                }
-                let total = 0;
-                for (const t of album.tracks) {
-                    const fullPath = `${album.folder}/${t}`;
-                    total += await readAudioDuration(fullPath);
-                }
-                const formatted = formatDuration(total);
-                if (formatted) {
-                    album.duration = formatted;
-                    cache[key] = formatted;
+                } else {
+                    missingQueue.push(album);
                 }
             }
-            setDurationCache(cache);
+            if (!missingQueue.length) return albums;
+
+            // Enrich missing durations in the background without blocking render or network
+            setTimeout(async () => {
+                for (const album of missingQueue) {
+                    const key = `${album.folder}::${album.tracks.length}`;
+                    let total = 0;
+                    for (let i = 0; i < album.tracks.length; i += 2) {
+                        const batch = album.tracks.slice(i, i + 2).map(t => readAudioDuration(`${album.folder}/${t}`));
+                        const durations = await Promise.all(batch);
+                        total += durations.reduce((sum, d) => sum + (Number.isFinite(d) ? d : 0), 0);
+                    }
+                    const formatted = formatDuration(total);
+                    if (formatted) {
+                        album.duration = formatted;
+                        cache[key] = formatted;
+                    }
+                }
+                setDurationCache(cache);
+            }, 2000);
             return albums;
         }
 
         async function loadCollectionManifest() {
-            console.log("Fetching live Firestore albums from /api/albums...");
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 10000));
-                    const fetchPromise = fetch(`/api/albums?t=${Date.now()}`, { 
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 8000));
+                    const fetchPromise = fetch(`${API_BASE}/api/albums?t=${Date.now()}`, { 
                         cache: "no-store"
                     });
                     const res = await Promise.race([fetchPromise, timeoutPromise]);
@@ -1176,9 +1352,17 @@
                         const data = await res.json();
                         const parsed = Array.isArray(data) ? data : [];
                         if (parsed.length) {
-                            applyCollectionData(parsed);
-                            console.log(`Live Firestore collection loaded successfully (attempt ${attempt}):`, parsed.length, "albums");
-                            enrichAlbumDurations(parsed).catch(err => console.warn("Background enrichment failed:", err));
+                            const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
+                            const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
+
+                            if (currentKey !== newKey || !collection.length) {
+                                applyCollectionData(parsed);
+                            }
+                            try {
+                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
+                            } catch(_) {}
+                            preloadCovers(parsed);
+                            enrichAlbumDurations(parsed).catch(() => {});
                             return;
                         }
                     }
@@ -1186,19 +1370,22 @@
                     console.warn(`Live collection fetch error (attempt ${attempt}):`, e);
                 }
                 if (attempt === 1) {
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 400));
                 }
             }
 
             if (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length > 0) {
-                console.log("Loaded collection from window.VINYL_COLLECTION:", window.VINYL_COLLECTION.length, "albums");
-                applyCollectionData(window.VINYL_COLLECTION);
-                enrichAlbumDurations(window.VINYL_COLLECTION).catch(err => console.warn("Background enrichment failed:", err));
+                if (!collection.length) {
+                    applyCollectionData(window.VINYL_COLLECTION);
+                    preloadCovers(window.VINYL_COLLECTION);
+                }
                 return;
             }
 
-            console.log("Using default collection as fallback");
-            applyCollectionData(DEFAULT_COLLECTION);
+            if (!collection.length) {
+                applyCollectionData(DEFAULT_COLLECTION);
+                preloadCovers(DEFAULT_COLLECTION);
+            }
         }
 
         let audioCtx;
@@ -1607,16 +1794,30 @@
 
             const texture = new THREE.CanvasTexture(canvas);
             
-            if (item.customCover && item.useCustomCover !== false) {
-                const img = new Image();
-                img.onload = () => {
+            const coverSrc = (item.customCover && item.useCustomCover !== false)
+                ? item.customCover
+                : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+
+            if (coverSrc) {
+                let img = inMemoryImageCache.get(coverSrc);
+                if (!img) {
+                    img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.src = coverSrc;
+                    inMemoryImageCache.set(coverSrc, img);
+                }
+                const drawCoverImage = () => {
                     ctx.clearRect(0, 0, size, size);
                     ctx.filter = "saturate(1.25) brightness(0.85) contrast(1.1)";
                     ctx.drawImage(img, 0, 0, size, size);
                     ctx.filter = "none";
                     texture.needsUpdate = true;
                 };
-                img.src = item.customCover;
+                if (img.complete && img.naturalWidth > 0) {
+                    drawCoverImage();
+                } else {
+                    img.addEventListener("load", drawCoverImage, { once: true });
+                }
             }
             
             texture.needsUpdate = true;
@@ -1667,70 +1868,138 @@
             const c = size / 2;
             const r = size * 0.49;
 
-            ctx.clearRect(0, 0, size, size);
+            const drawLabelOverlayElements = (targetCtx, hasCover) => {
+                targetCtx.beginPath();
+                targetCtx.arc(c, c, r, 0, Math.PI * 2);
+                targetCtx.strokeStyle = "#252525";
+                targetCtx.lineWidth = size * 0.0065;
+                targetCtx.stroke();
 
+                targetCtx.beginPath();
+                targetCtx.arc(c, c, size * 0.462, 0, Math.PI * 2);
+                targetCtx.strokeStyle = "rgba(24,24,24,0.8)";
+                targetCtx.lineWidth = size * 0.0038;
+                targetCtx.stroke();
+
+                targetCtx.beginPath();
+                targetCtx.arc(c, c, size * 0.31, 0, Math.PI * 2);
+                targetCtx.strokeStyle = "rgba(24,24,24,0.24)";
+                targetCtx.lineWidth = size * 0.003;
+                targetCtx.stroke();
+
+                const bandH = size * 0.13;
+                const bandTop = size * 0.435;
+                const bandInset = size * 0.048;
+                targetCtx.fillStyle = "#181818";
+                targetCtx.fillRect(bandInset, bandTop, size - bandInset * 2, bandH);
+                targetCtx.strokeStyle = "#1f1f1f";
+                targetCtx.lineWidth = size * 0.002;
+                targetCtx.strokeRect(bandInset, bandTop, size - bandInset * 2, bandH);
+
+                targetCtx.fillStyle = "#f1f1f1";
+                targetCtx.textAlign = "center";
+                targetCtx.textBaseline = "middle";
+                targetCtx.font = `400 ${Math.round(4.3 * (size / 100))}px Roboto`;
+                targetCtx.fillText("STEREO", size * 0.245, c);
+                targetCtx.fillText("33 RPM", size * 0.755, c);
+
+                if (hasCover) {
+                    targetCtx.save();
+                    targetCtx.shadowColor = "rgba(0,0,0,0.92)";
+                    targetCtx.shadowBlur = size * 0.015;
+                }
+
+                targetCtx.fillStyle = "#f3f3f3";
+                targetCtx.font = `900 ${Math.round(5.8 * (size / 100))}px Roboto`;
+                targetCtx.fillText((item.author || "").toUpperCase(), c, size * 0.24);
+
+                targetCtx.fillStyle = "#ececec";
+                targetCtx.font = `400 ${Math.round(3.9 * (size / 100))}px Roboto`;
+                targetCtx.fillText((item.name || "").toUpperCase(), c, size * 0.305);
+
+                targetCtx.fillStyle = "#f1f1f1";
+                targetCtx.font = `400 ${Math.round(5.8 * (size / 100))}px Roboto`;
+                targetCtx.fillText(`SIDE ${side}`, c, size * 0.647);
+
+                targetCtx.fillStyle = "#e9e9e9";
+                targetCtx.font = `300 ${Math.round(2.8 * (size / 100))}px Roboto`;
+                targetCtx.fillText("DESIGN PORTFOLIO", c, size * 0.761);
+                targetCtx.fillText("MILAN SAMARDZIC", c, size * 0.792);
+
+                if (hasCover) {
+                    targetCtx.restore();
+                }
+
+                targetCtx.beginPath();
+                targetCtx.arc(c, c, size * 0.07, 0, Math.PI * 2);
+                targetCtx.fillStyle = "#181818";
+                targetCtx.fill();
+            };
+
+            // Initial render with fallback color
+            ctx.clearRect(0, 0, size, size);
             ctx.beginPath();
             ctx.arc(c, c, r, 0, Math.PI * 2);
             ctx.closePath();
             ctx.fillStyle = desaturateAndDarken(item.color || "", 0.0, 0.45);
             ctx.fill();
 
-            ctx.strokeStyle = "#252525";
-            ctx.lineWidth = size * 0.0065;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(c, c, size * 0.462, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(24,24,24,0.8)";
-            ctx.lineWidth = size * 0.0038;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(c, c, size * 0.31, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(24,24,24,0.24)";
-            ctx.lineWidth = size * 0.003;
-            ctx.stroke();
-
-            const bandH = size * 0.13;
-            const bandTop = size * 0.435;
-            const bandInset = size * 0.048;
-            ctx.fillStyle = "#181818";
-            ctx.fillRect(bandInset, bandTop, size - bandInset * 2, bandH);
-            ctx.strokeStyle = "#1f1f1f";
-            ctx.lineWidth = size * 0.002;
-            ctx.strokeRect(bandInset, bandTop, size - bandInset * 2, bandH);
-
-            ctx.fillStyle = "#f1f1f1";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.font = `400 ${Math.round(4.3 * (size / 100))}px Roboto`;
-            ctx.fillText("STEREO", size * 0.245, c);
-            ctx.fillText("33 RPM", size * 0.755, c);
-
-            ctx.fillStyle = "#f3f3f3";
-            ctx.font = `900 ${Math.round(5.8 * (size / 100))}px Roboto`;
-            ctx.fillText((item.author || "").toUpperCase(), c, size * 0.24);
-
-            ctx.fillStyle = "#ececec";
-            ctx.font = `400 ${Math.round(3.9 * (size / 100))}px Roboto`;
-            ctx.fillText((item.name || "").toUpperCase(), c, size * 0.305);
-
-            ctx.fillStyle = "#f1f1f1";
-            ctx.font = `400 ${Math.round(5.8 * (size / 100))}px Roboto`;
-            ctx.fillText(`SIDE ${side}`, c, size * 0.647);
-
-            ctx.fillStyle = "#e9e9e9";
-            ctx.font = `300 ${Math.round(2.8 * (size / 100))}px Roboto`;
-            ctx.fillText("DESIGN PORTFOLIO", c, size * 0.761);
-            ctx.fillText("MILAN SAMARDZIC", c, size * 0.792);
-
-            ctx.beginPath();
-            ctx.arc(c, c, size * 0.07, 0, Math.PI * 2);
-            ctx.fillStyle = "#181818";
-            ctx.fill();
+            drawLabelOverlayElements(ctx, false);
 
             const texture = new THREE.CanvasTexture(canvas);
             texture.needsUpdate = true;
+
+            const coverSrc = (item.customCover && item.useCustomCover !== false)
+                ? item.customCover
+                : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+
+            if (coverSrc) {
+                let img = inMemoryImageCache.get(coverSrc);
+                if (!img) {
+                    img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.src = coverSrc;
+                    inMemoryImageCache.set(coverSrc, img);
+                }
+                const drawLabelCover = () => {
+                    ctx.clearRect(0, 0, size, size);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(c, c, r, 0, Math.PI * 2);
+                    ctx.clip();
+
+                    const imgRatio = (img.naturalWidth || img.width || 1) / (img.naturalHeight || img.height || 1);
+                    let dw = size, dh = size, dx = 0, dy = 0;
+                    if (imgRatio > 1) {
+                        dw = size * imgRatio;
+                        dx = -(dw - size) / 2;
+                    } else {
+                        dh = size / imgRatio;
+                        dy = -(dh - size) / 2;
+                    }
+                    ctx.filter = "saturate(1.2) brightness(0.82) contrast(1.1)";
+                    ctx.drawImage(img, dx, dy, dw, dh);
+                    ctx.filter = "none";
+
+                    // Overlay subtle gradient so all typography and markings remain perfectly legible
+                    const grad = ctx.createRadialGradient(c, c, size * 0.06, c, c, r);
+                    grad.addColorStop(0, "rgba(0,0,0,0.18)");
+                    grad.addColorStop(0.65, "rgba(0,0,0,0.32)");
+                    grad.addColorStop(1, "rgba(0,0,0,0.62)");
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, size, size);
+                    ctx.restore();
+
+                    drawLabelOverlayElements(ctx, true);
+                    texture.needsUpdate = true;
+                };
+                if (img.complete && img.naturalWidth > 0) {
+                    drawLabelCover();
+                } else {
+                    img.addEventListener("load", drawLabelCover, { once: true });
+                }
+            }
+
             return texture;
         }
 
@@ -1742,21 +2011,31 @@
                 normalMap: diskNormalMap, 
                 normalScale: new THREE.Vector2(1.4, 1.4)
             });
-            const geo = new THREE.CylinderGeometry(2.85, 2.85, 0.05, 64);
+            const geo = getSharedDiskGeo();
             const disk = new THREE.Mesh(geo, diskMat);
             disk.rotation.x = Math.PI / 2;
             disk.name = "disk";
             disk.layers.set(DISK_LAYER);
             
-            const labelTexture = generateArchiveLabelTexture(item, "A", 512);
-            const labelGeo = new THREE.CircleGeometry(1.05, 64);
-            const labelMat = new THREE.MeshStandardMaterial({ map: labelTexture, roughness: 0.25, metalness: 0.25 });
-            const labelMesh = new THREE.Mesh(labelGeo, labelMat);
-            labelMesh.name = "diskLabel";
-            labelMesh.position.y = 0.026;
-            labelMesh.rotation.x = -Math.PI / 2;
-            labelMesh.layers.set(DISK_LAYER); 
-            disk.add(labelMesh);
+            const labelTextureA = generateArchiveLabelTexture(item, "A", 512);
+            const labelGeo = getSharedLabelGeo();
+            const labelMatA = new THREE.MeshStandardMaterial({ map: labelTextureA, roughness: 0.25, metalness: 0.25 });
+            const labelMeshA = new THREE.Mesh(labelGeo, labelMatA);
+            labelMeshA.name = "diskLabel";
+            labelMeshA.position.y = 0.026;
+            labelMeshA.rotation.x = -Math.PI / 2;
+            labelMeshA.layers.set(DISK_LAYER); 
+            disk.add(labelMeshA);
+
+            const labelTextureB = generateArchiveLabelTexture(item, "B", 512);
+            const labelMatB = new THREE.MeshStandardMaterial({ map: labelTextureB, roughness: 0.25, metalness: 0.25 });
+            const labelMeshB = new THREE.Mesh(labelGeo, labelMatB);
+            labelMeshB.name = "diskLabelB";
+            labelMeshB.position.y = -0.026;
+            labelMeshB.rotation.x = Math.PI / 2;
+            labelMeshB.layers.set(DISK_LAYER); 
+            disk.add(labelMeshB);
+
             return disk;
         }
 
@@ -1765,22 +2044,54 @@
             raycaster.layers.enable(DISK_LAYER);
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(scene.children, true);
-            if (!intersects.length) return -1;
+            if (!intersects.length) return null;
             for (let i = 0; i < intersects.length; i += 1) {
                 let hitObj = intersects[i].object;
+                let isDisk = false;
+                let cur = hitObj;
+                while (cur && cur.parent) {
+                    if (cur.name === "disk" || cur.name === "diskLabelA" || cur.name === "diskLabelB") {
+                        isDisk = true;
+                        break;
+                    }
+                    cur = cur.parent;
+                }
                 while (hitObj.parent && !groups.includes(hitObj)) hitObj = hitObj.parent;
                 if (hitObj.userData && typeof hitObj.userData.index !== "undefined") {
                     const d = hitObj.userData.index - (currentScroll / scrollSensitivity);
                     if (hitObj.visible && hitObj.position.z > -8 && d > -0.45) {
-                        return hitObj.userData.index;
+                        return { index: hitObj.userData.index, isDisk };
                     }
                 }
             }
-            return -1;
+            return null;
         }
 
-        function handleInteractionAtIndex(idx) {
+        function playSelectedAlbumByIndex(currentIdx) {
+            if (!totalMeshes || currentIdx < 0 || currentIdx >= collection.length) return;
+            try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
+            hasLoadedRecord = true;
+            const selected = collection[currentIdx];
+            if (!selected) return;
+            const selectedPayload = { ...selected };
+            try {
+                localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selectedPayload));
+            } catch(_) {}
+            const q = new URLSearchParams({
+                album: selected.name,
+                name: selected.name,
+                author: selected.author || "",
+                color: selected.color || "",
+                duration: selected.duration || "",
+                folder: selected.folder || ""
+            });
+            startLaunchToPlayer(currentIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+        }
+
+        function handleInteractionAtIndex(result) {
             if (!totalMeshes || launchIndex !== -1) return;
+            const idx = (typeof result === "object" && result !== null) ? result.index : result;
+            const isDisk = (typeof result === "object" && result !== null) ? result.isDisk : false;
             if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
             if (isPlayingLockedIndex(idx)) return;
             const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
@@ -1789,10 +2100,15 @@
                 openStates.fill(false);
                 pendingOpenIndex = idx; // Otvori omot tek kad kamera stigne do njega!
             } else {
-                const targetState = !openStates[idx];
-                openStates.fill(false);
-                openStates[idx] = targetState;
-                if (targetState) playSleeve();
+                if (isDisk && openStates[idx]) {
+                    // Clicked directly on the extruded vinyl disk -> play immediately!
+                    playSelectedAlbumByIndex(idx);
+                } else {
+                    const targetState = !openStates[idx];
+                    openStates.fill(false);
+                    openStates[idx] = targetState;
+                    if (targetState) playSleeve();
+                }
             }
         }
 
@@ -1860,8 +2176,8 @@
         }
 
         function updateCamera() {
-            const w = window.innerWidth;
-            const h = window.innerHeight;
+            const w = Math.max(1, window.innerWidth || 1);
+            const h = Math.max(1, window.innerHeight || 1);
             const isPortrait = h > w;
             const isMobile = w < 768 || h < 768;
             const isMobilePortrait = isMobile && isPortrait;
@@ -1961,39 +2277,111 @@
                 groups.push(group);
             }
 
-            // Desktop Mouse Events
-            const isEditModalActive = () => document.getElementById('editModalOverlay').classList.contains('active') || document.getElementById('rightColorPickerContainer').classList.contains('active') || (document.getElementById('reorderModalOverlay') && document.getElementById('reorderModalOverlay').classList.contains('active'));
+            // Global capture-phase barrier ensuring no mouse/touch/wheel event leaks to the background 3D canvas
+            ['wheel', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointermove', 'pointerup', 'contextmenu'].forEach(evtType => {
+                window.addEventListener(evtType, (e) => {
+                    if (isModalActive()) {
+                        const inModalContent = e.target && typeof e.target.closest === 'function' && e.target.closest('.edit-modal, .custom-cp-container, button, input, select, textarea, label, [role="button"]');
+                        if (evtType === 'wheel') {
+                            const isScrollable = inModalContent && (e.target.closest('.scrollable, [data-scrollable="true"]') || inModalContent.scrollHeight > inModalContent.clientHeight);
+                            if (!isScrollable) {
+                                e.preventDefault();
+                            }
+                            e.stopPropagation();
+                        } else if (!inModalContent && evtType !== 'click') {
+                            e.stopPropagation();
+                        }
+                    }
+                }, { passive: false, capture: true });
+            });
+
+            // Mouse & Touch controls with smooth drag, natural wheel, and UI barrier
+            let isMouseDown = false;
+            let mouseStartX = 0;
+            let mouseStartY = 0;
+            let lastMouseClientX = 0;
+            let lastMouseClientY = 0;
+            let isMouseDragging = false;
 
             window.addEventListener('wheel', (e) => {
-                if (isEditModalActive() || launchIndex !== -1) return;
+                if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
                 isKeyboardNav = false;
-                targetScroll -= e.deltaY; 
+                // Natural wheel direction: scroll down moves to next record
+                targetScroll += e.deltaY * 2.2; 
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 pendingOpenIndex = -1; 
-                if (Math.abs(e.deltaY) > 5) openStates.fill(false);
+                if (Math.abs(e.deltaY) > 6) openStates.fill(false);
             }, { passive: true });
 
             window.addEventListener('mousemove', (e) => {
+                if (isModalActive() || isEventOverModal(e)) {
+                    isMouseDown = false;
+                    isMouseDragging = false;
+                    return;
+                }
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                if (isMouseDown && launchIndex === -1) {
+                    const deltaX = e.clientX - lastMouseClientX;
+                    const deltaY = e.clientY - lastMouseClientY;
+                    lastMouseClientX = e.clientX;
+                    lastMouseClientY = e.clientY;
+                    const totalDist = Math.hypot(e.clientX - mouseStartX, e.clientY - mouseStartY);
+                    if (totalDist > 4) {
+                        isMouseDragging = true;
+                        isKeyboardNav = false;
+                        const delta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX * 3.2 : -deltaY * 3.0;
+                        targetScroll += delta;
+                        targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                        pendingOpenIndex = -1;
+                        if (totalDist > 10) openStates.fill(false);
+                    }
+                }
+            });
+
+            window.addEventListener('mousedown', (e) => {
+                if (isModalActive() || isEventOverModal(e)) return;
+                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
+                isMouseDown = true;
+                isMouseDragging = false;
+                mouseStartX = e.clientX;
+                mouseStartY = e.clientY;
+                lastMouseClientX = e.clientX;
+                lastMouseClientY = e.clientY;
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
             });
 
-            window.addEventListener('mousedown', (e) => {
-               if (isEditModalActive()) return;
-               if (e.target.closest('#play-button')) return;
-               mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-               mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-               const foundIdx = pickAlbumIndexAtPointer();
-               interactiveIndex = foundIdx;
-               isHovered = foundIdx !== -1;
-               handleInteractionAtIndex(foundIdx);
+            window.addEventListener('mouseup', (e) => {
+                if (isModalActive() || isEventOverModal(e)) {
+                    isMouseDown = false;
+                    isMouseDragging = false;
+                    return;
+                }
+                if (isMouseDown) {
+                    isMouseDown = false;
+                    if (!isMouseDragging) {
+                        if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
+                        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                        const pickResult = pickAlbumIndexAtPointer();
+                        interactiveIndex = pickResult ? pickResult.index : -1;
+                        isHovered = pickResult !== null;
+                        if (pickResult !== null) {
+                            handleInteractionAtIndex(pickResult);
+                        }
+                    }
+                    isMouseDragging = false;
+                }
             });
 
             // Touch Events (Mobile/Tablet)
             let touchStartX = 0;
             let touchStartY = 0;
             window.addEventListener('touchstart', (e) => {
-                if (isEditModalActive()) return;
+                if (isModalActive() || isEventOverModal(e)) return;
+                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 isTouchMove = false;
@@ -2002,8 +2390,8 @@
             }, { passive: false });
 
             window.addEventListener('touchmove', (e) => {
-                if (isEditModalActive() || launchIndex !== -1) return;
-                e.preventDefault();
+                if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
+                if (e.target.closest('.edit-modal, .edit-modal-overlay, input, textarea, select')) return;
                 const touchX = e.touches[0].clientX;
                 const touchY = e.touches[0].clientY;
                 const deltaX = touchX - touchStartX;
@@ -2011,15 +2399,16 @@
                 touchStartX = touchX;
                 touchStartY = touchY;
 
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const distance = Math.hypot(deltaX, deltaY);
                 if (distance > 1.5) {
+                    if (e.cancelable) e.preventDefault();
                     isTouchMove = true;
                     isKeyboardNav = false;
-                    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX * 4 : -deltaY * 3.5;
+                    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX * 3.8 : -deltaY * 3.2;
                     targetScroll += delta; 
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-                    
-                    if (distance > 2) openStates.fill(false);
+                    pendingOpenIndex = -1;
+                    if (distance > 3) openStates.fill(false);
 
                     mouse.x = (touchX / window.innerWidth) * 2 - 1;
                     mouse.y = -(touchY / window.innerHeight) * 2 + 1;
@@ -2027,14 +2416,16 @@
             }, { passive: false });
 
             window.addEventListener('touchend', (e) => {
-                if (isEditModalActive()) return;
+                if (isModalActive() || isEventOverModal(e)) return;
                 if (!isTouchMove) {
-                    if (e.target.closest('#play-button') || e.target.closest('#genresContainer') || e.target.closest('.top-bar')) return;
+                    if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
                     
-                    const foundIdx = pickAlbumIndexAtPointer();
-                    interactiveIndex = foundIdx;
-                    isHovered = foundIdx !== -1;
-                    handleInteractionAtIndex(foundIdx);
+                    const pickResult = pickAlbumIndexAtPointer();
+                    interactiveIndex = pickResult ? pickResult.index : -1;
+                    isHovered = pickResult !== null;
+                    if (pickResult !== null) {
+                        handleInteractionAtIndex(pickResult);
+                    }
                 }
             });
 
@@ -2042,23 +2433,7 @@
                 e.stopPropagation();
                 if (!totalMeshes) return;
                 const currentIdx = interactiveIndex !== -1 ? interactiveIndex : Math.round(currentScroll / scrollSensitivity);
-                try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
-                hasLoadedRecord = true;
-                const selected = collection[currentIdx];
-                if (!selected) return;
-                const selectedPayload = { ...selected };
-                try {
-                    localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selectedPayload));
-                } catch(_) {}
-                const q = new URLSearchParams({
-                    album: selected.name,
-                    name: selected.name,
-                    author: selected.author || "",
-                    color: selected.color || "",
-                    duration: selected.duration || "",
-                    folder: selected.folder || ""
-                });
-                startLaunchToPlayer(currentIdx, `vinyl-player.html?${q.toString()}`, selectedPayload);
+                playSelectedAlbumByIndex(currentIdx);
             });
             playerNavLink?.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -2138,29 +2513,35 @@
                 }
             }
 
-            raycaster.layers.enable(0);
-            raycaster.layers.enable(DISK_LAYER);
-            raycaster.setFromCamera(mouse, camera);
-            
-            const intersects = raycaster.intersectObjects(scene.children, true);
             let foundIdx = -1;
-            if (intersects.length > 0) {
-                for(let i = 0; i < intersects.length; i++) {
-                    let hitObj = intersects[i].object;
-                    while(hitObj.parent && !groups.includes(hitObj)) hitObj = hitObj.parent;
-                    if (hitObj.userData && typeof hitObj.userData.index !== 'undefined') {
-                        const d = hitObj.userData.index - scrollProgress;
-                        if (hitObj.visible && hitObj.position.z > -8 && d > -0.45) {
-                            foundIdx = hitObj.userData.index;
-                            break; 
+            if (isModalActive()) {
+                interactiveIndex = -1;
+                isHovered = false;
+                document.body.style.cursor = 'default';
+            } else {
+                raycaster.layers.enable(0);
+                raycaster.layers.enable(DISK_LAYER);
+                raycaster.setFromCamera(mouse, camera);
+                
+                const intersects = raycaster.intersectObjects(scene.children, true);
+                if (intersects.length > 0) {
+                    for(let i = 0; i < intersects.length; i++) {
+                        let hitObj = intersects[i].object;
+                        while(hitObj.parent && !groups.includes(hitObj)) hitObj = hitObj.parent;
+                        if (hitObj.userData && typeof hitObj.userData.index !== 'undefined') {
+                            const d = hitObj.userData.index - scrollProgress;
+                            if (hitObj.visible && hitObj.position.z > -8 && d > -0.45) {
+                                foundIdx = hitObj.userData.index;
+                                break; 
+                            }
                         }
                     }
                 }
-            }
 
-            interactiveIndex = foundIdx;
-            isHovered = foundIdx !== -1;
-            document.body.style.cursor = isHovered ? 'pointer' : 'default';
+                interactiveIndex = foundIdx;
+                isHovered = foundIdx !== -1;
+                document.body.style.cursor = isHovered ? 'pointer' : 'default';
+            }
 
             const displayIdx = totalMeshes ? Math.max(0, Math.min(totalMeshes - 1, Math.round(scrollProgress))) : 0;
             if (displayIdx !== lastIndex) {
@@ -2168,7 +2549,11 @@
                 lastIndex = displayIdx;
             }
             
-            document.getElementById('counter').innerText = `${totalMeshes} Albums`;
+            if (lastCountUpdated !== totalMeshes) {
+                lastCountUpdated = totalMeshes;
+                const counterEl = document.getElementById('counter');
+                if (counterEl) counterEl.innerText = `${totalMeshes} Albums`;
+            }
 
             let playBtnUpdated = false;
             let nowPlayingUpdated = false;
@@ -2267,22 +2652,30 @@
                     nowPlayingUpdated = true;
                 }
 
-                group.traverse(child => { 
-                    if(child.material) {
-                        const mats = Array.isArray(child.material) ? child.material : [child.material];
-                        mats.forEach(m => {
-                            m.opacity = opacity;
-                            m.transparent = true;
-                            m.depthWrite = opacity > 0.9;
-                        });
-                    } 
-                });
+                if (Math.abs((group.userData.lastOpacity ?? -1) - opacity) > 0.01) {
+                    group.userData.lastOpacity = opacity;
+                    group.traverse(child => { 
+                        if(child.material) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                m.opacity = opacity;
+                                m.transparent = true;
+                                m.depthWrite = opacity > 0.9;
+                            });
+                        } 
+                    });
+                }
                 group.visible = opacity > 0.001;
             });
 
             if (!playBtnUpdated) {
-                playBtn.classList.remove('visible');
-                setTimeout(() => { if(!playBtn.classList.contains('visible')) playBtn.style.display = 'none'; }, 400);
+                if (playBtnIsVisible) {
+                    playBtnIsVisible = false;
+                    playBtn.classList.remove('visible');
+                    setTimeout(() => { if(!playBtnIsVisible) playBtn.style.display = 'none'; }, 350);
+                }
+            } else {
+                playBtnIsVisible = true;
             }
             if (!nowPlayingUpdated) {
                 nowPlayingBadge.style.display = 'none';
@@ -2294,10 +2687,6 @@
         window.addEventListener('resize', updateCamera);
 
         document.addEventListener("DOMContentLoaded", async () => {
-            
-
-
-
             // Genre pills logic
             const genreBtns = document.querySelectorAll(".genre-pill");
             genreBtns.forEach(btn => {
@@ -2313,33 +2702,38 @@
                 });
             });
 
-            // Clear any local overrides and order so Firestore is always the single source of truth
+            // Instant startup: use local cache or window.VINYL_COLLECTION or DEFAULT_COLLECTION
+            let initialAlbums = [];
             try {
-                localStorage.removeItem("vinyl_archive_albums_v1");
-                localStorage.removeItem("vinyl_album_overrides_v1");
-                localStorage.removeItem("vinyl_album_order_v1");
+                const cached = JSON.parse(localStorage.getItem("vinyl_archive_albums_v1") || "null");
+                if (Array.isArray(cached) && cached.length) {
+                    initialAlbums = cached;
+                }
             } catch(_) {}
-            await loadCollectionManifest();
-            if (!collection.length) {
-                console.warn("Collection empty, applying defaults");
-                applyCollectionData(DEFAULT_COLLECTION);
+
+            if (!initialAlbums.length && typeof window.VINYL_COLLECTION !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
+                initialAlbums = window.VINYL_COLLECTION;
             }
-            await ensureArchiveFontsReady();
+            if (!initialAlbums.length) {
+                initialAlbums = DEFAULT_COLLECTION;
+            }
+
+            applyCollectionData(initialAlbums);
+            preloadCovers(initialAlbums);
             refreshRecordLoadedState();
             try {
                 localStorage.removeItem(PLAYING_UID_KEY);
             } catch(_) {}
             playingIndex = -1;
-            if (!hasLoadedRecord) {
-                playingIndex = -1;
-            }
-            // Always start archive from the first album.
             resetArchiveToFirst();
             warmGlobalAssetsOnce();
             
-            console.log("Starting init with", totalMeshes, "albums");
             init();
             window.focus();
+
+            // Background async operations
+            loadCollectionManifest();
+            ensureArchiveFontsReady();
         });
         startArchiveBridgeFromState();
         window.addEventListener("pageshow", () => {
@@ -2351,15 +2745,18 @@
         window.addEventListener("focus", () => {
             // Avoid unexpected jump-to-first while already browsing embedded archive.
             if (!EMBEDDED) resetArchiveToFirst();
+            updateCamera();
         });
         window.addEventListener("message", (event) => {
             const data = event?.data;
             if (!data) return;
             if (data.type === "archive-reset-first") {
                 resetArchiveToFirst();
+                updateCamera();
                 window.focus();
             }
             if (data.type === "archive-focus") {
+                updateCamera();
                 window.focus();
                 document.body.focus();
             }
@@ -2441,8 +2838,9 @@
                 req.onsuccess = async () => {
                     const customAlbums = req.result || [];
                     if(customAlbums.length > 0) {
-                        console.log("Migrating local IndexedDB albums to server:", customAlbums.length);
+                        let needsRebuild = false;
                         for(const ca of customAlbums) {
+                            let migrated = false;
                             if(ca.files && ca.files.length > 0) {
                                 try {
                                     const formData = new FormData();
@@ -2456,17 +2854,50 @@
                                             formData.append("files", new Blob([f.data], { type: f.type || "audio/mpeg" }), f.name);
                                         }
                                     });
-                                    const syncRes = await fetch("/api/upload-album", { method: "POST", body: formData });
+                                    const syncRes = await fetch(`${API_BASE}/api/upload-album`, { method: "POST", body: formData });
                                     if(syncRes.ok) {
                                         console.log("Successfully migrated local album to server Firestore:", ca.name);
                                         const delTx = db.transaction("albums", "readwrite");
                                         delTx.objectStore("albums").delete(ca.id);
+                                        migrated = true;
                                         await loadCollectionManifest();
                                     }
                                 } catch(syncErr) {
-                                    console.warn("Migration to server failed:", syncErr);
+                                    console.warn("Server migration skipped (e.g. Vercel static hosting):", syncErr);
                                 }
                             }
+                            if (!migrated) {
+                                // Keep visible in collection (e.g. on Vercel or offline)
+                                const uid = ca.folder || ("LOCAL://" + ca.id);
+                                if (!collection.some(item => item._uid === uid)) {
+                                    let coverUrl = ca.customCover || "";
+                                    if (!coverUrl && ca.coverData) {
+                                        try {
+                                            coverUrl = URL.createObjectURL(new Blob([ca.coverData], { type: ca.coverType || "image/jpeg" }));
+                                        } catch(_) {}
+                                    }
+                                    const localItem = {
+                                        name: ca.name || "LOCAL ALBUM",
+                                        author: ca.author || "LOCAL ARTIST",
+                                        color: ca.color || "#1a1a1a",
+                                        folder: uid,
+                                        cover: coverUrl,
+                                        tracks: Array.isArray(ca.tracks) ? ca.tracks : (ca.files ? ca.files.map(f => f.name).sort() : []),
+                                        customCover: coverUrl,
+                                        useCustomCover: !!coverUrl,
+                                        _uid: uid
+                                    };
+                                    collection.unshift(localItem);
+                                    originalCollection.unshift(localItem);
+                                    needsRebuild = true;
+                                }
+                            }
+                        }
+                        if (needsRebuild) {
+                            groups.forEach(g => { if(g) scene.remove(g); });
+                            groups = [];
+                            rebuildMeshes();
+                            filterCollection();
                         }
                     }
                 };
@@ -2475,123 +2906,405 @@
             }
         });
 
-        let pendingAction = null;
-        function checkAuthAndRun(action) {
-            const loggedUser = localStorage.getItem('vinyl_logged_user');
-            if (loggedUser) {
-                action();
-            } else {
-                pendingAction = action;
-                document.getElementById('loginModalOverlay').classList.add('active');
-            }
-        }
-
-        document.getElementById('loginSubmitBtn')?.addEventListener('click', () => {
-            const emailInput = document.getElementById('loginEmailInput');
-            const userVal = emailInput ? emailInput.value.trim() : '';
-            localStorage.setItem('vinyl_logged_user', userVal || 'korisnik@example.com');
-            document.getElementById('loginModalOverlay').classList.remove('active');
-            if (pendingAction) {
-                const act = pendingAction;
-                pendingAction = null;
-                act();
-            }
-        });
-
-        document.getElementById('loginCancelBtn')?.addEventListener('click', () => {
-            pendingAction = null;
-            document.getElementById('loginModalOverlay').classList.remove('active');
-        });
-
-
-
         const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
         if (deleteAlbumBtn) {
             deleteAlbumBtn.addEventListener('click', () => {
-                checkAuthAndRun(() => {
-                    let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
-                    if (targetIdx >= 0 && targetIdx < collection.length) {
-                        lastIndex = targetIdx; // set it so confirmOkBtn uses the right one
-                        const customConfirmOverlay = document.getElementById("customConfirmOverlay");
-                        if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
-                    }
-                });
+                let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
+                if (targetIdx >= 0 && targetIdx < collection.length) {
+                    lastIndex = targetIdx;
+                    const customConfirmOverlay = document.getElementById("customConfirmOverlay");
+                    if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
+                }
             });
         }
 
+        // ==========================================
+        // UPLOAD ALBUM MODAL & PROCESSOR
+        // ==========================================
         const uploadAlbumBtn = document.getElementById('uploadAlbumBtn');
-        const uploadAlbumInput = document.getElementById('uploadAlbumInput');
-        if (uploadAlbumBtn && uploadAlbumInput) {
+        const uploadModalOverlay = document.getElementById('uploadModalOverlay');
+        const uploadModalCloseBtn = document.getElementById('uploadModalCloseBtn');
+        const uploadModalCancelBtn = document.getElementById('uploadModalCancelBtn');
+        const uploadModalSubmitBtn = document.getElementById('uploadModalSubmitBtn');
+
+        const uploadFolderInput = document.getElementById('uploadFolderInput');
+        const uploadFilesInput = document.getElementById('uploadFilesInput');
+        const uploadCoverInput = document.getElementById('uploadCoverInput');
+
+        const btnPickFolder = document.getElementById('btnPickFolder');
+        const btnPickFiles = document.getElementById('btnPickFiles');
+        const btnPickCover = document.getElementById('btnPickCover');
+        const btnRemoveCover = document.getElementById('btnRemoveCover');
+
+        const uploadFilesSummary = document.getElementById('uploadFilesSummary');
+        const uploadTrackCount = document.getElementById('uploadTrackCount');
+        const uploadFileListPreview = document.getElementById('uploadFileListPreview');
+
+        const uploadArtistInput = document.getElementById('uploadArtistInput');
+        const uploadAlbumInputNew = document.getElementById('uploadAlbumInputNew');
+        const uploadGenreSelect = document.getElementById('uploadGenreSelect');
+        const uploadYearInput = document.getElementById('uploadYearInput');
+
+        const uploadCoverThumb = document.getElementById('uploadCoverThumb');
+        const uploadModalProgressBox = document.getElementById('uploadModalProgressBox');
+        const uploadModalProgressBar = document.getElementById('uploadModalProgressBar');
+        const uploadModalProgressStatus = document.getElementById('uploadModalProgressStatus');
+
+        let selectedAudioFiles = [];
+        let selectedCoverFile = null;
+        let coverObjectUrl = null;
+
+        function resetUploadModal() {
+            selectedAudioFiles = [];
+            selectedCoverFile = null;
+            if (coverObjectUrl) {
+                try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+                coverObjectUrl = null;
+            }
+            if (uploadFolderInput) uploadFolderInput.value = "";
+            if (uploadFilesInput) uploadFilesInput.value = "";
+            if (uploadCoverInput) uploadCoverInput.value = "";
+
+            if (uploadArtistInput) uploadArtistInput.value = "";
+            if (uploadAlbumInputNew) uploadAlbumInputNew.value = "";
+            if (uploadYearInput) uploadYearInput.value = "";
+            if (uploadGenreSelect) uploadGenreSelect.value = "ROCK";
+
+            if (uploadCoverThumb) {
+                uploadCoverThumb.style.backgroundImage = "";
+                uploadCoverThumb.innerText = "Omot";
+            }
+            if (btnRemoveCover) btnRemoveCover.style.display = "none";
+
+            if (uploadFilesSummary) uploadFilesSummary.style.display = "none";
+            if (uploadFileListPreview) uploadFileListPreview.innerHTML = "";
+            if (uploadModalProgressBox) uploadModalProgressBox.style.display = "none";
+            if (uploadModalProgressBar) {
+                uploadModalProgressBar.style.width = "0%";
+                uploadModalProgressBar.style.background = "#4f46e5";
+            }
+            if (uploadModalProgressStatus) uploadModalProgressStatus.innerText = "";
+            if (uploadModalSubmitBtn) uploadModalSubmitBtn.disabled = false;
+        }
+
+        if (uploadAlbumBtn && uploadModalOverlay) {
             uploadAlbumBtn.addEventListener('click', () => {
-                checkAuthAndRun(() => {
-                    uploadAlbumInput.click();
-                });
+                resetUploadModal();
+                uploadModalOverlay.classList.add('active');
             });
 
-            uploadAlbumInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files);
+            uploadModalCloseBtn?.addEventListener('click', () => {
+                uploadModalOverlay.classList.remove('active');
+            });
+            uploadModalCancelBtn?.addEventListener('click', () => {
+                uploadModalOverlay.classList.remove('active');
+            });
+
+            btnPickFolder?.addEventListener('click', () => {
+                uploadFolderInput?.click();
+            });
+
+            btnPickFiles?.addEventListener('click', () => {
+                uploadFilesInput?.click();
+            });
+
+            btnPickCover?.addEventListener('click', () => {
+                uploadCoverInput?.click();
+            });
+
+            btnRemoveCover?.addEventListener('click', () => {
+                selectedCoverFile = null;
+                if (coverObjectUrl) {
+                    try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+                    coverObjectUrl = null;
+                }
+                uploadCoverThumb.style.backgroundImage = "";
+                uploadCoverThumb.innerText = "Omot";
+                btnRemoveCover.style.display = "none";
+                if (uploadCoverInput) uploadCoverInput.value = "";
+            });
+
+            function formatBytes(bytes) {
+                if (!bytes || bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            function processIncomingFiles(filesList) {
+                const files = Array.from(filesList || []);
                 if (!files.length) return;
 
-                const audioFiles = files.filter(f => f.type.startsWith('audio/') || f.name.match(/\.(mp3|wav|flac|m4a|ogg|aiff|aac)$/i));
-                const imageFile = files.find(f => f.type.startsWith('image/') || f.name.match(/\.(jpg|jpeg|png|webp)$/i));
+                const audioExts = /\.(mp3|wav|flac|m4a|ogg|aac|aiff|wma)$/i;
+                const imageExts = /\.(jpg|jpeg|png|webp|avif)$/i;
 
-                if (!audioFiles.length) {
-                    alert("No audio files found in the selected folder.");
-                    return;
-                }
-                
-                const progressEl = document.getElementById('uploadProgress');
-                progressEl.style.display = 'block';
-                progressEl.innerText = "Kompresovanje i slanje pesama (5-9MB)...";
+                const audios = files.filter(f => f.type.startsWith('audio/') || audioExts.test(f.name));
+                const image = files.find(f => f.type.startsWith('image/') || imageExts.test(f.name));
 
-                const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : "Novi Album";
-                let artistName = "UPLOADED ARTIST";
-                let albumName = folderName;
-                if (folderName.includes(" - ")) {
-                    const p = folderName.split(" - ");
-                    artistName = p[0].trim();
-                    albumName = p.slice(1).join(" - ").trim();
-                }
+                if (audios.length > 0) {
+                    selectedAudioFiles = audios;
+                    selectedAudioFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-                // 1. Try server upload with automatic 5-9MB audio compressor
-                try {
-                    const formData = new FormData();
-                    formData.append("albumName", albumName);
-                    formData.append("artistName", artistName);
-                    if (imageFile) {
-                        formData.append("files", imageFile);
-                    }
-                    audioFiles.forEach(f => {
-                        formData.append("files", f);
-                    });
+                    const totalBytes = selectedAudioFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+                    uploadTrackCount.innerText = `Pronađeno: ${selectedAudioFiles.length} pesama (${formatBytes(totalBytes)})`;
+                    uploadFileListPreview.innerHTML = selectedAudioFiles.map((f, i) => `<div style="padding: 2px 0;">${i + 1}. ${f.name}</div>`).join('');
+                    uploadFilesSummary.style.display = "block";
 
-                    progressEl.innerText = `Slanje ${audioFiles.length} pesama na server i čuvanje u bazi...`;
+                    const firstRel = files[0].webkitRelativePath || "";
+                    let deducedArtist = "";
+                    let deducedAlbum = "";
 
-                    const response = await fetch("/api/upload-album", {
-                        method: "POST",
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.status === "ok" && result.album) {
-                            progressEl.innerText = `Uspešno sačuvano u bazi i na serveru! (${audioFiles.length} pesama)`;
-                            uploadAlbumInput.value = "";
-                            await loadCollectionManifest();
-                            groups.forEach(g => { if (g) scene.remove(g); });
-                            groups = [];
-                            rebuildMeshes();
-                            filterCollection();
-                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
-                            return;
+                    if (firstRel.includes('/')) {
+                        const folderPart = firstRel.split('/')[0];
+                        if (folderPart.includes(' - ')) {
+                            const spl = folderPart.split(' - ');
+                            deducedArtist = spl[0].trim();
+                            deducedAlbum = spl.slice(1).join(' - ').trim();
+                        } else {
+                            deducedAlbum = folderPart.trim();
+                        }
+                    } else if (audios[0] && audios[0].name.includes(' - ')) {
+                        const spl = audios[0].name.replace(audioExts, '').split(' - ');
+                        if (spl.length >= 2) {
+                            deducedArtist = spl[0].trim();
+                            deducedAlbum = spl[1].trim();
                         }
                     }
-                    throw new Error("Server response not ok");
+
+                    if (!uploadArtistInput.value.trim() && deducedArtist) {
+                        uploadArtistInput.value = deducedArtist.toUpperCase();
+                    }
+                    if (!uploadAlbumInputNew.value.trim() && deducedAlbum) {
+                        uploadAlbumInputNew.value = deducedAlbum.toUpperCase();
+                    }
+                }
+
+                if (image && !selectedCoverFile) {
+                    selectedCoverFile = image;
+                    if (coverObjectUrl) {
+                        try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+                    }
+                    coverObjectUrl = URL.createObjectURL(image);
+                    uploadCoverThumb.style.backgroundImage = `url("${coverObjectUrl}")`;
+                    uploadCoverThumb.innerText = "";
+                    btnRemoveCover.style.display = "inline-block";
+                }
+            }
+
+            uploadFolderInput?.addEventListener('change', (e) => {
+                processIncomingFiles(e.target.files);
+            });
+
+            uploadFilesInput?.addEventListener('change', (e) => {
+                processIncomingFiles(e.target.files);
+            });
+
+            uploadCoverInput?.addEventListener('change', (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (f) {
+                    selectedCoverFile = f;
+                    if (coverObjectUrl) {
+                        try { URL.revokeObjectURL(coverObjectUrl); } catch (_) {}
+                    }
+                    coverObjectUrl = URL.createObjectURL(f);
+                    uploadCoverThumb.style.backgroundImage = `url("${coverObjectUrl}")`;
+                    uploadCoverThumb.innerText = "";
+                    btnRemoveCover.style.display = "inline-block";
+                }
+            });
+
+            uploadModalSubmitBtn?.addEventListener('click', async () => {
+                if (!selectedAudioFiles.length) {
+                    alert("Molimo izaberite folder sa albumom ili selektujte pesme.");
+                    return;
+                }
+
+                let artistName = uploadArtistInput.value.trim() || "NEPOZNATI IZVOĐAČ";
+                let albumName = uploadAlbumInputNew.value.trim() || "NOVI ALBUM";
+                artistName = artistName.toUpperCase();
+                albumName = albumName.toUpperCase();
+                const genre = uploadGenreSelect.value || "ROCK";
+                const year = uploadYearInput.value.trim() || "";
+
+                uploadModalProgressBox.style.display = "block";
+                uploadModalProgressBar.style.width = "0%";
+                uploadModalProgressBar.style.background = "#4f46e5";
+                uploadModalProgressStatus.innerText = "Priprema fajlova...";
+                uploadModalSubmitBtn.disabled = true;
+
+                const formData = new FormData();
+                formData.append("artistName", artistName);
+                formData.append("albumName", albumName);
+                formData.append("genre", genre);
+                formData.append("year", year);
+
+                if (selectedCoverFile) {
+                    formData.append("files", selectedCoverFile);
+                }
+                selectedAudioFiles.forEach(f => {
+                    formData.append("files", f);
+                });
+
+                function doUpload() {
+                    return new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        const endpoint = `${API_BASE}/api/upload-album`;
+                        xhr.open("POST", endpoint, true);
+
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable) {
+                                const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
+                                uploadModalProgressBar.style.width = percent + "%";
+                                uploadModalProgressStatus.innerText = `Slanje pesama na server... ${percent}% (${formatBytes(e.loaded)} / ${formatBytes(e.total)})`;
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                try {
+                                    resolve(JSON.parse(xhr.responseText));
+                                } catch (_) {
+                                    resolve({ status: "ok" });
+                                }
+                            } else {
+                                let msg = `Server greška: ${xhr.status}`;
+                                try {
+                                    const parsed = JSON.parse(xhr.responseText);
+                                    if (parsed && parsed.error) msg = parsed.error;
+                                } catch (_) {}
+                                reject(new Error(msg));
+                            }
+                        };
+
+                        xhr.onerror = () => reject(new Error("Mrežna greška pri komunikaciji sa serverom."));
+                        xhr.ontimeout = () => reject(new Error("Isteklo vreme za slanje (timeout)."));
+                        xhr.timeout = 300000; // 5 minuta
+                        xhr.send(formData);
+                    });
+                }
+
+                try {
+                    uploadModalProgressStatus.innerText = `Slanje ${selectedAudioFiles.length} pesama na server... 0%`;
+                    const result = await doUpload();
+
+                    if (result && (result.status === "ok" || result.album)) {
+                        uploadModalProgressBar.style.width = "100%";
+                        uploadModalProgressBar.style.background = "#10b981";
+                        uploadModalProgressStatus.innerText = "Uspešno sačuvano na serveru i u bazi!";
+
+                        await new Promise(r => setTimeout(r, 600));
+                        uploadModalOverlay.classList.remove('active');
+                        resetUploadModal();
+
+                        const progressEl = document.getElementById('uploadProgress');
+                        if (progressEl) {
+                            progressEl.style.display = 'block';
+                            progressEl.innerText = `Učitavanje kolekcije sa servera...`;
+                        }
+
+                        await loadCollectionManifest();
+                        groups.forEach(g => { if (g) scene.remove(g); });
+                        groups = [];
+                        rebuildMeshes();
+                        filterCollection();
+
+                        if (progressEl) {
+                            progressEl.innerText = `Album "${albumName}" je uspešno dodat!`;
+                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+                        }
+                        return;
+                    }
                 } catch (serverErr) {
-                    console.error("Server upload failed:", serverErr);
-                    progressEl.style.display = 'none';
-                    uploadAlbumInput.value = "";
-                    alert("Greška pri čuvanju na serveru. Proverite internet vezu ili server i pokušajte ponovo.");
+                    console.warn("Server upload failed, falling back to client storage:", serverErr);
+                    uploadModalProgressStatus.innerText = `Server nedostupan (${serverErr.message}). Čuvanje u lokalnu bazu...`;
+                }
+
+                // Fallback to IndexedDB (if server is offline)
+                try {
+                    const db = await dbPromise;
+                    if (!db) throw new Error("Lokalna baza nije podržana u ovom pretraživaču");
+
+                    const albumId = "custom_" + Date.now();
+                    const fileData = [];
+                    for (let i = 0; i < selectedAudioFiles.length; i++) {
+                        const f = selectedAudioFiles[i];
+                        const buffer = await f.arrayBuffer();
+                        fileData.push({
+                            name: f.name,
+                            type: f.type || "audio/mpeg",
+                            data: buffer
+                        });
+                        const p = Math.round(((i + 1) / selectedAudioFiles.length) * 100);
+                        uploadModalProgressBar.style.width = p + "%";
+                        uploadModalProgressStatus.innerText = `Lokalno čuvanje pesama... ${p}%`;
+                    }
+
+                    let customCoverUrl = "";
+                    let coverData = null;
+                    let coverType = null;
+                    if (selectedCoverFile) {
+                        coverData = await selectedCoverFile.arrayBuffer();
+                        coverType = selectedCoverFile.type;
+                        const blob = new Blob([coverData], { type: coverType });
+                        customCoverUrl = URL.createObjectURL(blob);
+                    }
+
+                    const newAlbumRecord = {
+                        id: albumId,
+                        name: albumName,
+                        author: artistName,
+                        color: "#1a1a1a",
+                        genre: genre,
+                        year: year,
+                        folder: "LOCAL://" + albumId,
+                        tracks: fileData.map(f => f.name).sort(),
+                        files: fileData,
+                        coverData: coverData,
+                        coverType: coverType,
+                        customCover: customCoverUrl
+                    };
+
+                    const tx = db.transaction("albums", "readwrite");
+                    tx.objectStore("albums").put(newAlbumRecord);
+                    await new Promise((res, rej) => {
+                        tx.oncomplete = res;
+                        tx.onerror = () => rej(tx.error);
+                    });
+
+                    const newItem = {
+                        name: newAlbumRecord.name,
+                        author: newAlbumRecord.author,
+                        color: newAlbumRecord.color,
+                        folder: newAlbumRecord.folder,
+                        cover: customCoverUrl,
+                        tracks: newAlbumRecord.tracks,
+                        customCover: customCoverUrl,
+                        useCustomCover: !!customCoverUrl,
+                        genre: genre,
+                        year: year,
+                        _uid: newAlbumRecord.folder
+                    };
+
+                    collection.unshift(newItem);
+                    originalCollection.unshift(newItem);
+
+                    groups.forEach(g => { if (g) scene.remove(g); });
+                    groups = [];
+                    rebuildMeshes();
+                    filterCollection();
+
+                    uploadModalProgressBar.style.width = "100%";
+                    uploadModalProgressBar.style.background = "#10b981";
+                    uploadModalProgressStatus.innerText = "Album sačuvan lokalno u pretraživaču!";
+                    await new Promise(r => setTimeout(r, 600));
+                    uploadModalOverlay.classList.remove('active');
+                    resetUploadModal();
+                } catch (localErr) {
+                    console.error("Local save failed:", localErr);
+                    uploadModalSubmitBtn.disabled = false;
+                    uploadModalProgressStatus.innerText = `Greška: ${localErr.message}`;
+                    alert("Greška pri čuvanju albuma: " + (localErr.message || "Nepoznata greška"));
                 }
             });
         }
@@ -2669,38 +3382,36 @@
         }
 
         editAlbumBtn.addEventListener("click", () => {
-            checkAuthAndRun(() => {
-                if (lastIndex >= 0 && lastIndex < collection.length) {
-                    const item = collection[lastIndex];
-                    editAlbumName.value = item.name || "";
-                    editAlbumAuthor.value = item.author || "";
-                    editAlbumGenre.value = item.genre || "";
-                    editAlbumYear.value = item.year || "";
-                    const initColor = (item.color && item.color.startsWith('#') && item.color.length === 7) ? item.color : "#1a1a1a";
-                    editAlbumColor.value = initColor;
+            if (lastIndex >= 0 && lastIndex < collection.length) {
+                const item = collection[lastIndex];
+                editAlbumName.value = item.name || "";
+                editAlbumAuthor.value = item.author || "";
+                editAlbumGenre.value = item.genre || "";
+                editAlbumYear.value = item.year || "";
+                const initColor = (item.color && item.color.startsWith('#') && item.color.length === 7) ? item.color : "#1a1a1a";
+                editAlbumColor.value = initColor;
 
-                    editAlbumColorSwatch.style.backgroundColor = initColor;
-                    updateCustomCp(initColor);
-                    
-                    const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
-                    const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
-                    const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
-                    const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
-                    
-                    if (item.customCover) {
-                        customCoverPreviewContainer.style.display = "block";
-                        customCoverPreview.src = item.customCover;
-                        customCoverBtn.style.display = "none";
-                    } else {
-                        customCoverPreviewContainer.style.display = "none";
-                        customCoverPreview.src = "";
-                        customCoverBtn.style.display = "block";
-                    }
-                    customCoverToggle.checked = item.useCustomCover !== false;
-
-                    editModalOverlay.classList.add("active");
+                editAlbumColorSwatch.style.backgroundColor = initColor;
+                updateCustomCp(initColor);
+                
+                const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
+                const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
+                const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
+                const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
+                
+                if (item.customCover) {
+                    customCoverPreviewContainer.style.display = "block";
+                    customCoverPreview.src = item.customCover;
+                    customCoverBtn.style.display = "none";
+                } else {
+                    customCoverPreviewContainer.style.display = "none";
+                    customCoverPreview.src = "";
+                    customCoverBtn.style.display = "block";
                 }
-            });
+                customCoverToggle.checked = item.useCustomCover !== false;
+
+                editModalOverlay.classList.add("active");
+            }
         });
 
         const syncColorToPreview = () => {
@@ -2737,6 +3448,12 @@
                             labelMesh.material.map = newLabelTexture;
                             labelMesh.material.needsUpdate = true;
                         }
+                        const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
+                        if (labelMeshB) {
+                            const newLabelTextureB = generateArchiveLabelTexture(collection[lastIndex], "B", 512);
+                            labelMeshB.material.map = newLabelTextureB;
+                            labelMeshB.material.needsUpdate = true;
+                        }
                     }
                 }
             }
@@ -2769,7 +3486,7 @@
                 }
 
                 // Synchronize album edit with central Firebase Firestore
-                fetch('/api/update-album', {
+                fetch(`${API_BASE}/api/update-album`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2955,7 +3672,7 @@
                     const folderKey = item._uid;
                     
                     // Delete from server and Firestore
-                    fetch('/api/albums', {
+                    fetch(`${API_BASE}/api/albums`, {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ folder: folderKey, id: item.id || folderKey })
@@ -3005,6 +3722,8 @@
                     editModalOverlay.classList.add("active");
                 } else if (editModalOverlay.classList.contains("active")) {
                     closeEditModal();
+                } else if (EMBEDDED && window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: "archive-close" }, "*");
                 }
                 return;
             }
@@ -3255,7 +3974,7 @@
                 });
                 
                 // Synchronize custom order with Firebase Firestore
-                fetch('/api/reorder-albums', {
+                fetch(`${API_BASE}/api/reorder-albums`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order: newOrder })

@@ -509,6 +509,9 @@
     }
     .vinyl-label:before{content:"";position:absolute;inset:calc(4.8% - 1px);border-radius:50%;border:1.6px solid rgba(22,22,22,.88);pointer-events:none}
     .vinyl-label:after{content:"";position:absolute;inset:19%;border-radius:50%;border:1px solid rgba(22,22,22,.22);pointer-events:none}
+    .label-cover-bg{position:absolute;inset:0;border-radius:50%;background-size:cover;background-position:center;background-repeat:no-repeat;z-index:1;opacity:0;transition:opacity .35s ease;pointer-events:none;filter:saturate(1.15) brightness(0.82) contrast(1.1)}
+    .label-cover-bg.has-cover{opacity:0.92}
+    .label-cover-bg:after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at center,rgba(0,0,0,0.18) 0%,rgba(0,0,0,0.32) 65%,rgba(0,0,0,0.62) 100%);pointer-events:none}
     .label-standard{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
     .label-header{position:absolute;top:24%;left:12%;right:12%;display:flex;flex-direction:column;align-items:center;gap:2px}
     #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:2.8px;font-weight:400;letter-spacing:.3px;line-height:1.1;color:#ececec;text-align:center;text-transform:uppercase;opacity:1}
@@ -701,6 +704,7 @@
               <div class="vinyl-specular-fixed" aria-hidden="true"></div>
               <div class="vinyl-record" id="vinylRecord">
                 <div class="vinyl-label" id="vinylLabel">
+                  <div class="label-cover-bg" id="labelCoverBg" aria-hidden="true"></div>
                   <div class="label-standard">
                     <div class="label-header">
                       <span id="labelBrand" class="label-brand">THE DARK SIDE OF THE MOON</span>
@@ -1619,6 +1623,11 @@
       if(sidebarTitle) sidebarTitle.textContent = "";
       if(sidebarArtist) sidebarArtist.textContent = "";
       if(sidebarMeta) sidebarMeta.textContent = "";
+      const labelCoverBg = document.getElementById("labelCoverBg");
+      if(labelCoverBg) {
+        labelCoverBg.style.backgroundImage = "none";
+        labelCoverBg.classList.remove("has-cover");
+      }
       if(sidebarScrollEl) {
         sidebarScrollEl.scrollTop = 0;
         sidebarScrollEl.classList.remove("is-scrolled");
@@ -1627,6 +1636,27 @@
       applyNoRecordUi();
       return {applied:false, fromSelection:false};
     };
+
+    // Universal modal barrier for vinyl player (current and future modals)
+    const isPlayerModalActive = () => {
+      return !!document.querySelector(
+        '.edit-modal-overlay.active, .modal-overlay.active, .modal.active, .custom-cp-container.active, [role="dialog"].active, [aria-modal="true"], [data-modal-active="true"]'
+      );
+    };
+
+    ['wheel', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointermove', 'pointerup', 'contextmenu'].forEach(evtType => {
+      window.addEventListener(evtType, (e) => {
+        if (isPlayerModalActive()) {
+          const inModal = e.target && typeof e.target.closest === 'function' && e.target.closest('.modal, .modal-dialog, [role="dialog"], button, input, select, textarea, label, [role="button"]');
+          if (evtType === 'wheel') {
+            if (!inModal) e.preventDefault();
+            e.stopPropagation();
+          } else if (!inModal && evtType !== 'click') {
+            e.stopPropagation();
+          }
+        }
+      }, { passive: false, capture: true });
+    });
 
     const applyNoRecordUi=()=>{
       document.body.classList.add("no-record");
@@ -1832,6 +1862,50 @@
       if (sidebarMeta) sidebarMeta.textContent = duration ? `Length: ${duration}` : "";
       if (vinylLabel && isHexColor(color)) {
         vinylLabel.style.background = color;
+      }
+
+      // Apply album cover as texture on vinyl label
+      const albumData = selectedOverride || selectedFromStorage;
+      let coverUrl = null;
+      if (albumData) {
+        if (albumData.customCover && albumData.useCustomCover !== false) {
+          coverUrl = albumData.customCover;
+        } else if (albumData.cover) {
+          const c = albumData.cover;
+          coverUrl = (c.startsWith("http") || c.startsWith("data:") || c.startsWith("blob:")) ? c : encodeURI(c);
+        }
+      }
+      const folderKey = (selectedOverride?.folder || params.get("folder") || selectedFromStorage?.folder || selectedOverride?._uid || selectedFromStorage?._uid || "");
+      if (!coverUrl && folderKey) {
+        try {
+          const db = await new Promise((res) => {
+            const req = indexedDB.open("VinylCollectionDB", 1);
+            req.onsuccess = () => res(req.result);
+            req.onerror = () => res(null);
+          });
+          if (db && db.objectStoreNames.contains("covers")) {
+            const coverRec = await new Promise((res) => {
+              const tx = db.transaction("covers", "readonly");
+              const store = tx.objectStore("covers");
+              const getReq = store.get(folderKey);
+              getReq.onsuccess = () => res(getReq.result);
+              getReq.onerror = () => res(null);
+            });
+            if (coverRec && coverRec.coverData) {
+              coverUrl = coverRec.coverData;
+            }
+          }
+        } catch(_) {}
+      }
+      const labelCoverBg = document.getElementById("labelCoverBg");
+      if (labelCoverBg) {
+        if (coverUrl) {
+          labelCoverBg.style.backgroundImage = `url("${coverUrl}")`;
+          labelCoverBg.classList.add("has-cover");
+        } else {
+          labelCoverBg.style.backgroundImage = "none";
+          labelCoverBg.classList.remove("has-cover");
+        }
       }
       const folder = (selectedOverride?.folder || params.get("folder") || selectedFromStorage?.folder || "");
       currentAlbumFolder = folder;

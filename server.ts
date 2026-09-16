@@ -39,7 +39,12 @@ const upload = multer({
   limits: { fileSize: 300 * 1024 * 1024 } // 300MB max per file
 });
 
-async function syncDiskAndFirestore() {
+let lastDiskSyncTime = 0;
+async function syncDiskAndFirestore(force = false) {
+  if (!force && Date.now() - lastDiskSyncTime < 30000) {
+    return;
+  }
+  lastDiskSyncTime = Date.now();
   try {
     const colRef = collection(db, "albums");
     const snap = await getDocs(colRef);
@@ -114,6 +119,18 @@ async function syncDiskAndFirestore() {
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // CORS middleware for cross-origin requests (e.g. from Vercel deployments, mobile, or preview domains)
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, Content-Type");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -310,6 +327,7 @@ async function startServer() {
       await updateCollection().catch(() => {});
 
       // Respond immediately to the client so upload completes in seconds and never times out!
+      lastDiskSyncTime = 0;
       res.json({
         status: "ok",
         album: firestoreAlbum
@@ -350,6 +368,7 @@ async function startServer() {
 
       const albumRef = doc(db, "albums", albumDocId);
       await setDoc(albumRef, updateData, { merge: true });
+      lastDiskSyncTime = 0;
       res.json({ status: "ok" });
     } catch (err: any) {
       console.error("Update album error:", err);
@@ -366,6 +385,7 @@ async function startServer() {
         const albumDocId = folderKey.replace(/[^a-zA-Z0-9_-]/g, "_");
         await setDoc(doc(db, "albums", albumDocId), { order: i }, { merge: true }).catch(() => {});
       }
+      lastDiskSyncTime = 0;
       res.json({ status: "ok" });
     } catch (err: any) {
       console.error("Reorder albums error:", err);
@@ -401,7 +421,7 @@ async function startServer() {
           console.log(`[Firestore] Deleted album document: ${d.id}`);
         }
       }
-
+      lastDiskSyncTime = 0;
       res.json({ status: "ok" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

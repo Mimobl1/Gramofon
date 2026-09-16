@@ -1,19 +1,8 @@
 window.VINYL_COLLECTION = [
   {
-    "name": "BIGTEST",
-    "author": "BIGTESTER",
-    "color": "#2a333a",
-    "duration": "",
-    "folder": "Vinyl Collection/BIGTESTER - BIGTEST",
-    "cover": "",
-    "tracks": [
-      "dummy_45mb.mp3"
-    ]
-  },
-  {
     "name": "THE BEST OF VOL 2",
     "author": "JOHN COLTRANE",
-    "color": "#7C106E",
+    "color": "#761F51",
     "duration": "",
     "folder": "Vinyl Collection/John Coltrane - The Best Of Vol 2",
     "cover": "",
@@ -39,7 +28,7 @@ window.VINYL_COLLECTION = [
   {
     "name": "SAMPLE ALBUM",
     "author": "LOREM IPSUM",
-    "color": "#021535",
+    "color": "#745841",
     "duration": "",
     "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
     "cover": "",
@@ -75,17 +64,6 @@ window.VINYL_COLLECTION = [
       "03 Stormy Monday Blues 8.mp3",
       "04 Please Come Back To Me.mp3",
       "07 Louisiana Bayou Drive.mp3"
-    ]
-  },
-  {
-    "name": "TEST CLOUD ALBUM",
-    "author": "TEST ARTIST",
-    "color": "#05451A",
-    "duration": "",
-    "folder": "Vinyl Collection/TEST ARTIST - TEST CLOUD ALBUM",
-    "cover": "",
-    "tracks": [
-      "01 Test Track.mp3"
     ]
   },
   {
@@ -130,7 +108,7 @@ window.VINYL_COLLECTION = [
   {
     "name": "NOVI ALBUM TEST",
     "author": "UNKNOWN ARTIST",
-    "color": "#584949",
+    "color": "#107E08",
     "duration": "",
     "folder": "Vinyl Collection/Unknown Artist - NOVI ALBUM TEST",
     "cover": "",
