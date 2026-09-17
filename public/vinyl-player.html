@@ -1937,7 +1937,10 @@
 
     async function applySelectedAlbumAndStart(selected){
       if(!selected || !selected.name) return;
-      try { localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selected)); } catch(_) {}
+      try { 
+        localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selected)); 
+        if(selected._uid) localStorage.setItem("archive_playing_uid_v1", selected._uid);
+      } catch(_) {}
       // Reset transport button visual state when switching albums.
       document.querySelectorAll(".skeuo-btn").forEach((b)=>b.classList.remove("active"));
       playStartToken += 1;

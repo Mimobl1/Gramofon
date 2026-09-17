@@ -58,8 +58,7 @@
 
         #play-button {
             position: fixed;
-            pointer-events: auto;
-            display: none;
+            pointer-events: none;
             z-index: 100;
             background: white;
             color: black;
@@ -82,6 +81,7 @@
 
         #play-button.visible {
             opacity: 1;
+            pointer-events: auto;
             transform: translate(-50%, -50%) scale(1);
         }
 
@@ -243,7 +243,7 @@
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             opacity: 0;
@@ -254,6 +254,7 @@
             overscroll-behavior: contain;
         }
         .edit-modal-overlay.active, .modal.active, .modal-overlay.active {
+            display: flex;
             opacity: 1;
             pointer-events: auto;
             touch-action: none;
@@ -265,11 +266,11 @@
             border-radius: 16px;
             padding: 32px;
             width: 90%;
-            max-width: 400px;
+            max-width: 440px;
             transform: translateY(20px);
             touch-action: pan-y;
             overscroll-behavior: contain;
-            pointer-events: auto;
+            pointer-events: none;
             user-select: auto;
             transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             display: flex;
@@ -278,6 +279,7 @@
         }
         .edit-modal-overlay.active .edit-modal {
             transform: translateY(0);
+            pointer-events: auto;
         }
         .edit-modal h2 {
             margin: 0 0 8px 0;
@@ -394,12 +396,13 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s ease, transform 0.3s ease;
-            display: flex;
+            display: none;
             flex-direction: column;
             gap: 12px;
             align-items: center;
         }
         .right-color-picker.active {
+            display: flex;
             opacity: 1;
             pointer-events: auto;
         }
@@ -579,21 +582,22 @@
                 <div id="uploadFileListPreview" style="max-height: 80px; overflow-y: auto; color: rgba(255,255,255,0.7); font-size: 11px;"></div>
             </div>
 
-            <!-- Metadata Inputs -->
-            <label style="margin-bottom: 10px; display: block; font-size: 13px; color: #aaa;">
-                Izvođač / Artist
-                <input type="text" id="uploadArtistInput" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
-            </label>
-
-            <label style="margin-bottom: 10px; display: block; font-size: 13px; color: #aaa;">
-                Naziv albuma / Album Title
-                <input type="text" id="uploadAlbumInputNew" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
-            </label>
+            <!-- Metadata Inputs (Inline Artist & Album Name) -->
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Izvođač / Artist
+                    <input type="text" id="uploadArtistInput" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                </label>
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Naziv albuma / Album Title
+                    <input type="text" id="uploadAlbumInputNew" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                </label>
+            </div>
 
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
                     Žanr
-                    <select id="uploadGenreSelect" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+                    <select id="uploadGenreSelect" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                         <option value="ROCK">ROCK</option>
                         <option value="BLUES">BLUES</option>
                         <option value="JAZZ">JAZZ</option>
@@ -604,23 +608,39 @@
                 </label>
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
                     Godina (opciono)
-                    <input type="text" id="uploadYearInput" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box;">
+                    <input type="text" id="uploadYearInput" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
             </div>
 
-            <!-- Cover Image Preview / Selector -->
-            <div style="margin-bottom: 16px;">
-                <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma (Cover)</span>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div id="uploadCoverThumb" style="width: 48px; height: 48px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0;">
-                        Omot
+            <!-- Inline Vinyl Color & Cover Image Upload -->
+            <input type="hidden" id="uploadAlbumColor" value="#1a1a1a">
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <!-- Boja vinila -->
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Boja vinila</span>
+                    <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
+                        <div id="uploadAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Klikni za izbor boje"></div>
+                        <span id="uploadAlbumColorHex" style="font-size: 12px; color: #eee; font-family: monospace;">#1a1a1a</span>
+                        <button type="button" id="uploadAlbumColorBtn" style="margin-left: auto; background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Izaberi
+                        </button>
                     </div>
-                    <button type="button" id="btnPickCover" style="background: transparent; border: 1px solid #555; padding: 8px 14px; border-radius: 6px; color: #ddd; font-size: 12px; cursor: pointer;">
-                        Izaberi sliku omota...
-                    </button>
-                    <button type="button" id="btnRemoveCover" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">
-                        Ukloni
-                    </button>
+                </div>
+
+                <!-- Omot albuma -->
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma</span>
+                    <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
+                        <div id="uploadCoverThumb" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0; overflow: hidden;">
+                            Omot
+                        </div>
+                        <button type="button" id="btnPickCover" style="background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Izaberi
+                        </button>
+                        <button type="button" id="btnRemoveCover" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 5px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Ukloni
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -639,60 +659,91 @@
             </div>
         </div>
     </div>
-    <div class="edit-modal-overlay" id="editModalOverlay" onclick="event.stopPropagation()">
-        <div class="edit-modal" onclick="event.stopPropagation()">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 12px;"><h2 style="margin: 0;">Edit Album</h2><button class="edit-modal-btn" id="openReorderBtn" style="background: rgba(255,255,255,0.1); border: none; font-size: 11px; padding: 4px 8px;">Reorder</button></div>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div id="editAlbumColorSwatch" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #555; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Choose vinyl color"></div>
+    <!-- Edit Album Modal -->
+    <div class="edit-modal-overlay" id="editModalOverlay" style="z-index: 3500;" onclick="event.stopPropagation()">
+        <div class="edit-modal" style="max-width: 440px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Izmeni album</h2>
+                    <button class="edit-modal-btn" id="openReorderBtn" type="button" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 11px; padding: 4px 10px; border-radius: 12px; color: #ccc; cursor: pointer;">Redosled</button>
                 </div>
+                <button id="editModalCloseBtn" type="button" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px;">&times;</button>
             </div>
-            <input type="hidden" id="editAlbumColor" value="#1a1a1a">
-            <label>
-                Album Title
-                <input type="text" id="editAlbumName" placeholder="Enter title...">
-            </label>
-            <label>
-                Artist
-                <input type="text" id="editAlbumAuthor" placeholder="Enter artist...">
-            </label>
-            <label>
-                Genre
-                <select id="editAlbumGenre">
-                    <option value="">- No Genre -</option>
-                    <option value="ROCK">ROCK</option>
-                    <option value="BLUES">BLUES</option>
-                    <option value="JAZZ">JAZZ</option>
-                    <option value="POP">POP</option>
-                    <option value="SOUL">SOUL</option>
-                </select>
-            </label>
-            <label>
-                Release Year
-                <input type="number" id="editAlbumYear" placeholder="e.g. 1973">
-            </label>
-            <div style="margin-top: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid #333;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 13px; font-weight: bold; color: #ddd;">Album Cover</span>
-                        
-                        <input type="file" id="editAlbumCustomCoverInput" accept="image/*" style="display: none;">
-                        <div id="editAlbumCustomCoverPreviewContainer" style="display: none; position: relative; width: 36px; height: 36px;">
-                            <img id="editAlbumCustomCoverPreview" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid #555;">
-                            <button id="editAlbumCustomCoverRemoveBtn" type="button" style="position: absolute; top: -6px; right: -6px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; cursor: pointer; font-weight: bold; font-size: 10px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.5);" title="Remove image">✕</button>
-                        </div>
-                        <button id="editAlbumCustomCoverBtn" type="button" style="background: #222; border: 1px dashed #555; height: 36px; padding: 0 12px; border-radius: 6px; color: #aaa; cursor: pointer; transition: all 0.2s; font-size: 12px;" onmouseover="this.style.borderColor='#888'; this.style.color='#ccc'" onmouseout="this.style.borderColor='#555'; this.style.color='#aaa'">Select...</button>
-                    </div>
 
-                    <label class="switch" title="Show image on cover">
-                        <input type="checkbox" id="editAlbumCustomCoverToggle">
-                        <span class="slider"></span>
-                    </label>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 0; margin-bottom: 16px;">
+                Uredite metapodatke, omot i boju vinila za izabrani album:
+            </p>
+
+            <!-- Metadata Inputs (Inline Artist & Album Name) -->
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Izvođač / Artist
+                    <input type="text" id="editAlbumAuthor" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                </label>
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Naziv albuma / Album Title
+                    <input type="text" id="editAlbumName" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Žanr
+                    <select id="editAlbumGenre" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                        <option value="">- Bez žanra -</option>
+                        <option value="ROCK">ROCK</option>
+                        <option value="BLUES">BLUES</option>
+                        <option value="JAZZ">JAZZ</option>
+                        <option value="POP">POP</option>
+                        <option value="SOUL">SOUL</option>
+                        <option value="CLASSICAL">CLASSICAL</option>
+                        <option value="OSTALO">OSTALO</option>
+                    </select>
+                </label>
+                <label style="flex: 1; font-size: 13px; color: #aaa;">
+                    Godina (opciono)
+                    <input type="text" id="editAlbumYear" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                </label>
+            </div>
+
+            <!-- Inline Vinyl Color & Cover Image Upload (Toggle Removed) -->
+            <input type="hidden" id="editAlbumColor" value="#1a1a1a">
+            <input type="file" id="editAlbumCustomCoverInput" accept="image/*,.jpg,.jpeg,.png,.webp" style="display: none;">
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <!-- Boja vinila -->
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Boja vinila</span>
+                    <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
+                        <div id="editAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Klikni za izbor boje"></div>
+                        <span id="editAlbumColorHex" style="font-size: 12px; color: #eee; font-family: monospace;">#1a1a1a</span>
+                        <button type="button" id="editAlbumColorBtn" style="margin-left: auto; background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Izaberi
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Omot albuma -->
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma</span>
+                    <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
+                        <div id="editAlbumCustomCoverPreviewContainer" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0; overflow: hidden;">
+                            <img id="editAlbumCustomCoverPreview" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <span id="editAlbumCoverPlaceholder" style="color: #666; font-size: 10px;">Omot</span>
+                        </div>
+                        <button type="button" id="editAlbumCustomCoverBtn" style="background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Izaberi
+                        </button>
+                        <button type="button" id="editAlbumCustomCoverRemoveBtn" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 5px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap;">
+                            Ukloni
+                        </button>
+                    </div>
                 </div>
             </div>
-            </div>
-            <div class="edit-modal-actions" style="display: none; margin-top: 24px; border-top: 1px solid #333; padding-top: 16px;">
-                <button class="edit-modal-btn save" id="editCloseBtn" style="display: none;">Close</button>
+
+            <!-- Action Buttons (Matching Upload Modal) -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; border-top: 1px solid #262626; padding-top: 14px;">
+                <button type="button" class="edit-modal-btn cancel" id="editModalCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Zatvori</button>
+                <button type="button" class="edit-modal-btn save" id="editCloseBtn" style="padding: 10px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Sačuvaj</button>
             </div>
         </div>
     </div>
@@ -851,6 +902,13 @@
         let hasLoadedRecord = false;
         let lastCountUpdated = -1;
         let playBtnIsVisible = false;
+        let isMouseDown = false;
+        let mouseStartX = 0;
+        let mouseStartY = 0;
+        let lastMouseClientX = 0;
+        let lastMouseClientY = 0;
+        let isMouseDragging = false;
+        let wheelSnapTimeout = null;
         const LAUNCH_MS = 620;
         const WARM_FLAG_KEY = "vinyl_assets_warmed_v1";
         const PLAYING_UID_KEY = "archive_playing_uid_v1";
@@ -915,7 +973,7 @@
         function isModalActive() {
             for (let i = 0; i < _KNOWN_MODAL_IDS.length; i++) {
                 const el = document.getElementById(_KNOWN_MODAL_IDS[i]);
-                if (el && (el.classList.contains('active') || (el.style.display && el.style.display !== 'none' && parseFloat(el.style.opacity || '1') > 0))) {
+                if (el && el.classList.contains('active')) {
                     return true;
                 }
             }
@@ -925,7 +983,8 @@
         function isEventOverModal(e) {
             if (isModalActive()) return true;
             if (e && e.target && typeof e.target.closest === "function") {
-                return !!e.target.closest('.edit-modal-overlay, .edit-modal, .modal-overlay, .modal, .custom-cp-container, [role="dialog"], [aria-modal="true"]');
+                const modal = e.target.closest('.edit-modal-overlay, .edit-modal, .modal-overlay, .modal, .custom-cp-container, [role="dialog"], [aria-modal="true"]');
+                if (modal && (modal.classList.contains('active') || modal.closest('.active'))) return true;
             }
             return false;
         }
@@ -1071,10 +1130,35 @@
         
         function syncPlayingIndex() {
             try {
+                if (!collection || !collection.length) return;
                 const savedUid = localStorage.getItem(PLAYING_UID_KEY);
                 if (savedUid) {
                     const idx = collection.findIndex(a => a._uid === savedUid);
-                    playingIndex = idx >= 0 ? idx : -1;
+                    if (idx >= 0) {
+                        playingIndex = idx;
+                        return;
+                    }
+                }
+                const selected = JSON.parse(localStorage.getItem(SELECTED_ALBUM_KEY) || "null");
+                if (selected) {
+                    const idx = collection.findIndex(a => 
+                        (selected._uid && a._uid === selected._uid) ||
+                        (a.name && selected.name && String(a.name).trim().toUpperCase() === String(selected.name).trim().toUpperCase())
+                    );
+                    if (idx >= 0) {
+                        playingIndex = idx;
+                        return;
+                    }
+                }
+                if (bgBridge && bgBridge.active && bgBridge.currentAlbum) {
+                    const idx = collection.findIndex(a => 
+                        (bgBridge.currentAlbum._uid && a._uid === bgBridge.currentAlbum._uid) ||
+                        (a.name && bgBridge.currentAlbum.name && String(a.name).trim().toUpperCase() === String(bgBridge.currentAlbum.name).trim().toUpperCase())
+                    );
+                    if (idx >= 0) {
+                        playingIndex = idx;
+                        return;
+                    }
                 }
             } catch(_) {}
         }
@@ -1405,6 +1489,9 @@
         function easeInOutExpo(x) {
             return x === 0 ? 0 : x === 1 ? 1 : x < 0.5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2;
         }
+        function easeInOutCubic(x) {
+            return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+        }
         function easeInCubic(x) {
             return x * x * x;
         }
@@ -1415,13 +1502,37 @@
             } catch(_) {
                 hasLoadedRecord = false;
             }
-            if (!hasLoadedRecord) {
+            if (hasLoadedRecord) {
+                syncPlayingIndex();
+            } else {
                 playingIndex = -1;
             }
         }
 
         function isPlayingLockedIndex(idx) {
-            return hasLoadedRecord && idx === playingIndex;
+            if (!hasLoadedRecord || idx < 0 || !collection || idx >= collection.length) return false;
+            if (playingIndex !== -1 && idx === playingIndex) return true;
+            try {
+                const item = collection[idx];
+                if (!item) return false;
+                const savedUid = localStorage.getItem(PLAYING_UID_KEY);
+                if (savedUid && item._uid === savedUid) {
+                    playingIndex = idx;
+                    return true;
+                }
+                const selected = JSON.parse(localStorage.getItem(SELECTED_ALBUM_KEY) || "null");
+                if (selected) {
+                    if (selected._uid && item._uid === selected._uid) {
+                        playingIndex = idx;
+                        return true;
+                    }
+                    if (item.name && selected.name && String(item.name).trim().toUpperCase() === String(selected.name).trim().toUpperCase()) {
+                        playingIndex = idx;
+                        return true;
+                    }
+                }
+            } catch(_) {}
+            return false;
         }
 
         function getSelectedAlbumForBridge(){
@@ -2068,7 +2179,7 @@
         }
 
         function playSelectedAlbumByIndex(currentIdx) {
-            if (!totalMeshes || currentIdx < 0 || currentIdx >= collection.length) return;
+            if (!totalMeshes || currentIdx < 0 || currentIdx >= collection.length || isPlayingLockedIndex(currentIdx)) return;
             try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
             hasLoadedRecord = true;
             const selected = collection[currentIdx];
@@ -2076,7 +2187,11 @@
             const selectedPayload = { ...selected };
             try {
                 localStorage.setItem(SELECTED_ALBUM_KEY, JSON.stringify(selectedPayload));
+                if (selected._uid) {
+                    localStorage.setItem(PLAYING_UID_KEY, selected._uid);
+                }
             } catch(_) {}
+            playingIndex = currentIdx;
             const q = new URLSearchParams({
                 album: selected.name,
                 name: selected.name,
@@ -2093,7 +2208,20 @@
             const idx = (typeof result === "object" && result !== null) ? result.index : result;
             const isDisk = (typeof result === "object" && result !== null) ? result.isDisk : false;
             if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
-            if (isPlayingLockedIndex(idx)) return;
+            
+            // Ploca koja je now playing ne moze ponovo da se klikne i izvuce ploca!
+            if (isPlayingLockedIndex(idx)) {
+                const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
+                if (idx !== currentFocusIdx) {
+                    targetScroll = idx * scrollSensitivity;
+                    openStates.fill(false);
+                    pendingOpenIndex = -1;
+                } else {
+                    openStates[idx] = false;
+                }
+                return;
+            }
+
             const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
             if (idx !== currentFocusIdx) {
                 targetScroll = idx * scrollSensitivity;
@@ -2165,6 +2293,7 @@
         }
 
         function resetArchiveToFirst() {
+            resetLaunchState();
             targetScroll = 0;
             currentScroll = 0;
             pendingOpenIndex = -1;
@@ -2296,21 +2425,29 @@
             });
 
             // Mouse & Touch controls with smooth drag, natural wheel, and UI barrier
-            let isMouseDown = false;
-            let mouseStartX = 0;
-            let mouseStartY = 0;
-            let lastMouseClientX = 0;
-            let lastMouseClientY = 0;
-            let isMouseDragging = false;
+            isMouseDown = false;
+            mouseStartX = 0;
+            mouseStartY = 0;
+            lastMouseClientX = 0;
+            lastMouseClientY = 0;
+            isMouseDragging = false;
+            wheelSnapTimeout = null;
 
             window.addEventListener('wheel', (e) => {
                 if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
                 isKeyboardNav = false;
-                // Natural wheel direction: scroll down moves to next record
-                targetScroll += e.deltaY * 2.2; 
+                // Wheel direction: scroll up moves forward into collection, scroll down moves back
+                targetScroll -= e.deltaY * 2.2; 
                 targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 pendingOpenIndex = -1; 
                 if (Math.abs(e.deltaY) > 6) openStates.fill(false);
+
+                clearTimeout(wheelSnapTimeout);
+                wheelSnapTimeout = setTimeout(() => {
+                    wheelSnapTimeout = null;
+                    targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                }, 130);
             }, { passive: true });
 
             window.addEventListener('mousemove', (e) => {
@@ -2342,7 +2479,7 @@
 
             window.addEventListener('mousedown', (e) => {
                 if (isModalActive() || isEventOverModal(e)) return;
-                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
+                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, button, a, input, select, textarea, label')) return;
                 isMouseDown = true;
                 isMouseDragging = false;
                 mouseStartX = e.clientX;
@@ -2361,8 +2498,11 @@
                 }
                 if (isMouseDown) {
                     isMouseDown = false;
-                    if (!isMouseDragging) {
-                        if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
+                    if (isMouseDragging) {
+                        targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                        targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                    } else {
+                        if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, button, a, input, select, textarea, label')) return;
                         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                         const pickResult = pickAlbumIndexAtPointer();
@@ -2376,12 +2516,21 @@
                 }
             });
 
+            window.addEventListener('mouseleave', () => {
+                if (isMouseDown && isMouseDragging) {
+                    targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                }
+                isMouseDown = false;
+                isMouseDragging = false;
+            });
+
             // Touch Events (Mobile/Tablet)
             let touchStartX = 0;
             let touchStartY = 0;
             window.addEventListener('touchstart', (e) => {
                 if (isModalActive() || isEventOverModal(e)) return;
-                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, .edit-modal-overlay, .edit-modal, button, a, input, select, textarea')) return;
+                if (e.target.closest('#play-button, .genre-pill, .top-bar, .left-sidebar, .right-sidebar, button, a, input, select, textarea, label')) return;
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 isTouchMove = false;
@@ -2391,7 +2540,7 @@
 
             window.addEventListener('touchmove', (e) => {
                 if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
-                if (e.target.closest('.edit-modal, .edit-modal-overlay, input, textarea, select')) return;
+                if (e.target.closest('input, textarea, select, label')) return;
                 const touchX = e.touches[0].clientX;
                 const touchY = e.touches[0].clientY;
                 const deltaX = touchX - touchStartX;
@@ -2426,7 +2575,17 @@
                     if (pickResult !== null) {
                         handleInteractionAtIndex(pickResult);
                     }
+                } else {
+                    targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                    isTouchMove = false;
                 }
+            });
+
+            window.addEventListener('touchcancel', () => {
+                targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+                isTouchMove = false;
             });
 
             playBtn.addEventListener('click', (e) => {
@@ -2495,6 +2654,14 @@
                 }
             }
             
+            // Idle snap: Always rest cleanly on an upright album cover
+            if (!isMouseDown && !isTouchMove && !wheelSnapTimeout && !isKeyboardNav && launchIndex === -1) {
+                const snapTarget = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
+                if (Math.abs(targetScroll - snapTarget) > 0.05) {
+                    targetScroll = Math.max(0, Math.min(snapTarget, maxScroll));
+                }
+            }
+
             const scrollDelta = targetScroll - currentScroll;
             const lerpSpeed = isKeyboardNav ? 0.14 : 0.15;
             currentScroll += scrollDelta * lerpSpeed;
@@ -2507,8 +2674,10 @@
             if (pendingOpenIndex !== -1) {
                 const distToTarget = Math.abs(pendingOpenIndex - scrollProgress);
                 if (distToTarget < 0.35) { 
-                    openStates[pendingOpenIndex] = true;
-                    playSleeve();
+                    if (!isPlayingLockedIndex(pendingOpenIndex)) {
+                        openStates[pendingOpenIndex] = true;
+                        playSleeve();
+                    }
                     pendingOpenIndex = -1;
                 }
             }
@@ -2564,10 +2733,14 @@
                 const disk = group.children.find(c => c.name === "disk");
                 
                 const isLaunching = i === launchIndex;
-                const targetOpen = isLaunching ? 1 : (openStates[i] ? 1 : 0);
-                const openLerpSpeed = targetOpen ? 0.082 : 0.065;
+                const isPlaying = isPlayingLockedIndex(i);
+                if (isPlaying) {
+                    openStates[i] = false;
+                }
+                const targetOpen = isLaunching ? 1 : (isPlaying ? 0 : (openStates[i] ? 1 : 0));
+                const openLerpSpeed = 0.07;
                 group.userData.openProgress += (targetOpen - group.userData.openProgress) * openLerpSpeed;
-                group.userData.openAmount = easeInOutExpo(group.userData.openProgress);
+                group.userData.openAmount = easeInOutCubic(group.userData.openProgress);
                 if (isLaunching) {
                     group.userData.openProgress = 1;
                     group.userData.openAmount = 1;
@@ -2686,7 +2859,7 @@
 
         window.addEventListener('resize', updateCamera);
 
-        document.addEventListener("DOMContentLoaded", async () => {
+        function startArchiveApp() {
             // Genre pills logic
             const genreBtns = document.querySelectorAll(".genre-pill");
             genreBtns.forEach(btn => {
@@ -2721,10 +2894,7 @@
             applyCollectionData(initialAlbums);
             preloadCovers(initialAlbums);
             refreshRecordLoadedState();
-            try {
-                localStorage.removeItem(PLAYING_UID_KEY);
-            } catch(_) {}
-            playingIndex = -1;
+            syncPlayingIndex();
             resetArchiveToFirst();
             warmGlobalAssetsOnce();
             
@@ -2734,28 +2904,38 @@
             // Background async operations
             loadCollectionManifest();
             ensureArchiveFontsReady();
-        });
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", startArchiveApp);
+        } else {
+            startArchiveApp();
+        }
         startArchiveBridgeFromState();
         window.addEventListener("pageshow", () => {
             // In standalone mode reset to first album; embedded mode is controlled by parent.
             if (!EMBEDDED) resetArchiveToFirst();
+            else resetLaunchState();
             refreshRecordLoadedState();
             startArchiveBridgeFromState();
         });
         window.addEventListener("focus", () => {
             // Avoid unexpected jump-to-first while already browsing embedded archive.
             if (!EMBEDDED) resetArchiveToFirst();
+            else resetLaunchState();
             updateCamera();
         });
         window.addEventListener("message", (event) => {
             const data = event?.data;
             if (!data) return;
             if (data.type === "archive-reset-first") {
+                resetLaunchState();
                 resetArchiveToFirst();
                 updateCamera();
                 window.focus();
             }
             if (data.type === "archive-focus") {
+                resetLaunchState();
                 updateCamera();
                 window.focus();
                 document.body.focus();
@@ -2985,6 +3165,13 @@
             }
             if (uploadModalProgressStatus) uploadModalProgressStatus.innerText = "";
             if (uploadModalSubmitBtn) uploadModalSubmitBtn.disabled = false;
+
+            const uploadColorEl = document.getElementById("uploadAlbumColor");
+            const uploadSwatchEl = document.getElementById("uploadAlbumColorSwatch");
+            const uploadHexEl = document.getElementById("uploadAlbumColorHex");
+            if (uploadColorEl) uploadColorEl.value = "#1a1a1a";
+            if (uploadSwatchEl) uploadSwatchEl.style.backgroundColor = "#1a1a1a";
+            if (uploadHexEl) uploadHexEl.textContent = "#1a1a1a";
         }
 
         if (uploadAlbumBtn && uploadModalOverlay) {
@@ -3133,11 +3320,14 @@
                 uploadModalProgressStatus.innerText = "Priprema fajlova...";
                 uploadModalSubmitBtn.disabled = true;
 
+                const uploadColorVal = document.getElementById("uploadAlbumColor")?.value || "#1a1a1a";
+
                 const formData = new FormData();
                 formData.append("artistName", artistName);
                 formData.append("albumName", albumName);
                 formData.append("genre", genre);
                 formData.append("year", year);
+                formData.append("color", uploadColorVal);
 
                 if (selectedCoverFile) {
                     formData.append("files", selectedCoverFile);
@@ -3254,7 +3444,7 @@
                         id: albumId,
                         name: albumName,
                         author: artistName,
-                        color: "#1a1a1a",
+                        color: uploadColorVal,
                         genre: genre,
                         year: year,
                         folder: "LOCAL://" + albumId,
@@ -3392,23 +3582,32 @@
                 editAlbumColor.value = initColor;
 
                 editAlbumColorSwatch.style.backgroundColor = initColor;
+                const hexEl = document.getElementById("editAlbumColorHex");
+                if (hexEl) hexEl.textContent = initColor;
                 updateCustomCp(initColor);
                 
                 const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
-                const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
                 const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
                 const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
+                const customCoverRemoveBtn = document.getElementById("editAlbumCustomCoverRemoveBtn");
+                const coverPlaceholder = document.getElementById("editAlbumCoverPlaceholder");
                 
                 if (item.customCover) {
-                    customCoverPreviewContainer.style.display = "block";
-                    customCoverPreview.src = item.customCover;
-                    customCoverBtn.style.display = "none";
+                    if (customCoverPreview) {
+                        customCoverPreview.src = item.customCover;
+                        customCoverPreview.style.display = "block";
+                    }
+                    if (coverPlaceholder) coverPlaceholder.style.display = "none";
+                    if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "block";
                 } else {
-                    customCoverPreviewContainer.style.display = "none";
-                    customCoverPreview.src = "";
-                    customCoverBtn.style.display = "block";
+                    if (customCoverPreview) {
+                        customCoverPreview.src = "";
+                        customCoverPreview.style.display = "none";
+                    }
+                    if (coverPlaceholder) coverPlaceholder.style.display = "block";
+                    if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "none";
                 }
-                customCoverToggle.checked = item.useCustomCover !== false;
+                if (customCoverToggle) customCoverToggle.checked = item.useCustomCover !== false;
 
                 editModalOverlay.classList.add("active");
             }
@@ -3419,6 +3618,8 @@
             if (lastIndex >= 0 && lastIndex < collection.length && /^#[0-9A-Fa-f]{3,6}$/.test(newColor)) {
                 collection[lastIndex].color = newColor;
                 editAlbumColorSwatch.style.backgroundColor = newColor;
+                const hexEl = document.getElementById("editAlbumColorHex");
+                if (hexEl) hexEl.textContent = newColor;
                 if (groups[lastIndex]) {
                     const group = groups[lastIndex];
                     const cover = group.children.find(c => c.name === "cover");
@@ -3527,18 +3728,46 @@
             });
         });
 
-        editAlbumColorSwatch.addEventListener("click", (e) => {
+        let activeColorContext = 'edit';
+
+        const openEditColorPicker = (e) => {
             e.stopPropagation();
+            activeColorContext = 'edit';
             editModalOverlay.classList.remove("active");
+            updateCustomCp(editAlbumColor.value || "#1a1a1a");
             rightColorPickerContainer.classList.add("active");
-        });
+        };
+
+        const openUploadColorPicker = (e) => {
+            e.stopPropagation();
+            activeColorContext = 'upload';
+            uploadModalOverlay.classList.remove("active");
+            const upVal = document.getElementById("uploadAlbumColor")?.value || "#1a1a1a";
+            updateCustomCp(upVal);
+            rightColorPickerContainer.classList.add("active");
+        };
+
+        editAlbumColorSwatch.addEventListener("click", openEditColorPicker);
+        document.getElementById("editAlbumColorBtn")?.addEventListener("click", openEditColorPicker);
+
+        const uploadAlbumColorSwatch = document.getElementById("uploadAlbumColorSwatch");
+        uploadAlbumColorSwatch?.addEventListener("click", openUploadColorPicker);
+        document.getElementById("uploadAlbumColorBtn")?.addEventListener("click", openUploadColorPicker);
+
+        const restoreModalAfterColorPicker = () => {
+            rightColorPickerContainer.classList.remove("active");
+            if (activeColorContext === 'upload') {
+                uploadModalOverlay.classList.add("active");
+            } else {
+                editModalOverlay.classList.add("active");
+            }
+        };
 
         document.addEventListener("click", (e) => {
             if (rightColorPickerContainer.classList.contains("active")) {
                 const isClickInside = rightColorPickerContainer.contains(e.target);
                 if (!isClickInside) {
-                    rightColorPickerContainer.classList.remove("active");
-                    editModalOverlay.classList.add("active");
+                    restoreModalAfterColorPicker();
                 }
             }
         });
@@ -3546,23 +3775,35 @@
         [cpHue, cpSat, cpLight].forEach(el => {
             el.addEventListener('input', () => {
                 const hex = updateCpBackgrounds();
-                editAlbumColor.value = hex;
-                editAlbumColorSwatch.style.backgroundColor = hex;
-                syncColorToPreview();
-                autoSaveEdits();
+                if (activeColorContext === 'upload') {
+                    const upColor = document.getElementById("uploadAlbumColor");
+                    const upSwatch = document.getElementById("uploadAlbumColorSwatch");
+                    const upHex = document.getElementById("uploadAlbumColorHex");
+                    if (upColor) upColor.value = hex;
+                    if (upSwatch) upSwatch.style.backgroundColor = hex;
+                    if (upHex) upHex.textContent = hex;
+                } else {
+                    editAlbumColor.value = hex;
+                    editAlbumColorSwatch.style.backgroundColor = hex;
+                    const hexEl = document.getElementById("editAlbumColorHex");
+                    if (hexEl) hexEl.textContent = hex;
+                    syncColorToPreview();
+                    autoSaveEdits();
+                }
             });
         });
 
         cpCloseBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            rightColorPickerContainer.classList.remove("active");
-            editModalOverlay.classList.add("active");
+            restoreModalAfterColorPicker();
         });
         
         editAlbumColor.addEventListener("input", (e) => {
             const val = e.target.value.trim();
             if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
                 editAlbumColorSwatch.style.backgroundColor = val;
+                const hexEl = document.getElementById("editAlbumColorHex");
+                if (hexEl) hexEl.textContent = val;
                 updateCustomCp(val);
             }
             syncColorToPreview();
@@ -3574,46 +3815,38 @@
             lastIndex = -1;
         };
 
-
         editCloseBtn.addEventListener("click", closeEditModal);
+        document.getElementById("editModalCloseBtn")?.addEventListener("click", closeEditModal);
+        document.getElementById("editModalCancelBtn")?.addEventListener("click", closeEditModal);
         
-        const customCoverToggle = document.getElementById("editAlbumCustomCoverToggle");
-        const customCoverContainer = document.getElementById("editAlbumCustomCoverContainer");
         const customCoverInput = document.getElementById("editAlbumCustomCoverInput");
         const customCoverBtn = document.getElementById("editAlbumCustomCoverBtn");
         const customCoverPreview = document.getElementById("editAlbumCustomCoverPreview");
         const customCoverRemoveBtn = document.getElementById("editAlbumCustomCoverRemoveBtn");
+        const coverPlaceholder = document.getElementById("editAlbumCoverPlaceholder");
         
-        const customCoverPreviewContainer = document.getElementById("editAlbumCustomCoverPreviewContainer");
-        
-        customCoverToggle.addEventListener("change", (e) => {
-            if (lastIndex >= 0 && lastIndex < collection.length) {
-                const item = collection[lastIndex];
-                item.useCustomCover = e.target.checked;
-                syncColorToPreview(); 
-                autoSaveEdits();
-            }
+        customCoverBtn?.addEventListener("click", () => {
+            customCoverInput?.click();
         });
         
-        customCoverBtn.addEventListener("click", () => {
-            customCoverInput.click();
-        });
-        
-        customCoverRemoveBtn.addEventListener("click", () => {
+        customCoverRemoveBtn?.addEventListener("click", () => {
             if (lastIndex >= 0 && lastIndex < collection.length) {
                 const item = collection[lastIndex];
                 item.customCover = "";
-                item.useCustomCover = true;
-                customCoverToggle.checked = true;
-                customCoverPreview.src = "";
-                customCoverPreviewContainer.style.display = "none";
-                customCoverBtn.style.display = "block";
+                item.useCustomCover = false;
+                if (customCoverPreview) {
+                    customCoverPreview.src = "";
+                    customCoverPreview.style.display = "none";
+                }
+                const ph = document.getElementById("editAlbumCoverPlaceholder");
+                if (ph) ph.style.display = "block";
+                customCoverRemoveBtn.style.display = "none";
                 syncColorToPreview(); // sync back to generated cover
                 autoSaveEdits();
             }
         });
         
-        customCoverInput.addEventListener("change", (e) => {
+        customCoverInput?.addEventListener("change", (e) => {
             const file = e.target.files[0];
             if (!file) return;
             
@@ -3628,15 +3861,18 @@
                     ctx.drawImage(img, 0, 0, 512, 512);
                     
                     const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-                    customCoverPreview.src = dataUrl;
-                    customCoverPreviewContainer.style.display = "block";
-                    customCoverBtn.style.display = "none";
+                    if (customCoverPreview) {
+                        customCoverPreview.src = dataUrl;
+                        customCoverPreview.style.display = "block";
+                    }
+                    const ph = document.getElementById("editAlbumCoverPlaceholder");
+                    if (ph) ph.style.display = "none";
+                    if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "block";
                     
                     if (lastIndex >= 0 && lastIndex < collection.length) {
                         const item = collection[lastIndex];
                         item.customCover = dataUrl;
                         item.useCustomCover = true;
-                        customCoverToggle.checked = true;
                         syncColorToPreview();
                         autoSaveEdits();
                     }
@@ -3718,17 +3954,18 @@
 
             if (e.key === "Escape") {
                 if (rightColorPickerContainer.classList.contains("active")) {
-                    rightColorPickerContainer.classList.remove("active");
-                    editModalOverlay.classList.add("active");
+                    restoreModalAfterColorPicker();
                 } else if (editModalOverlay.classList.contains("active")) {
                     closeEditModal();
+                } else if (uploadModalOverlay.classList.contains("active")) {
+                    uploadModalOverlay.classList.remove("active");
                 } else if (EMBEDDED && window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: "archive-close" }, "*");
                 }
                 return;
             }
 
-            if (editModalOverlay.classList.contains("active") || rightColorPickerContainer.classList.contains("active")) {
+            if (editModalOverlay.classList.contains("active") || uploadModalOverlay.classList.contains("active") || rightColorPickerContainer.classList.contains("active")) {
                 return;
             }
 

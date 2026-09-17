@@ -308,7 +308,7 @@ async function startServer() {
         folder: `Vinyl Collection/${folderName}`,
         cover: coverPath,
         tracks: trackNames,
-        color: "#1a1a1a",
+        color: (req.body.color && /^#[0-9A-Fa-f]{3,6}$/.test(req.body.color)) ? req.body.color : "#1a1a1a",
         genre: req.body.genre || "",
         year: req.body.year || "",
         order: newOrder,
