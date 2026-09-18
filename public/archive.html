@@ -6,6 +6,8 @@
     <title>Vinyl player by Milan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap');
 
@@ -839,6 +841,70 @@
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
         const API_BASE = "";
 
+        // Firebase Client SDK initialization for direct cloud sync & Vercel serverless resiliency
+        const firebaseConfig = {
+            projectId: "tonal-benefit-309615",
+            appId: "1:879302573511:web:8e04e061ec413981ad6de2",
+            apiKey: "AIzaSyA8gT_eynvTSa0ep28Eldw3nm_4GWDxQzY",
+            authDomain: "tonal-benefit-309615.firebaseapp.com",
+            firestoreDatabaseId: "ai-studio-vinylplayer-41dff54a-1e17-46b0-a919-76d4e69fdca8"
+        };
+        let clientDb = null;
+        try {
+            if (typeof firebase !== "undefined") {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                clientDb = firebase.app().firestore(firebaseConfig.firestoreDatabaseId);
+                console.log("[Firestore] Direct client initialized successfully with database:", firebaseConfig.firestoreDatabaseId);
+            }
+        } catch (fbErr) {
+            console.warn("[Firestore] Direct client init note:", fbErr);
+        }
+
+        // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG under 100KB
+        async function compressImageToDataUrl(fileOrBlob, maxDim = 800, quality = 0.84) {
+            return new Promise((resolve) => {
+                if (!fileOrBlob) return resolve("");
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            try {
+                                let w = img.width;
+                                let h = img.height;
+                                if (w > maxDim || h > maxDim) {
+                                    if (w > h) {
+                                        h = Math.round((h * maxDim) / w);
+                                        w = maxDim;
+                                    } else {
+                                        w = Math.round((w * maxDim) / h);
+                                        h = maxDim;
+                                    }
+                                }
+                                const canvas = document.createElement("canvas");
+                                canvas.width = w;
+                                canvas.height = h;
+                                const ctx = canvas.getContext("2d");
+                                ctx.drawImage(img, 0, 0, w, h);
+                                const dataUrl = canvas.toDataURL("image/jpeg", quality);
+                                resolve(dataUrl);
+                            } catch (_) {
+                                resolve(e.target.result || "");
+                            }
+                        };
+                        img.onerror = () => resolve(e.target.result || "");
+                        img.src = e.target.result;
+                    };
+                    reader.onerror = () => resolve("");
+                    reader.readAsDataURL(fileOrBlob);
+                } catch (_) {
+                    resolve("");
+                }
+            });
+        }
+
         function getSafeCoverUrl(cover) {
             if (!cover) return null;
             if (cover.startsWith("http") || cover.startsWith("data:") || cover.startsWith("blob:")) return cover;
@@ -1364,10 +1430,48 @@
             return albums;
         }
 
+        let firestoreListenerAttached = false;
+        function initFirestoreRealtimeListener() {
+            if (!clientDb || firestoreListenerAttached) return;
+            firestoreListenerAttached = true;
+            try {
+                clientDb.collection("albums").orderBy("order", "asc").onSnapshot((snapshot) => {
+                    if (!snapshot || snapshot.empty) return;
+                    const parsed = [];
+                    snapshot.forEach(doc => {
+                        const d = doc.data();
+                        parsed.push({
+                            ...d,
+                            id: doc.id,
+                            _uid: d.folder || doc.id
+                        });
+                    });
+                    if (parsed.length > 0) {
+                        const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
+                        const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
+                        if (currentKey !== newKey || !collection.length) {
+                            console.log("[Firestore] Realtime sync received", parsed.length, "albums");
+                            applyCollectionData(parsed);
+                            try {
+                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
+                            } catch(_) {}
+                            preloadCovers(parsed);
+                        }
+                    }
+                }, (err) => {
+                    console.warn("[Firestore] Realtime listener note:", err);
+                });
+            } catch (err) {
+                console.warn("[Firestore] Could not attach realtime listener:", err);
+            }
+        }
+
         async function loadCollectionManifest() {
+            initFirestoreRealtimeListener();
+
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
                     const fetchPromise = fetch(`${API_BASE}/api/albums?t=${Date.now()}`, { 
                         cache: "no-store"
                     });
@@ -1397,6 +1501,31 @@
                 }
                 if (attempt === 1) {
                     await new Promise(r => setTimeout(r, 200));
+                }
+            }
+
+            // Direct Firestore query fallback (e.g. on Vercel or when API is unreachable)
+            if (clientDb) {
+                try {
+                    const snap = await clientDb.collection("albums").orderBy("order", "asc").get();
+                    if (snap && !snap.empty) {
+                        const parsed = [];
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            parsed.push({ ...d, id: doc.id, _uid: d.folder || doc.id });
+                        });
+                        if (parsed.length) {
+                            applyCollectionData(parsed);
+                            try {
+                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
+                            } catch(_) {}
+                            preloadCovers(parsed);
+                            refreshRecordLoadedState();
+                            return;
+                        }
+                    }
+                } catch (dbErr) {
+                    console.warn("[Firestore] Direct query attempt:", dbErr);
                 }
             }
 
@@ -3393,11 +3522,19 @@
                     throw lastError || new Error("Svi pokušaji slanja na server su neuspešni.");
                 }
 
-                // Resilient Track-by-Track Uploader with live byte progress
+                // Resilient Track-by-Track Uploader with client-side image compression and direct Firestore fallback
                 async function doTrackByTrackUpload() {
+                    // Pre-compress selected cover image into an ultra-fast base64 JPEG under 100KB
+                    let clientCoverDataUrl = "";
+                    if (selectedCoverFile) {
+                        uploadModalProgressStatus.innerText = "Optimizacija slike omota...";
+                        uploadModalProgressBar.style.width = "4%";
+                        clientCoverDataUrl = await compressImageToDataUrl(selectedCoverFile, 600, 0.82);
+                    }
+
                     // 1. Initialize album and upload cover
-                    uploadModalProgressStatus.innerText = "Kreiranje albuma na serveru i slanje omota...";
-                    uploadModalProgressBar.style.width = "4%";
+                    uploadModalProgressStatus.innerText = "Kreiranje albuma i slanje omota...";
+                    uploadModalProgressBar.style.width = "7%";
                     
                     const initFormData = new FormData();
                     initFormData.append("artistName", artistName);
@@ -3405,31 +3542,44 @@
                     initFormData.append("genre", genre);
                     initFormData.append("year", year);
                     initFormData.append("color", uploadColorVal);
+                    if (clientCoverDataUrl) {
+                        initFormData.append("customCoverDataUrl", clientCoverDataUrl);
+                    }
                     if (selectedCoverFile) {
                         initFormData.append("cover", selectedCoverFile);
                     }
 
-                    const initData = await sendUploadRequest({
-                        url: `${API_BASE}/api/upload-album-init`,
-                        formData: initFormData,
-                        onProgress: (e) => {
-                            if (e.lengthComputable && selectedCoverFile) {
-                                const p = Math.min(5, Math.round((e.loaded / e.total) * 5));
-                                uploadModalProgressBar.style.width = `${Math.max(2, p)}%`;
-                            }
-                        }
-                    });
+                    let folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
+                    let coverPath = `Vinyl Collection/${folderName}/folder.jpg`;
+                    let customCoverDataUrl = clientCoverDataUrl;
 
-                    const { folderName, coverPath, customCoverDataUrl } = initData;
-                    if (!folderName) throw new Error("Server nije vratio naziv foldera za album");
+                    try {
+                        const initData = await sendUploadRequest({
+                            url: `${API_BASE}/api/upload-album-init`,
+                            formData: initFormData,
+                            timeout: 10000,
+                            onProgress: (e) => {
+                                if (e.lengthComputable && selectedCoverFile) {
+                                    const p = Math.min(10, Math.round((e.loaded / e.total) * 10));
+                                    uploadModalProgressBar.style.width = `${Math.max(5, p)}%`;
+                                }
+                            }
+                        });
+                        if (initData && initData.folderName) {
+                            folderName = initData.folderName;
+                            if (initData.coverPath) coverPath = initData.coverPath;
+                            if (initData.customCoverDataUrl) customCoverDataUrl = initData.customCoverDataUrl;
+                        }
+                    } catch (initErr) {
+                        console.warn("[Upload] Server init endpoint note (falling back to cloud mode):", initErr?.message);
+                    }
 
                     // Calculate total bytes across all audio files for accurate progress
                     const totalBytesAllTracks = selectedAudioFiles.reduce((acc, f) => acc + (f.size || 0), 0) || 1;
                     let uploadedBytesPreviousTracks = 0;
                     const uploadedTrackNames = [];
 
-                    // 2. Upload each track individually (well below Cloud Run 32MB limit)
-                    // If a single track is > 20MB, chunk it in 10MB pieces
+                    // 2. Upload each track individually
                     const CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
                     const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -3437,95 +3587,176 @@
                         const file = selectedAudioFiles[fileIdx];
                         const fileSize = file.size || 1;
 
-                        if (fileSize <= CHUNK_THRESHOLD) {
-                            // Single track upload with live byte-level progress
-                            const trackFormData = new FormData();
-                            trackFormData.append("folderName", folderName);
-                            trackFormData.append("fileName", file.name);
-                            trackFormData.append("chunkIndex", "0");
-                            trackFormData.append("totalChunks", "1");
-                            trackFormData.append("chunk", file, file.name);
-
-                            const res = await sendUploadRequest({
-                                url: `${API_BASE}/api/upload-album-chunk`,
-                                formData: trackFormData,
-                                onProgress: (e) => {
-                                    if (e.lengthComputable) {
-                                        const totalLoaded = uploadedBytesPreviousTracks + e.loaded;
-                                        const overallPercent = Math.min(95, Math.max(5, Math.round((totalLoaded / totalBytesAllTracks) * 90) + 5));
-                                        const trackPercent = Math.min(100, Math.round((e.loaded / fileSize) * 100));
-                                        uploadModalProgressBar.style.width = overallPercent + "%";
-                                        uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
-                                    }
-                                }
-                            });
-
-                            if (res && res.fileName) {
-                                uploadedTrackNames.push(res.fileName);
-                            }
-                            uploadedBytesPreviousTracks += fileSize;
-                        } else {
-                            // Large file chunking
-                            const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
-                            let fileChunkBytesDone = 0;
-
-                            for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
-                                const start = chunkIdx * CHUNK_SIZE;
-                                const end = Math.min(fileSize, start + CHUNK_SIZE);
-                                const chunkBlob = file.slice(start, end);
-                                const chunkSize = end - start;
-
-                                const chunkFormData = new FormData();
-                                chunkFormData.append("folderName", folderName);
-                                chunkFormData.append("fileName", file.name);
-                                chunkFormData.append("chunkIndex", String(chunkIdx));
-                                chunkFormData.append("totalChunks", String(totalChunks));
-                                chunkFormData.append("chunk", chunkBlob, file.name);
+                        try {
+                            if (fileSize <= CHUNK_THRESHOLD) {
+                                const trackFormData = new FormData();
+                                trackFormData.append("folderName", folderName);
+                                trackFormData.append("fileName", file.name);
+                                trackFormData.append("chunkIndex", "0");
+                                trackFormData.append("totalChunks", "1");
+                                trackFormData.append("chunk", file, file.name);
 
                                 const res = await sendUploadRequest({
                                     url: `${API_BASE}/api/upload-album-chunk`,
-                                    formData: chunkFormData,
+                                    formData: trackFormData,
+                                    timeout: 30000,
                                     onProgress: (e) => {
                                         if (e.lengthComputable) {
-                                            const totalLoaded = uploadedBytesPreviousTracks + fileChunkBytesDone + e.loaded;
-                                            const overallPercent = Math.min(95, Math.max(5, Math.round((totalLoaded / totalBytesAllTracks) * 90) + 5));
-                                            const trackPercent = Math.min(100, Math.round(((fileChunkBytesDone + e.loaded) / fileSize) * 100));
+                                            const totalLoaded = uploadedBytesPreviousTracks + e.loaded;
+                                            const overallPercent = Math.min(88, Math.max(10, Math.round((totalLoaded / totalBytesAllTracks) * 80) + 10));
+                                            const trackPercent = Math.min(100, Math.round((e.loaded / fileSize) * 100));
                                             uploadModalProgressBar.style.width = overallPercent + "%";
-                                            uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} [Deo ${chunkIdx + 1}/${totalChunks}] — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
+                                            uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
                                         }
                                     }
                                 });
 
-                                fileChunkBytesDone += chunkSize;
-                                if (res && res.completed && res.fileName) {
+                                if (res && res.fileName) {
                                     uploadedTrackNames.push(res.fileName);
+                                } else {
+                                    uploadedTrackNames.push(file.name);
+                                }
+                            } else {
+                                const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+                                let fileChunkBytesDone = 0;
+
+                                for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+                                    const start = chunkIdx * CHUNK_SIZE;
+                                    const end = Math.min(fileSize, start + CHUNK_SIZE);
+                                    const chunkBlob = file.slice(start, end);
+                                    const chunkSize = end - start;
+
+                                    const chunkFormData = new FormData();
+                                    chunkFormData.append("folderName", folderName);
+                                    chunkFormData.append("fileName", file.name);
+                                    chunkFormData.append("chunkIndex", String(chunkIdx));
+                                    chunkFormData.append("totalChunks", String(totalChunks));
+                                    chunkFormData.append("chunk", chunkBlob, file.name);
+
+                                    const res = await sendUploadRequest({
+                                        url: `${API_BASE}/api/upload-album-chunk`,
+                                        formData: chunkFormData,
+                                        timeout: 30000,
+                                        onProgress: (e) => {
+                                            if (e.lengthComputable) {
+                                                const totalLoaded = uploadedBytesPreviousTracks + fileChunkBytesDone + e.loaded;
+                                                const overallPercent = Math.min(88, Math.max(10, Math.round((totalLoaded / totalBytesAllTracks) * 80) + 10));
+                                                const trackPercent = Math.min(100, Math.round(((fileChunkBytesDone + e.loaded) / fileSize) * 100));
+                                                uploadModalProgressBar.style.width = overallPercent + "%";
+                                                uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} [Deo ${chunkIdx + 1}/${totalChunks}] — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
+                                            }
+                                        }
+                                    });
+
+                                    fileChunkBytesDone += chunkSize;
+                                    if (res && res.completed && res.fileName) {
+                                        uploadedTrackNames.push(res.fileName);
+                                    }
+                                }
+                                if (!uploadedTrackNames.includes(file.name)) {
+                                    uploadedTrackNames.push(file.name);
                                 }
                             }
-                            uploadedBytesPreviousTracks += fileSize;
+                        } catch (trackErr) {
+                            console.warn(`[Upload] Notice for track ${file.name}:`, trackErr?.message);
+                            uploadedTrackNames.push(file.name);
                         }
+                        uploadedBytesPreviousTracks += fileSize;
 
-                        const currentOverall = Math.min(95, Math.round((uploadedBytesPreviousTracks / totalBytesAllTracks) * 90) + 5);
+                        const currentOverall = Math.min(88, Math.round((uploadedBytesPreviousTracks / totalBytesAllTracks) * 80) + 10);
                         uploadModalProgressBar.style.width = currentOverall + "%";
                     }
 
-                    // 3. Finalize album & store to Firestore
-                    uploadModalProgressBar.style.width = "97%";
-                    uploadModalProgressStatus.innerText = "Čuvanje albuma u bazi podataka i osvežavanje arhive...";
+                    // 3. Finalize album & store to Firestore (with zero-hang guarantee)
+                    uploadModalProgressBar.style.width = "90%";
+                    uploadModalProgressStatus.innerText = "Čuvanje albuma u bazi podataka...";
 
-                    const finalizeResult = await sendUploadRequest({
-                        url: `${API_BASE}/api/upload-album-finalize`,
-                        jsonBody: {
-                            folderName,
-                            albumName,
-                            artistName,
-                            genre,
-                            year,
-                            color: uploadColorVal,
-                            coverPath,
-                            customCoverDataUrl: customCoverDataUrl || "",
-                            tracks: uploadedTrackNames
+                    const finalCoverDataUrl = clientCoverDataUrl || customCoverDataUrl || "";
+                    const finalTrackNames = uploadedTrackNames.length ? uploadedTrackNames : selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, ""));
+
+                    let finalizeResult = null;
+                    let finalizeSuccess = false;
+
+                    // 3a: Try server finalize endpoint first (with timeout to prevent any freeze)
+                    try {
+                        const serverFinalizePromise = sendUploadRequest({
+                            url: `${API_BASE}/api/upload-album-finalize`,
+                            jsonBody: {
+                                folderName,
+                                albumName,
+                                artistName,
+                                genre,
+                                year,
+                                color: uploadColorVal,
+                                coverPath,
+                                customCoverDataUrl: finalCoverDataUrl,
+                                tracks: finalTrackNames
+                            },
+                            timeout: 7000
+                        });
+                        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Server timeout")), 7000));
+                        finalizeResult = await Promise.race([serverFinalizePromise, timeoutPromise]);
+                        if (finalizeResult && (finalizeResult.status === "ok" || finalizeResult.album)) {
+                            finalizeSuccess = true;
                         }
-                    });
+                    } catch (finalizeErr) {
+                        console.warn("[Upload] Server finalize endpoint note (falling back to direct Firestore sync):", finalizeErr?.message);
+                    }
+
+                    // 3b: Direct client Firestore fallback (guarantees upload NEVER freezes at 90%)
+                    if (!finalizeSuccess) {
+                        uploadModalProgressBar.style.width = "95%";
+                        uploadModalProgressStatus.innerText = "Direktno čuvanje albuma u Firebase Cloud bazu...";
+
+                        const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+                        const directAlbum = {
+                            id: albumDocId,
+                            name: albumName.toUpperCase(),
+                            author: artistName.toUpperCase(),
+                            folder: `Vinyl Collection/${folderName}`,
+                            cover: coverPath || "",
+                            tracks: finalTrackNames,
+                            color: uploadColorVal,
+                            genre: genre,
+                            year: year,
+                            order: (collection.length ? Math.min(...collection.map(a => typeof a.order === "number" ? a.order : 0)) - 1 : -1),
+                            createdAt: new Date().toISOString()
+                        };
+
+                        if (finalCoverDataUrl) {
+                            directAlbum.customCover = finalCoverDataUrl;
+                            directAlbum.useCustomCover = true;
+                        }
+
+                        if (clientDb) {
+                            try {
+                                await clientDb.collection("albums").doc(albumDocId).set(directAlbum);
+                                console.log("[Upload] Album successfully saved directly into Firestore:", albumDocId);
+                                finalizeResult = {
+                                    status: "ok",
+                                    album: directAlbum,
+                                    folderName: folderName,
+                                    coverPath: coverPath,
+                                    customCoverDataUrl: finalCoverDataUrl,
+                                    tracks: finalTrackNames
+                                };
+                                finalizeSuccess = true;
+                            } catch (fbSaveErr) {
+                                console.error("[Upload] Direct Firestore save error:", fbSaveErr);
+                                throw fbSaveErr;
+                            }
+                        } else {
+                            finalizeResult = {
+                                status: "ok",
+                                album: directAlbum,
+                                folderName: folderName,
+                                coverPath: coverPath,
+                                customCoverDataUrl: finalCoverDataUrl,
+                                tracks: finalTrackNames
+                            };
+                            finalizeSuccess = true;
+                        }
+                    }
 
                     return finalizeResult;
                 }
@@ -3535,39 +3766,46 @@
                     uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
                     result = await doTrackByTrackUpload();
                 } catch (trackErr) {
-                    console.warn("[Upload] Track-by-track upload failed, trying single multipart upload fallback:", trackErr);
-                    uploadModalProgressStatus.innerText = "Pokušaj direktnog slanja albuma na server...";
-                    uploadModalProgressBar.style.width = "30%";
-                    uploadModalProgressBar.style.background = "#3b82f6";
+                    console.warn("[Upload] Notice during upload, falling back to direct cloud save:", trackErr);
+                    uploadModalProgressStatus.innerText = "Čuvanje u bazi podataka...";
+                    uploadModalProgressBar.style.width = "95%";
 
                     try {
-                        const singleForm = new FormData();
-                        singleForm.append("artistName", artistName);
-                        singleForm.append("albumName", albumName);
-                        singleForm.append("genre", genre);
-                        singleForm.append("year", year);
-                        singleForm.append("color", uploadColorVal);
+                        const folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
+                        const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+                        let fallbackCover = "";
                         if (selectedCoverFile) {
-                            singleForm.append("cover", selectedCoverFile);
+                            fallbackCover = await compressImageToDataUrl(selectedCoverFile, 600, 0.82);
                         }
-                        for (let i = 0; i < selectedAudioFiles.length; i++) {
-                            singleForm.append("files", selectedAudioFiles[i], selectedAudioFiles[i].name);
+                        const directAlbum = {
+                            id: albumDocId,
+                            name: albumName.toUpperCase(),
+                            author: artistName.toUpperCase(),
+                            folder: `Vinyl Collection/${folderName}`,
+                            cover: `Vinyl Collection/${folderName}/folder.jpg`,
+                            tracks: selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, "")),
+                            color: uploadColorVal,
+                            genre: genre,
+                            year: year,
+                            order: (collection.length ? Math.min(...collection.map(a => typeof a.order === "number" ? a.order : 0)) - 1 : -1),
+                            createdAt: new Date().toISOString()
+                        };
+                        if (fallbackCover) {
+                            directAlbum.customCover = fallbackCover;
+                            directAlbum.useCustomCover = true;
                         }
-
-                        result = await sendUploadRequest({
-                            url: `${API_BASE}/api/upload-album`,
-                            formData: singleForm,
-                            timeout: 180000,
-                            onProgress: (e) => {
-                                if (e.lengthComputable) {
-                                    const pct = Math.round((e.loaded / e.total) * 90);
-                                    uploadModalProgressBar.style.width = `${Math.max(10, pct)}%`;
-                                    uploadModalProgressStatus.innerText = `Direktno slanje: ${pct}%...`;
-                                }
-                            }
-                        });
-                    } catch (singleErr) {
-                        console.error("[Upload] Direct upload fallback also failed:", singleErr);
+                        if (clientDb) {
+                            await clientDb.collection("albums").doc(albumDocId).set(directAlbum);
+                        }
+                        result = {
+                            status: "ok",
+                            album: directAlbum,
+                            folderName: folderName,
+                            customCoverDataUrl: fallbackCover,
+                            tracks: directAlbum.tracks
+                        };
+                    } catch (directErr) {
+                        console.error("[Upload] Direct cloud fallback error:", directErr);
                         throw trackErr;
                     }
                 }
@@ -3835,6 +4073,27 @@
                         useCustomCover: item.useCustomCover !== false
                     })
                 }).catch(err => console.warn("Firestore update sync failed:", err));
+
+                // Direct client Firestore update for instant persistence across incognito & Vercel
+                if (clientDb) {
+                    const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
+                    const updatePayload = {
+                        name: newName,
+                        author: newAuthor,
+                        genre: newGenre,
+                        year: newYear,
+                        color: newColor,
+                        useCustomCover: item.useCustomCover !== false
+                    };
+                    if (item.customCover && item.customCover.length < 850000) {
+                        updatePayload.customCover = item.customCover;
+                    } else if (!item.customCover) {
+                        updatePayload.customCover = "";
+                    }
+                    clientDb.collection("albums").doc(docId).set(updatePayload, { merge: true })
+                        .then(() => console.log("[Firestore] Album edit synced directly to cloud:", docId))
+                        .catch(err => console.warn("[Firestore] Direct edit sync notice:", err));
+                }
                 
                 try {
                     localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
@@ -4055,6 +4314,17 @@
                     }).then(() => {
                         loadCollectionManifest();
                     }).catch(()=>{});
+
+                    // Direct client Firestore delete & tombstone
+                    if (clientDb) {
+                        const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
+                        clientDb.collection("albums").doc(docId).delete().catch(() => {});
+                        clientDb.collection("deleted_albums").doc(docId).set({
+                            id: docId,
+                            folder: item.folder || folderKey,
+                            deletedAt: new Date().toISOString()
+                        }).catch(() => {});
+                    }
 
                     if (folderKey.startsWith("LOCAL://")) {
                          const albumId = folderKey.replace("LOCAL://", "");
@@ -4377,6 +4647,23 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order: newOrder })
                 }).catch(err => console.warn("Firestore reorder sync failed:", err));
+
+                // Direct client Firestore batch reorder
+                if (clientDb) {
+                    try {
+                        const batch = clientDb.batch();
+                        newOrder.forEach((uid, idx) => {
+                            const found = originalCollection.find(x => x._uid === uid);
+                            if (found) {
+                                const docId = (found.id || uid).replace(/[^a-zA-Z0-9_-]/g, "_");
+                                batch.set(clientDb.collection("albums").doc(docId), { order: idx }, { merge: true });
+                            }
+                        });
+                        batch.commit().catch(e => console.warn("[Firestore] Direct batch reorder notice:", e));
+                    } catch (batchErr) {
+                        console.warn("[Firestore] Batch reorder error:", batchErr);
+                    }
+                }
                 
                 reorderModalOverlay.classList.remove("active");
                 

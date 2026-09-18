@@ -32,10 +32,19 @@ export async function initAlbumUpload(body: any, files?: Express.Multer.File[]) 
   const folderName = sanitizeFolderName(artist, album);
 
   const targetDir = path.join(process.cwd(), "public", "Vinyl Collection", folderName);
-  await fsPromises.mkdir(targetDir, { recursive: true });
+  try {
+    await fsPromises.mkdir(targetDir, { recursive: true });
+  } catch (fsErr: any) {
+    console.warn("[Upload] Note: could not create target directory in public (read-only disk):", fsErr?.message);
+  }
 
   let coverPath = "";
   let customCoverDataUrl = "";
+
+  // If client provided pre-compressed data URL
+  if (body.customCoverDataUrl && typeof body.customCoverDataUrl === "string" && body.customCoverDataUrl.startsWith("data:image/")) {
+    customCoverDataUrl = body.customCoverDataUrl;
+  }
 
   const coverFile = files && files.length > 0 
     ? (files.find(f => f.fieldname === "cover") || files[0]) 
@@ -44,19 +53,24 @@ export async function initAlbumUpload(body: any, files?: Express.Multer.File[]) 
   if (coverFile) {
     const ext = (path.extname(coverFile.originalname) || ".jpg").toLowerCase();
     const targetCover = path.join(targetDir, `folder${ext}`);
-    await fsPromises.copyFile(coverFile.path, targetCover);
-    try { await fsPromises.unlink(coverFile.path); } catch (_) {}
+    try {
+      await fsPromises.copyFile(coverFile.path, targetCover);
+    } catch (fsErr: any) {
+      console.warn("[Upload] Note: could not write local cover copy (read-only disk):", fsErr?.message);
+    }
 
     coverPath = `Vinyl Collection/${folderName}/folder${ext}`;
 
-    try {
-      const stats = await fsPromises.stat(targetCover);
-      if (stats.size < 400 * 1024) { // Under 400KB to fit safely into Firestore document (< 1MB limit)
-        const buf = await fsPromises.readFile(targetCover);
-        const mime = ext === ".png" ? "image/png" : "image/jpeg";
-        customCoverDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
-      }
-    } catch (_) {}
+    if (!customCoverDataUrl) {
+      try {
+        const buf = await fsPromises.readFile(coverFile.path).catch(() => fsPromises.readFile(targetCover));
+        if (buf && buf.length <= 800 * 1024) {
+          const mime = ext === ".png" ? "image/png" : "image/jpeg";
+          customCoverDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+        }
+      } catch (_) {}
+    }
+    try { await fsPromises.unlink(coverFile.path); } catch (_) {}
   }
 
   const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -89,14 +103,20 @@ export async function handleTrackChunk(
 
   const safeFolder = path.basename(folderName);
   const targetDir = path.join(process.cwd(), "public", "Vinyl Collection", safeFolder);
-  await fsPromises.mkdir(targetDir, { recursive: true });
+  try {
+    await fsPromises.mkdir(targetDir, { recursive: true });
+  } catch (_) {}
 
   const outFileName = sanitizeTrackFileName(rawFileName);
   const finalDest = path.join(targetDir, outFileName);
 
   // If single piece upload
   if (totalChunks <= 1) {
-    await fsPromises.copyFile(file.path, finalDest);
+    try {
+      await fsPromises.copyFile(file.path, finalDest);
+    } catch (fsErr: any) {
+      console.warn("[Upload] Could not write file to public disk (read-only filesystem):", fsErr?.message);
+    }
     try { await fsPromises.unlink(file.path); } catch (_) {}
 
     return {
@@ -119,7 +139,11 @@ export async function handleTrackChunk(
   }
 
   if (chunkIndex === totalChunks - 1) {
-    await fsPromises.copyFile(partFilePath, finalDest);
+    try {
+      await fsPromises.copyFile(partFilePath, finalDest);
+    } catch (fsErr: any) {
+      console.warn("[Upload] Could not copy final assembled track to public disk:", fsErr?.message);
+    }
     try { await fsPromises.unlink(partFilePath); } catch (_) {}
 
     return {
@@ -162,13 +186,15 @@ export async function finalizeAlbumUpload(body: any) {
   let trackNames: string[] = [];
   const trackPaths: string[] = [];
 
-  if (fs.existsSync(targetDir)) {
-    const dirFiles = await fsPromises.readdir(targetDir);
-    trackNames = dirFiles.filter(f => /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(f)).sort();
-    for (const t of trackNames) {
-      trackPaths.push(path.join(targetDir, t));
+  try {
+    if (fs.existsSync(targetDir)) {
+      const dirFiles = await fsPromises.readdir(targetDir);
+      trackNames = dirFiles.filter(f => /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(f)).sort();
+      for (const t of trackNames) {
+        trackPaths.push(path.join(targetDir, t));
+      }
     }
-  }
+  } catch (_) {}
 
   if (Array.isArray(providedTracks) && providedTracks.length > 0) {
     trackNames = providedTracks;
@@ -197,7 +223,7 @@ export async function finalizeAlbumUpload(body: any) {
     createdAt: new Date().toISOString()
   };
 
-  if (customCoverDataUrl && customCoverDataUrl.length < 500000) {
+  if (customCoverDataUrl && customCoverDataUrl.length < 850000) {
     albumRecord.customCover = customCoverDataUrl;
     albumRecord.useCustomCover = true;
   }

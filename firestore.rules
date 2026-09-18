@@ -12,7 +12,11 @@ service cloud.firestore {
         && (!('genre' in data) || (data.genre is string && data.genre.size() <= 100))
         && (!('year' in data) || (data.year is string && data.year.size() <= 50))
         && (!('order' in data) || data.order is number)
-        && (!('useCustomCover' in data) || data.useCustomCover is bool);
+        && (!('useCustomCover' in data) || data.useCustomCover is bool)
+        && (!('customCover' in data) || (data.customCover is string && data.customCover.size() <= 850000))
+        && (!('cover' in data) || (data.cover is string && data.cover.size() <= 1000))
+        && (!('id' in data) || (data.id is string && data.id.size() <= 200))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100));
     }
 
     // Albums collection: public read, validated write
