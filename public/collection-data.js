@@ -1,117 +1,57 @@
 window.VINYL_COLLECTION = [
   {
-    "name": "THE BEST OF VOL 2",
-    "author": "JOHN COLTRANE",
-    "color": "#761F51",
+    "name": "QWE",
+    "author": "ASD",
+    "color": "#76186F",
     "duration": "",
-    "folder": "Vinyl Collection/John Coltrane - The Best Of Vol 2",
+    "folder": "Vinyl Collection/ASD - QWE",
     "cover": "",
-    "tracks": []
+    "tracks": [
+      "My girl - 18.1.24., 12.26.mp3",
+      "gospodjice.mp3"
+    ]
   },
   {
-    "name": "SOB ROCK",
-    "author": "JOHN MAYER",
+    "name": "TEST",
+    "author": "MIMA",
+    "color": "#334F2E",
+    "duration": "",
+    "folder": "Vinyl Collection/MIMA - TEST",
+    "cover": "Vinyl Collection/MIMA - TEST/folder.png",
+    "tracks": [
+      "My girl - 18.1.24., 12.26.mp3",
+      "gospodjice.mp3"
+    ]
+  },
+  {
+    "name": "18.1.24., 12.26",
+    "author": "MY GIRL",
+    "color": "#230C7F",
+    "duration": "",
+    "folder": "Vinyl Collection/MY GIRL - 18.1.24., 12.26",
+    "cover": "",
+    "tracks": [
+      "My girl - 18.1.24., 12.26.mp3"
+    ]
+  },
+  {
+    "name": "COMPRESSED",
+    "author": "NEPOZNATI IZVOĐAČ",
     "color": "#2f2a3a",
     "duration": "",
-    "folder": "Vinyl Collection/John Mayer - Sob Rock",
-    "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
-    "tracks": [
-      "01. Last Train Home.mp3",
-      "02. Shouldn't Matter but It Does.mp3",
-      "03. New Light.mp3",
-      "05. Wild Blue.mp3",
-      "06. Shot in the Dark.mp3",
-      "07. I Guess I Just Feel Like.mp3",
-      "10. All I Want Is to Be With You.mp3"
-    ]
-  },
-  {
-    "name": "SAMPLE ALBUM",
-    "author": "LOREM IPSUM",
-    "color": "#745841",
-    "duration": "",
-    "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
-    "cover": "",
-    "tracks": []
-  },
-  {
-    "name": "TOGETHER AGAIN",
-    "author": "RAY CHARLES",
-    "color": "#2a2a2f",
-    "duration": "",
-    "folder": "Vinyl Collection/Ray Charles - Together Again",
+    "folder": "Vinyl Collection/NEPOZNATI IZVOĐAČ - COMPRESSED",
     "cover": "",
     "tracks": [
-      "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-02.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-04.mp3",
-      "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-04.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3",
-      "Charles, Ray (1965) - Together Again, side B (archive)-06.mp3"
+      "01_ Greensleeves.mp3",
+      "02_ India.mp3",
+      "03_ Miles Mode.mp3",
+      "04_ Big Nick.mp3",
+      "05_ The Promise.mp3",
+      "06_ Chim Chim Cheree.mp3",
+      "07_ Opening Sections of Ascension.mp3",
+      "08_ Opening Sections of The Father And The Son And The Holy Ghost.mp3",
+      "09_ Manisfestation.mp3",
+      "10_ Ogunda.mp3"
     ]
-  },
-  {
-    "name": "STEAK DINNER",
-    "author": "T-BONE WALKER",
-    "color": "#2a2f3a",
-    "duration": "",
-    "folder": "Vinyl Collection/T-Bone Walker - Steak Dinner",
-    "cover": "",
-    "tracks": [
-      "01 Hard Times.mp3",
-      "02 All Night Long.mp3",
-      "03 Stormy Monday Blues 8.mp3",
-      "04 Please Come Back To Me.mp3",
-      "07 Louisiana Bayou Drive.mp3"
-    ]
-  },
-  {
-    "name": "RUBBER SOUL",
-    "author": "THE BEATLES",
-    "color": "#3a2a33",
-    "duration": "",
-    "folder": "Vinyl Collection/The Beatles - Rubber Soul",
-    "cover": "Vinyl Collection/The Beatles - Rubber Soul/folder.jpg",
-    "tracks": [
-      "01. Drive My Car.mp3",
-      "02. Norwegian Wood (This Bird Has Flown).mp3",
-      "03. You Won't See Me.mp3",
-      "04. Nowhere Man.mp3",
-      "05. Think For Yourself.mp3",
-      "07. Michelle.mp3",
-      "08. What Goes On.mp3",
-      "10. I'm Looking Through You.mp3",
-      "11. In My Life.mp3",
-      "12. Wait.mp3"
-    ]
-  },
-  {
-    "name": "MORRISON HOTEL",
-    "author": "THE DOORS",
-    "color": "#2a3a35",
-    "duration": "",
-    "folder": "Vinyl Collection/The Doors - Morrison Hotel",
-    "cover": "",
-    "tracks": [
-      "The Doors - Blue Sunday.MP3",
-      "The Doors - Indian Summer.MP3",
-      "The Doors - Land Ho!.mp3",
-      "The Doors - Peace Frog.MP3",
-      "The Doors - Queen Of The Highway.MP3",
-      "The Doors - Roadhouse Blues.mp3",
-      "The Doors - Ship Of Fools.MP3",
-      "The Doors - The Spy.mp3",
-      "The Doors - Waiting For The Sun.mp3"
-    ]
-  },
-  {
-    "name": "NOVI ALBUM TEST",
-    "author": "UNKNOWN ARTIST",
-    "color": "#107E08",
-    "duration": "",
-    "folder": "Vinyl Collection/Unknown Artist - NOVI ALBUM TEST",
-    "cover": "",
-    "tracks": []
   }
 ];

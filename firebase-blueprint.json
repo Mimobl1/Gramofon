@@ -5,25 +5,43 @@
       "description": "A vinyl record album in the collection",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the album" },
+        "id": { "type": "string", "description": "Unique identifier for the album document" },
         "name": { "type": "string", "description": "Album title" },
         "author": { "type": "string", "description": "Artist or author of the album" },
         "genre": { "type": "string", "description": "Musical genre" },
         "year": { "type": "string", "description": "Release year" },
         "color": { "type": "string", "description": "Dominant hex color for the sleeve" },
         "folder": { "type": "string", "description": "Folder path or stream location" },
-        "cover": { "type": "string", "description": "Cover art URL or path" },
+        "cover": { "type": "string", "description": "Cover art URL or relative path" },
+        "customCover": { "type": "string", "description": "Base64 data URL or external URL for cover art" },
+        "useCustomCover": { "type": "boolean", "description": "Flag whether custom cover is active" },
         "tracks": { "type": "array", "description": "List of track filenames or titles" },
         "order": { "type": "number", "description": "Custom sorting order index" },
         "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
       },
       "required": ["id", "name", "author", "folder", "tracks"]
+    },
+    "DeletedAlbum": {
+      "title": "DeletedAlbum",
+      "description": "Tombstone record of deleted albums to prevent resurrection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Document ID of the deleted album" },
+        "folder": { "type": "string", "description": "Folder path of the deleted album" },
+        "deletedAt": { "type": "string", "description": "ISO timestamp of deletion" }
+      },
+      "required": ["id", "deletedAt"]
     }
   },
   "firestore": {
     "/albums/{albumId}": {
       "schema": "Album",
       "description": "Collection of vinyl albums"
+    },
+    "/deleted_albums/{docId}": {
+      "schema": "DeletedAlbum",
+      "description": "Tombstone collection of deleted albums"
     }
   }
 }
+

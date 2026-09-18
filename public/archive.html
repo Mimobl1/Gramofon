@@ -462,6 +462,22 @@
     <button id="play-button">PLAY</button>
     <div id="now-playing-badge">Now Playing</div>
 
+    <!-- Empty State Card when archive has 0 albums -->
+    <div id="emptyStateCard" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; text-align: center; color: #fff; pointer-events: auto; background: rgba(18, 18, 22, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 38px 40px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.12); max-width: 440px; width: 90%; box-shadow: 0 24px 60px rgba(0,0,0,0.7); flex-direction: column; align-items: center;">
+        <div style="width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        </div>
+        <div style="font-size: 19px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px;">Arhiva je prazna</div>
+        <p style="color: #999; font-size: 14px; line-height: 1.55; margin: 0 0 24px 0;">Trenutno nema sačuvanih albuma. Ubacite vinil album sa pesmama i omotom kroz aplikaciju.</p>
+        <button id="emptyUploadBtn" style="background: #ffffff; color: #000; border: none; padding: 12px 26px; border-radius: 24px; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.15s, opacity 0.15s; box-shadow: 0 4px 14px rgba(255,255,255,0.2);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Dodaj Album
+        </button>
+    </div>
+
     <div class="ui-overlay">
         <div class="top-bar">
             <div class="counter-text" id="counter">
@@ -772,107 +788,7 @@
     <script>
         const COLLECTION_MANIFEST_URL = "vinyl-collection.json";
         const IS_FILE_PROTOCOL = window.location.protocol === "file:";
-        const DEFAULT_COLLECTION = [
-            {
-                "name": "SOB ROCK",
-                "author": "JOHN MAYER",
-                "color": "#2a2a2f",
-                "duration": "",
-                "folder": "Vinyl Collection/John Mayer - Sob Rock",
-                "cover": "Vinyl Collection/John Mayer - Sob Rock/cover.jpg",
-                "tracks": [
-                    "01. Last Train Home.mp3",
-                    "02. Shouldn't Matter but It Does.mp3",
-                    "03. New Light.mp3",
-                    "05. Wild Blue.mp3",
-                    "06. Shot in the Dark.mp3",
-                    "07. I Guess I Just Feel Like.mp3",
-                    "10. All I Want Is to Be With You.mp3"
-                ]
-            },
-            {
-                "name": "SAMPLE ALBUM",
-                "author": "LOREM IPSUM",
-                "color": "#3a2f2a",
-                "duration": "",
-                "folder": "Vinyl Collection/Lorem Ipsum - Sample album",
-                "cover": "",
-                "tracks": [
-                    "Together Again.mp3"
-                ]
-            },
-            {
-                "name": "TOGETHER AGAIN",
-                "author": "RAY CHARLES",
-                "color": "#2f2a3a",
-                "duration": "",
-                "folder": "Vinyl Collection/Ray Charles - Together Again",
-                "cover": "",
-                "tracks": [
-                    "Charles, Ray (1965) - Together Again, side A (archive)-01.mp3",
-                    "Charles, Ray (1965) - Together Again, side A (archive)-02.mp3",
-                    "Charles, Ray (1965) - Together Again, side A (archive)-04.mp3",
-                    "Charles, Ray (1965) - Together Again, side A (archive)-06.mp3",
-                    "Charles, Ray (1965) - Together Again, side B (archive)-04.mp3",
-                    "Charles, Ray (1965) - Together Again, side B (archive)-05.mp3",
-                    "Charles, Ray (1965) - Together Again, side B (archive)-06.mp3"
-                ]
-            },
-            {
-                "name": "STEAK DINNER",
-                "author": "T-BONE WALKER",
-                "color": "#2a2f3a",
-                "duration": "",
-                "folder": "Vinyl Collection/T-Bone Walker - Steak Dinner",
-                "cover": "",
-                "tracks": [
-                    "01 Hard Times.mp3",
-                    "02 All Night Long.mp3",
-                    "03 Stormy Monday Blues 8.mp3",
-                    "04 Please Come Back To Me.mp3",
-                    "07 Louisiana Bayou Drive.mp3"
-                ]
-            },
-            {
-                "name": "RUBBER SOUL",
-                "author": "THE BEATLES",
-                "color": "#3a2f2a",
-                "duration": "",
-                "folder": "Vinyl Collection/The Beatles - Rubber Soul",
-                "cover": "Vinyl Collection/The Beatles - Rubber Soul/folder.jpg",
-                "tracks": [
-                    "01. Drive My Car.mp3",
-                    "02. Norwegian Wood (This Bird Has Flown).mp3",
-                    "03. You Won't See Me.mp3",
-                    "04. Nowhere Man.mp3",
-                    "05. Think For Yourself.mp3",
-                    "07. Michelle.mp3",
-                    "08. What Goes On.mp3",
-                    "10. I'm Looking Through You.mp3",
-                    "11. In My Life.mp3",
-                    "12. Wait.mp3"
-                ]
-            },
-            {
-                "name": "MORRISON HOTEL",
-                "author": "THE DOORS",
-                "color": "#33362a",
-                "duration": "",
-                "folder": "Vinyl Collection/The Doors - Morrison Hotel",
-                "cover": "",
-                "tracks": [
-                    "The Doors - Blue Sunday.MP3",
-                    "The Doors - Indian Summer.MP3",
-                    "The Doors - Land Ho!.MP3",
-                    "The Doors - Peace Frog.MP3",
-                    "The Doors - Queen Of The Highway.MP3",
-                    "The Doors - Roadhouse Blues.MP3",
-                    "The Doors - Ship Of Fools.MP3",
-                    "The Doors - The Spy.MP3",
-                    "The Doors - Waiting For The Sun.MP3"
-                ]
-            }
-        ];
+        const DEFAULT_COLLECTION = [];
         let originalCollection = [];
         let collection = [];
         let activeGenre = "ALL";
@@ -921,9 +837,14 @@
         const FEEDBACK_DELAY_MS = 30000;
         const routeFade = document.getElementById('route-fade');
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
-        const API_BASE = (window.location.hostname.includes("vercel.app") || (window.location.hostname === "localhost" && window.location.port !== "3000"))
-            ? "https://ais-pre-5nakrarwgavpcdfi7zggnn-439521790675.europe-west2.run.app"
-            : "";
+        const API_BASE = "";
+
+        function getSafeCoverUrl(cover) {
+            if (!cover) return null;
+            if (cover.startsWith("http") || cover.startsWith("data:") || cover.startsWith("blob:")) return cover;
+            const path = cover.startsWith("/") ? cover.slice(1) : cover;
+            return API_BASE ? `${API_BASE}/${encodeURI(path)}` : `/${encodeURI(path)}`;
+        }
         const archiveDeck = new Audio();
         archiveDeck.preload = "metadata";
         let bgBridge = {
@@ -996,7 +917,7 @@
                 if (!item) return;
                 const coverSrc = (item.customCover && item.useCustomCover !== false)
                     ? item.customCover
-                    : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+                    : getSafeCoverUrl(item.cover);
                 if (coverSrc && !inMemoryImageCache.has(coverSrc)) {
                     const img = new Image();
                     img.crossOrigin = "anonymous";
@@ -1114,7 +1035,7 @@
                 collection = [...originalCollection];
             } else {
                 collection = originalCollection.filter(item => 
-                    (item.genre && item.genre.toUpperCase() === activeGenre) || item.name.includes(activeGenre) || item.author.includes(activeGenre) || item.folder.toUpperCase().includes(activeGenre)
+                    (item.genre && item.genre.toUpperCase() === activeGenre) || (item.name && item.name.includes(activeGenre)) || (item.author && item.author.includes(activeGenre)) || (item.folder && item.folder.toUpperCase().includes(activeGenre))
                 );
             }
             totalMeshes = collection.length;
@@ -1122,6 +1043,26 @@
             openStates = new Array(totalMeshes).fill(false);
             targetScroll = Math.max(0, Math.min(maxScroll, targetScroll));
             currentScroll = Math.max(0, Math.min(maxScroll, currentScroll));
+
+            const emptyCard = document.getElementById("emptyStateCard");
+            const editBtn = document.getElementById("editAlbumBtn");
+            const deleteBtn = document.getElementById("deleteAlbumBtn");
+            const counterEl = document.getElementById('counter');
+            if (counterEl) {
+                counterEl.innerText = `${totalMeshes} ${totalMeshes === 1 ? 'Album' : 'Albums'}`;
+            }
+
+            if (emptyCard) {
+                emptyCard.style.display = totalMeshes === 0 ? "flex" : "none";
+            }
+            if (editBtn) {
+                editBtn.style.opacity = totalMeshes === 0 ? "0.2" : "1";
+                editBtn.style.pointerEvents = totalMeshes === 0 ? "none" : "auto";
+            }
+            if (deleteBtn) {
+                deleteBtn.style.opacity = totalMeshes === 0 ? "0.2" : "1";
+                deleteBtn.style.pointerEvents = totalMeshes === 0 ? "none" : "auto";
+            }
             
             if (scene) {
                 rebuildMeshes();
@@ -1426,7 +1367,7 @@
         async function loadCollectionManifest() {
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 8000));
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
                     const fetchPromise = fetch(`${API_BASE}/api/albums?t=${Date.now()}`, { 
                         cache: "no-store"
                     });
@@ -1435,40 +1376,34 @@
                     if (res && res.ok) {
                         const data = await res.json();
                         const parsed = Array.isArray(data) ? data : [];
-                        if (parsed.length) {
-                            const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
-                            const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
+                        const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
+                        const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
 
-                            if (currentKey !== newKey || !collection.length) {
-                                applyCollectionData(parsed);
-                            }
-                            try {
-                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
-                            } catch(_) {}
+                        if (currentKey !== newKey || (!collection.length && parsed.length > 0) || (collection.length > 0 && parsed.length === 0)) {
+                            applyCollectionData(parsed);
+                        }
+                        try {
+                            localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
+                        } catch(_) {}
+                        if (parsed.length) {
                             preloadCovers(parsed);
                             enrichAlbumDurations(parsed).catch(() => {});
-                            return;
                         }
+                        refreshRecordLoadedState();
+                        return;
                     }
                 } catch (e) {
                     console.warn(`Live collection fetch error (attempt ${attempt}):`, e);
                 }
                 if (attempt === 1) {
-                    await new Promise(r => setTimeout(r, 400));
+                    await new Promise(r => setTimeout(r, 200));
                 }
             }
 
-            if (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length > 0) {
-                if (!collection.length) {
+            if (!collection.length && !originalCollection.length) {
+                if (typeof window !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
                     applyCollectionData(window.VINYL_COLLECTION);
-                    preloadCovers(window.VINYL_COLLECTION);
                 }
-                return;
-            }
-
-            if (!collection.length) {
-                applyCollectionData(DEFAULT_COLLECTION);
-                preloadCovers(DEFAULT_COLLECTION);
             }
         }
 
@@ -1510,28 +1445,57 @@
         }
 
         function isPlayingLockedIndex(idx) {
-            if (!hasLoadedRecord || idx < 0 || !collection || idx >= collection.length) return false;
-            if (playingIndex !== -1 && idx === playingIndex) return true;
-            try {
-                const item = collection[idx];
-                if (!item) return false;
-                const savedUid = localStorage.getItem(PLAYING_UID_KEY);
-                if (savedUid && item._uid === savedUid) {
+            if (idx < 0 || !collection || idx >= collection.length) return false;
+            const item = collection[idx];
+            if (!item) return false;
+
+            // Check if active in the background bridge
+            if (bgBridge && bgBridge.active && bgBridge.currentAlbum) {
+                if (bgBridge.currentAlbum._uid && item._uid === bgBridge.currentAlbum._uid) {
                     playingIndex = idx;
                     return true;
                 }
+                if (item.name && bgBridge.currentAlbum.name && String(item.name).trim().toUpperCase() === String(bgBridge.currentAlbum.name).trim().toUpperCase()) {
+                    playingIndex = idx;
+                    return true;
+                }
+            }
+
+            // Check if record is currently loaded in vinyl player
+            try {
+                const recLoaded = localStorage.getItem(RECORD_LOADED_KEY);
+                if (recLoaded !== "1") return false;
+
+                const savedUid = localStorage.getItem(PLAYING_UID_KEY);
                 const selected = JSON.parse(localStorage.getItem(SELECTED_ALBUM_KEY) || "null");
-                if (selected) {
-                    if (selected._uid && item._uid === selected._uid) {
+                const playback = JSON.parse(localStorage.getItem("vinyl_player_playback_state_v1") || "null");
+
+                const targetUid = savedUid || selected?._uid || selected?.folder || selected?.id;
+                const targetName = selected?.name || playback?.albumName;
+
+                if (targetUid) {
+                    const u = String(targetUid).trim();
+                    if (item._uid && String(item._uid).trim() === u) {
                         playingIndex = idx;
                         return true;
                     }
-                    if (item.name && selected.name && String(item.name).trim().toUpperCase() === String(selected.name).trim().toUpperCase()) {
+                    if (item.folder && String(item.folder).trim() === u) {
+                        playingIndex = idx;
+                        return true;
+                    }
+                    if (item.id && String(item.id).trim() === u) {
                         playingIndex = idx;
                         return true;
                     }
                 }
+
+                if (targetName && item.name && String(item.name).trim().toUpperCase() === String(targetName).trim().toUpperCase()) {
+                    playingIndex = idx;
+                    return true;
+                }
             } catch(_) {}
+
+            if (hasLoadedRecord && playingIndex !== -1 && idx === playingIndex) return true;
             return false;
         }
 
@@ -1907,7 +1871,7 @@
             
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
-                : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+                : getSafeCoverUrl(item.cover);
 
             if (coverSrc) {
                 let img = inMemoryImageCache.get(coverSrc);
@@ -2062,7 +2026,7 @@
 
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
-                : (item.cover ? (item.cover.startsWith("http") || item.cover.startsWith("data:") || item.cover.startsWith("blob:") ? item.cover : `${API_BASE}/${encodeURI(item.cover)}`) : null);
+                : getSafeCoverUrl(item.cover);
 
             if (coverSrc) {
                 let img = inMemoryImageCache.get(coverSrc);
@@ -2179,7 +2143,7 @@
         }
 
         function playSelectedAlbumByIndex(currentIdx) {
-            if (!totalMeshes || currentIdx < 0 || currentIdx >= collection.length || isPlayingLockedIndex(currentIdx)) return;
+            if (!totalMeshes || currentIdx < 0 || currentIdx >= collection.length) return;
             try { localStorage.setItem(RECORD_LOADED_KEY, "1"); } catch(_) {}
             hasLoadedRecord = true;
             const selected = collection[currentIdx];
@@ -2209,7 +2173,7 @@
             const isDisk = (typeof result === "object" && result !== null) ? result.isDisk : false;
             if (!Number.isFinite(idx) || idx < 0 || idx >= totalMeshes) return;
             
-            // Ploca koja je now playing ne moze ponovo da se klikne i izvuce ploca!
+            // If this album is Now Playing, do not allow opening, sliding out disk, or playing again
             if (isPlayingLockedIndex(idx)) {
                 const currentFocusIdx = Math.round(currentScroll / scrollSensitivity);
                 if (idx !== currentFocusIdx) {
@@ -2241,7 +2205,7 @@
         }
 
         function startLaunchToPlayer(idx, url, selectedPayload = null) {
-            if (launchIndex !== -1 || isPlayingLockedIndex(idx)) return;
+            if (launchIndex !== -1) return;
             
             bgBridge.active = false;
             try { archiveDeck.pause(); } catch(_) {}
@@ -2734,7 +2698,7 @@
                 
                 const isLaunching = i === launchIndex;
                 const isPlaying = isPlayingLockedIndex(i);
-                if (isPlaying) {
+                if (isPlaying && !isLaunching) {
                     openStates[i] = false;
                 }
                 const targetOpen = isLaunching ? 1 : (isPlaying ? 0 : (openStates[i] ? 1 : 0));
@@ -2812,7 +2776,7 @@
                     playBtnUpdated = true;
                 }
 
-                if (playingIndex === i && i === interactiveIndex && opacity > 0.05) {
+                if (isPlaying && (i === displayIdx || i === interactiveIndex) && opacity > 0.05) {
                     const v = new THREE.Vector3();
                     cover.getWorldPosition(v);
                     v.y += 2.35;
@@ -2875,7 +2839,18 @@
                 });
             });
 
-            // Instant startup: use local cache or window.VINYL_COLLECTION or DEFAULT_COLLECTION
+            // Clear legacy local caches once to ensure clean slate
+            try {
+                if (!localStorage.getItem("vinyl_archive_clean_v3")) {
+                    localStorage.removeItem("vinyl_archive_albums_v1");
+                    localStorage.removeItem("vinyl_selected_album_v1");
+                    localStorage.removeItem("vinyl_record_loaded_v1");
+                    localStorage.removeItem("archive_playing_uid_v1");
+                    localStorage.removeItem("vinyl_player_playback_state_v1");
+                    localStorage.setItem("vinyl_archive_clean_v3", "1");
+                }
+            } catch(_) {}
+
             let initialAlbums = [];
             try {
                 const cached = JSON.parse(localStorage.getItem("vinyl_archive_albums_v1") || "null");
@@ -2884,15 +2859,14 @@
                 }
             } catch(_) {}
 
-            if (!initialAlbums.length && typeof window.VINYL_COLLECTION !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
+            if (!initialAlbums.length && typeof window !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
                 initialAlbums = window.VINYL_COLLECTION;
-            }
-            if (!initialAlbums.length) {
-                initialAlbums = DEFAULT_COLLECTION;
             }
 
             applyCollectionData(initialAlbums);
-            preloadCovers(initialAlbums);
+            if (initialAlbums.length) {
+                preloadCovers(initialAlbums);
+            }
             refreshRecordLoadedState();
             syncPlayingIndex();
             resetArchiveToFirst();
@@ -3008,93 +2982,38 @@
             } catch(_) {}
         });
         
-        // Background migration: if any old albums exist in browser IndexedDB, migrate them to the server
-        dbPromise.then(db => {
-            if (!db) return;
-            try {
-                const tx = db.transaction("albums", "readonly");
-                const store = tx.objectStore("albums");
-                const req = store.getAll();
-                req.onsuccess = async () => {
-                    const customAlbums = req.result || [];
-                    if(customAlbums.length > 0) {
-                        let needsRebuild = false;
-                        for(const ca of customAlbums) {
-                            let migrated = false;
-                            if(ca.files && ca.files.length > 0) {
-                                try {
-                                    const formData = new FormData();
-                                    formData.append("albumName", ca.name || "NEW ALBUM");
-                                    formData.append("artistName", ca.author || "ARTIST");
-                                    if (ca.coverData) {
-                                        formData.append("files", new Blob([ca.coverData], { type: ca.coverType || "image/jpeg" }), "cover.jpg");
-                                    }
-                                    ca.files.forEach(f => {
-                                        if (f.data) {
-                                            formData.append("files", new Blob([f.data], { type: f.type || "audio/mpeg" }), f.name);
-                                        }
-                                    });
-                                    const syncRes = await fetch(`${API_BASE}/api/upload-album`, { method: "POST", body: formData });
-                                    if(syncRes.ok) {
-                                        console.log("Successfully migrated local album to server Firestore:", ca.name);
-                                        const delTx = db.transaction("albums", "readwrite");
-                                        delTx.objectStore("albums").delete(ca.id);
-                                        migrated = true;
-                                        await loadCollectionManifest();
-                                    }
-                                } catch(syncErr) {
-                                    console.warn("Server migration skipped (e.g. Vercel static hosting):", syncErr);
-                                }
-                            }
-                            if (!migrated) {
-                                // Keep visible in collection (e.g. on Vercel or offline)
-                                const uid = ca.folder || ("LOCAL://" + ca.id);
-                                if (!collection.some(item => item._uid === uid)) {
-                                    let coverUrl = ca.customCover || "";
-                                    if (!coverUrl && ca.coverData) {
-                                        try {
-                                            coverUrl = URL.createObjectURL(new Blob([ca.coverData], { type: ca.coverType || "image/jpeg" }));
-                                        } catch(_) {}
-                                    }
-                                    const localItem = {
-                                        name: ca.name || "LOCAL ALBUM",
-                                        author: ca.author || "LOCAL ARTIST",
-                                        color: ca.color || "#1a1a1a",
-                                        folder: uid,
-                                        cover: coverUrl,
-                                        tracks: Array.isArray(ca.tracks) ? ca.tracks : (ca.files ? ca.files.map(f => f.name).sort() : []),
-                                        customCover: coverUrl,
-                                        useCustomCover: !!coverUrl,
-                                        _uid: uid
-                                    };
-                                    collection.unshift(localItem);
-                                    originalCollection.unshift(localItem);
-                                    needsRebuild = true;
-                                }
-                            }
-                        }
-                        if (needsRebuild) {
-                            groups.forEach(g => { if(g) scene.remove(g); });
-                            groups = [];
-                            rebuildMeshes();
-                            filterCollection();
-                        }
-                    }
-                };
-            } catch(e) {
-                console.warn("IndexedDB migration error:", e);
+        // Purge legacy offline databases so they never resurrect or override the CMS Firestore database
+        try {
+            window.indexedDB.deleteDatabase("VinylPlayerStorage");
+            if (typeof dbPromise !== "undefined") {
+                dbPromise.then(db => {
+                    if (!db) return;
+                    try {
+                        const tx = db.transaction("albums", "readwrite");
+                        tx.objectStore("albums").clear();
+                    } catch(_) {}
+                }).catch(() => {});
             }
-        });
+        } catch(_) {}
 
         const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
         if (deleteAlbumBtn) {
             deleteAlbumBtn.addEventListener('click', () => {
+                if (!collection.length) return;
                 let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
                 if (targetIdx >= 0 && targetIdx < collection.length) {
                     lastIndex = targetIdx;
                     const customConfirmOverlay = document.getElementById("customConfirmOverlay");
                     if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
                 }
+            });
+        }
+
+        const emptyUploadBtn = document.getElementById('emptyUploadBtn');
+        if (emptyUploadBtn) {
+            emptyUploadBtn.addEventListener('click', () => {
+                const uploadBtn = document.getElementById('uploadAlbumBtn');
+                if (uploadBtn) uploadBtn.click();
             });
         }
 
@@ -3322,179 +3241,296 @@
 
                 const uploadColorVal = document.getElementById("uploadAlbumColor")?.value || "#1a1a1a";
 
-                const formData = new FormData();
-                formData.append("artistName", artistName);
-                formData.append("albumName", albumName);
-                formData.append("genre", genre);
-                formData.append("year", year);
-                formData.append("color", uploadColorVal);
+                async function sendUploadRequest({ url, formData, jsonBody, onProgress, timeout = 60000 }) {
+                    let fetchUrl = url;
+                    if (!fetchUrl.startsWith("http") && !fetchUrl.startsWith("/")) {
+                        fetchUrl = `/${fetchUrl}`;
+                    }
 
-                if (selectedCoverFile) {
-                    formData.append("files", selectedCoverFile);
-                }
-                selectedAudioFiles.forEach(f => {
-                    formData.append("files", f);
-                });
+                    // 1. Primary path: XMLHttpRequest (supported everywhere, exact timeouts, robust across iframes)
+                    try {
+                        return await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open("POST", fetchUrl, true);
+                            xhr.timeout = timeout;
 
-                function doUpload() {
-                    return new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        const endpoint = `${API_BASE}/api/upload-album`;
-                        xhr.open("POST", endpoint, true);
-
-                        xhr.upload.onprogress = (e) => {
-                            if (e.lengthComputable) {
-                                const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
-                                uploadModalProgressBar.style.width = percent + "%";
-                                uploadModalProgressStatus.innerText = `Slanje pesama na server... ${percent}% (${formatBytes(e.loaded)} / ${formatBytes(e.total)})`;
+                            if (jsonBody) {
+                                xhr.setRequestHeader("Content-Type", "application/json");
                             }
-                        };
 
-                        xhr.onload = () => {
-                            if (xhr.status >= 200 && xhr.status < 300) {
-                                try {
-                                    resolve(JSON.parse(xhr.responseText));
-                                } catch (_) {
-                                    resolve({ status: "ok" });
+                            if (xhr.upload && onProgress) {
+                                xhr.upload.onprogress = onProgress;
+                            }
+
+                            xhr.onload = () => {
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    try {
+                                        resolve(JSON.parse(xhr.responseText));
+                                    } catch (_) {
+                                        resolve({ status: "ok" });
+                                    }
+                                } else {
+                                    let msg = `Server greška (${xhr.status})`;
+                                    try {
+                                        const parsed = JSON.parse(xhr.responseText);
+                                        if (parsed && parsed.error) msg = parsed.error;
+                                    } catch (_) {}
+                                    reject(new Error(msg));
                                 }
-                            } else {
-                                let msg = `Server greška: ${xhr.status}`;
-                                try {
-                                    const parsed = JSON.parse(xhr.responseText);
-                                    if (parsed && parsed.error) msg = parsed.error;
-                                } catch (_) {}
-                                reject(new Error(msg));
-                            }
-                        };
+                            };
 
-                        xhr.onerror = () => reject(new Error("Mrežna greška pri komunikaciji sa serverom."));
-                        xhr.ontimeout = () => reject(new Error("Isteklo vreme za slanje (timeout)."));
-                        xhr.timeout = 300000; // 5 minuta
-                        xhr.send(formData);
+                            xhr.onerror = () => reject(new Error("XHR_NETWORK_ERROR"));
+                            xhr.ontimeout = () => reject(new Error("Isteklo vreme za odgovor servera (timeout)."));
+                            xhr.send(jsonBody ? JSON.stringify(jsonBody) : formData);
+                        });
+                    } catch (xhrErr) {
+                        if (xhrErr.message !== "XHR_NETWORK_ERROR") {
+                            throw xhrErr;
+                        }
+                        console.warn("XHR network error encountered. Falling back to fetch() API for:", fetchUrl);
+                    }
+
+                    // 2. Secondary fallback: fetch with AbortController timeout
+                    const controller = new AbortController();
+                    const timerId = setTimeout(() => controller.abort(), timeout);
+
+                    try {
+                        const headers = {};
+                        if (jsonBody) headers["Content-Type"] = "application/json";
+
+                        const res = await fetch(fetchUrl, {
+                            method: "POST",
+                            headers,
+                            body: jsonBody ? JSON.stringify(jsonBody) : formData,
+                            signal: controller.signal
+                        });
+
+                        clearTimeout(timerId);
+
+                        if (!res.ok) {
+                            let msg = `Server greška (${res.status})`;
+                            try {
+                                const parsed = await res.json();
+                                if (parsed && parsed.error) msg = parsed.error;
+                            } catch (_) {
+                                try {
+                                    const txt = await res.text();
+                                    if (txt && txt.length < 200) msg = txt;
+                                } catch (_) {}
+                            }
+                            throw new Error(msg);
+                        }
+
+                        try {
+                            return await res.json();
+                        } catch (_) {
+                            return { status: "ok" };
+                        }
+                    } catch (fetchErr) {
+                        clearTimeout(timerId);
+                        if (fetchErr.name === "AbortError") {
+                            throw new Error("Isteklo vreme za slanje (timeout).");
+                        }
+                        throw fetchErr;
+                    }
+                }
+
+                // Resilient Track-by-Track Uploader with live byte progress
+                async function doTrackByTrackUpload() {
+                    // 1. Initialize album and upload cover
+                    uploadModalProgressStatus.innerText = "Kreiranje albuma na serveru i slanje omota...";
+                    uploadModalProgressBar.style.width = "4%";
+                    
+                    const initFormData = new FormData();
+                    initFormData.append("artistName", artistName);
+                    initFormData.append("albumName", albumName);
+                    initFormData.append("genre", genre);
+                    initFormData.append("year", year);
+                    initFormData.append("color", uploadColorVal);
+                    if (selectedCoverFile) {
+                        initFormData.append("cover", selectedCoverFile);
+                    }
+
+                    const initData = await sendUploadRequest({
+                        url: `${API_BASE}/api/upload-album-init`,
+                        formData: initFormData,
+                        onProgress: (e) => {
+                            if (e.lengthComputable && selectedCoverFile) {
+                                const p = Math.min(5, Math.round((e.loaded / e.total) * 5));
+                                uploadModalProgressBar.style.width = `${Math.max(2, p)}%`;
+                            }
+                        }
                     });
+
+                    const { folderName, coverPath, customCoverDataUrl } = initData;
+                    if (!folderName) throw new Error("Server nije vratio naziv foldera za album");
+
+                    // Calculate total bytes across all audio files for accurate progress
+                    const totalBytesAllTracks = selectedAudioFiles.reduce((acc, f) => acc + (f.size || 0), 0) || 1;
+                    let uploadedBytesPreviousTracks = 0;
+                    const uploadedTrackNames = [];
+
+                    // 2. Upload each track individually (well below Cloud Run 32MB limit)
+                    // If a single track is > 20MB, chunk it in 10MB pieces
+                    const CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
+                    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
+
+                    for (let fileIdx = 0; fileIdx < selectedAudioFiles.length; fileIdx++) {
+                        const file = selectedAudioFiles[fileIdx];
+                        const fileSize = file.size || 1;
+
+                        if (fileSize <= CHUNK_THRESHOLD) {
+                            // Single track upload with live byte-level progress
+                            const trackFormData = new FormData();
+                            trackFormData.append("folderName", folderName);
+                            trackFormData.append("fileName", file.name);
+                            trackFormData.append("chunkIndex", "0");
+                            trackFormData.append("totalChunks", "1");
+                            trackFormData.append("chunk", file, file.name);
+
+                            const res = await sendUploadRequest({
+                                url: `${API_BASE}/api/upload-album-chunk`,
+                                formData: trackFormData,
+                                onProgress: (e) => {
+                                    if (e.lengthComputable) {
+                                        const totalLoaded = uploadedBytesPreviousTracks + e.loaded;
+                                        const overallPercent = Math.min(95, Math.max(5, Math.round((totalLoaded / totalBytesAllTracks) * 90) + 5));
+                                        const trackPercent = Math.min(100, Math.round((e.loaded / fileSize) * 100));
+                                        uploadModalProgressBar.style.width = overallPercent + "%";
+                                        uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
+                                    }
+                                }
+                            });
+
+                            if (res && res.fileName) {
+                                uploadedTrackNames.push(res.fileName);
+                            }
+                            uploadedBytesPreviousTracks += fileSize;
+                        } else {
+                            // Large file chunking
+                            const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+                            let fileChunkBytesDone = 0;
+
+                            for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+                                const start = chunkIdx * CHUNK_SIZE;
+                                const end = Math.min(fileSize, start + CHUNK_SIZE);
+                                const chunkBlob = file.slice(start, end);
+                                const chunkSize = end - start;
+
+                                const chunkFormData = new FormData();
+                                chunkFormData.append("folderName", folderName);
+                                chunkFormData.append("fileName", file.name);
+                                chunkFormData.append("chunkIndex", String(chunkIdx));
+                                chunkFormData.append("totalChunks", String(totalChunks));
+                                chunkFormData.append("chunk", chunkBlob, file.name);
+
+                                const res = await sendUploadRequest({
+                                    url: `${API_BASE}/api/upload-album-chunk`,
+                                    formData: chunkFormData,
+                                    onProgress: (e) => {
+                                        if (e.lengthComputable) {
+                                            const totalLoaded = uploadedBytesPreviousTracks + fileChunkBytesDone + e.loaded;
+                                            const overallPercent = Math.min(95, Math.max(5, Math.round((totalLoaded / totalBytesAllTracks) * 90) + 5));
+                                            const trackPercent = Math.min(100, Math.round(((fileChunkBytesDone + e.loaded) / fileSize) * 100));
+                                            uploadModalProgressBar.style.width = overallPercent + "%";
+                                            uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} [Deo ${chunkIdx + 1}/${totalChunks}] — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
+                                        }
+                                    }
+                                });
+
+                                fileChunkBytesDone += chunkSize;
+                                if (res && res.completed && res.fileName) {
+                                    uploadedTrackNames.push(res.fileName);
+                                }
+                            }
+                            uploadedBytesPreviousTracks += fileSize;
+                        }
+
+                        const currentOverall = Math.min(95, Math.round((uploadedBytesPreviousTracks / totalBytesAllTracks) * 90) + 5);
+                        uploadModalProgressBar.style.width = currentOverall + "%";
+                    }
+
+                    // 3. Finalize album & store to Firestore
+                    uploadModalProgressBar.style.width = "97%";
+                    uploadModalProgressStatus.innerText = "Čuvanje albuma u bazi podataka i osvežavanje arhive...";
+
+                    const finalizeResult = await sendUploadRequest({
+                        url: `${API_BASE}/api/upload-album-finalize`,
+                        jsonBody: {
+                            folderName,
+                            albumName,
+                            artistName,
+                            genre,
+                            year,
+                            color: uploadColorVal,
+                            coverPath,
+                            customCoverDataUrl: customCoverDataUrl || "",
+                            tracks: uploadedTrackNames
+                        }
+                    });
+
+                    return finalizeResult;
                 }
 
                 try {
-                    uploadModalProgressStatus.innerText = `Slanje ${selectedAudioFiles.length} pesama na server... 0%`;
-                    const result = await doUpload();
+                    uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
+                    const result = await doTrackByTrackUpload();
 
-                    if (result && (result.status === "ok" || result.album)) {
+                    if (result && (result.status === "ok" || result.album || result.folderName)) {
                         uploadModalProgressBar.style.width = "100%";
                         uploadModalProgressBar.style.background = "#10b981";
-                        uploadModalProgressStatus.innerText = "Uspešno sačuvano na serveru i u bazi!";
+                        uploadModalProgressStatus.innerText = "Album je uspešno sačuvan!";
 
-                        await new Promise(r => setTimeout(r, 600));
+                        // Optimistic immediate UI update:
+                        const newAlbum = result.album || {
+                            name: albumName,
+                            author: artistName,
+                            folder: `Vinyl Collection/${folderName}`,
+                            color: uploadColorVal,
+                            genre: genre,
+                            year: year,
+                            cover: coverPath || "",
+                            customCover: customCoverDataUrl || "",
+                            tracks: uploadedTrackNames
+                        };
+
+                        const norm = normalizeCollectionItem(newAlbum, 0);
+                        if (norm) {
+                            originalCollection = [norm, ...originalCollection.filter(a => a._uid !== norm._uid && a.folder !== norm.folder)];
+                            applyCollectionData(originalCollection);
+                            targetScroll = 0;
+                            currentScroll = 0;
+                            try {
+                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
+                            } catch(_) {}
+                        }
+
+                        await new Promise(r => setTimeout(r, 450));
                         uploadModalOverlay.classList.remove('active');
                         resetUploadModal();
 
                         const progressEl = document.getElementById('uploadProgress');
                         if (progressEl) {
                             progressEl.style.display = 'block';
-                            progressEl.innerText = `Učitavanje kolekcije sa servera...`;
-                        }
-
-                        await loadCollectionManifest();
-                        groups.forEach(g => { if (g) scene.remove(g); });
-                        groups = [];
-                        rebuildMeshes();
-                        filterCollection();
-
-                        if (progressEl) {
                             progressEl.innerText = `Album "${albumName}" je uspešno dodat!`;
-                            setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+                            setTimeout(() => { 
+                                if (progressEl) progressEl.style.display = 'none'; 
+                            }, 3500);
                         }
+
+                        // Refresh collection from server & Firestore in background
+                        loadCollectionManifest().catch(() => {});
                         return;
+                    } else {
+                        throw new Error((result && result.error) || "Nepoznata greška sa serverom pri čuvanju albuma");
                     }
                 } catch (serverErr) {
-                    console.warn("Server upload failed, falling back to client storage:", serverErr);
-                    uploadModalProgressStatus.innerText = `Server nedostupan (${serverErr.message}). Čuvanje u lokalnu bazu...`;
-                }
-
-                // Fallback to IndexedDB (if server is offline)
-                try {
-                    const db = await dbPromise;
-                    if (!db) throw new Error("Lokalna baza nije podržana u ovom pretraživaču");
-
-                    const albumId = "custom_" + Date.now();
-                    const fileData = [];
-                    for (let i = 0; i < selectedAudioFiles.length; i++) {
-                        const f = selectedAudioFiles[i];
-                        const buffer = await f.arrayBuffer();
-                        fileData.push({
-                            name: f.name,
-                            type: f.type || "audio/mpeg",
-                            data: buffer
-                        });
-                        const p = Math.round(((i + 1) / selectedAudioFiles.length) * 100);
-                        uploadModalProgressBar.style.width = p + "%";
-                        uploadModalProgressStatus.innerText = `Lokalno čuvanje pesama... ${p}%`;
-                    }
-
-                    let customCoverUrl = "";
-                    let coverData = null;
-                    let coverType = null;
-                    if (selectedCoverFile) {
-                        coverData = await selectedCoverFile.arrayBuffer();
-                        coverType = selectedCoverFile.type;
-                        const blob = new Blob([coverData], { type: coverType });
-                        customCoverUrl = URL.createObjectURL(blob);
-                    }
-
-                    const newAlbumRecord = {
-                        id: albumId,
-                        name: albumName,
-                        author: artistName,
-                        color: uploadColorVal,
-                        genre: genre,
-                        year: year,
-                        folder: "LOCAL://" + albumId,
-                        tracks: fileData.map(f => f.name).sort(),
-                        files: fileData,
-                        coverData: coverData,
-                        coverType: coverType,
-                        customCover: customCoverUrl
-                    };
-
-                    const tx = db.transaction("albums", "readwrite");
-                    tx.objectStore("albums").put(newAlbumRecord);
-                    await new Promise((res, rej) => {
-                        tx.oncomplete = res;
-                        tx.onerror = () => rej(tx.error);
-                    });
-
-                    const newItem = {
-                        name: newAlbumRecord.name,
-                        author: newAlbumRecord.author,
-                        color: newAlbumRecord.color,
-                        folder: newAlbumRecord.folder,
-                        cover: customCoverUrl,
-                        tracks: newAlbumRecord.tracks,
-                        customCover: customCoverUrl,
-                        useCustomCover: !!customCoverUrl,
-                        genre: genre,
-                        year: year,
-                        _uid: newAlbumRecord.folder
-                    };
-
-                    collection.unshift(newItem);
-                    originalCollection.unshift(newItem);
-
-                    groups.forEach(g => { if (g) scene.remove(g); });
-                    groups = [];
-                    rebuildMeshes();
-                    filterCollection();
-
-                    uploadModalProgressBar.style.width = "100%";
-                    uploadModalProgressBar.style.background = "#10b981";
-                    uploadModalProgressStatus.innerText = "Album sačuvan lokalno u pretraživaču!";
-                    await new Promise(r => setTimeout(r, 600));
-                    uploadModalOverlay.classList.remove('active');
-                    resetUploadModal();
-                } catch (localErr) {
-                    console.error("Local save failed:", localErr);
+                    console.error("Server upload failed:", serverErr);
                     uploadModalSubmitBtn.disabled = false;
-                    uploadModalProgressStatus.innerText = `Greška: ${localErr.message}`;
-                    alert("Greška pri čuvanju albuma: " + (localErr.message || "Nepoznata greška"));
+                    uploadModalProgressBar.style.background = "#ef4444";
+                    const errDetail = serverErr.message || "Nepoznata greška";
+                    uploadModalProgressStatus.innerText = `Greška: ${errDetail}`;
+                    uploadModalProgressStatus.style.color = "#f87171";
                 }
             });
         }
@@ -3692,13 +3728,20 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         folder: folderKey,
+                        id: item.id || folderKey,
                         name: newName,
                         author: newAuthor,
                         genre: newGenre,
                         year: newYear,
-                        color: newColor
+                        color: newColor,
+                        customCover: item.customCover || "",
+                        useCustomCover: item.useCustomCover !== false
                     })
                 }).catch(err => console.warn("Firestore update sync failed:", err));
+                
+                try {
+                    localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
+                } catch(_) {}
                 
                 // Save custom cover to IndexedDB
                 if (item.customCover) {
@@ -3912,6 +3955,8 @@
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ folder: folderKey, id: item.id || folderKey })
+                    }).then(() => {
+                        loadCollectionManifest();
                     }).catch(()=>{});
 
                     if (folderKey.startsWith("LOCAL://")) {
@@ -3926,6 +3971,10 @@
                     collection.splice(lastIndex, 1);
                     const origIndex = originalCollection.findIndex(x => x._uid === folderKey);
                     if(origIndex !== -1) originalCollection.splice(origIndex, 1);
+
+                    try {
+                        localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
+                    } catch(_) {}
                     
                     closeEditModal();
                     
@@ -3937,6 +3986,20 @@
                        playingIndex = -1;
                        localStorage.removeItem(PLAYING_UID_KEY);
                     }
+                    try {
+                        const sel = JSON.parse(localStorage.getItem(SELECTED_ALBUM_KEY) || "null");
+                        if (sel && (sel._uid === folderKey || sel.folder === folderKey || sel.id === item.id)) {
+                            localStorage.removeItem(SELECTED_ALBUM_KEY);
+                            localStorage.removeItem(RECORD_LOADED_KEY);
+                            localStorage.removeItem(PLAYBACK_STATE_KEY);
+                        }
+                    } catch(_) {}
+                    if (!collection.length) {
+                        localStorage.removeItem(SELECTED_ALBUM_KEY);
+                        localStorage.removeItem(RECORD_LOADED_KEY);
+                        localStorage.removeItem(PLAYBACK_STATE_KEY);
+                    }
+                    refreshRecordLoadedState();
                     lastIndex = -1;
                 }
             });
@@ -3992,6 +4055,7 @@
             } else if (e.key === "ArrowRight" || e.code === "Digit6" || e.code === "Numpad6" || e.key === "6") {
                 const currentIdx = Math.round(currentScroll / scrollSensitivity);
                 const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
+                if (isPlayingLockedIndex(clampedIdx)) return;
                 if (!openStates[clampedIdx]) {
                     openStates.fill(false);
                     openStates[clampedIdx] = true;
@@ -4243,6 +4307,25 @@
             } catch(_) {}
             if(bgBridge.active){
                 saveBridgePlaybackState(!archiveDeck.paused);
+            }
+        });
+
+        // Continuous live synchronization across tabs, browsers, and deployed environments
+        setInterval(() => {
+            if (!isMouseDown && !isLaunching && !isModalActive()) {
+                loadCollectionManifest();
+            }
+        }, 5000);
+
+        window.addEventListener("focus", () => {
+            loadCollectionManifest();
+            refreshRecordLoadedState();
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                loadCollectionManifest();
+                refreshRecordLoadedState();
             }
         });
 

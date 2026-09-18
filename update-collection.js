@@ -20,12 +20,6 @@ function getRandomDarkColor() {
 
 async function updateCollection() {
   try {
-    // 0. Ensure all tracks are under 8.5MB and duplicates are cleaned
-    try {
-      await optimizeAllAudio();
-    } catch (optErr) {
-      console.warn("Audio optimization warning:", optErr.message);
-    }
     // Read the existing collection to preserve colors if possible
     let existingCollection = [];
     try {

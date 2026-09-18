@@ -1389,12 +1389,14 @@
       }
       
       if (!absoluteUrl) {
-          absoluteUrl = new URL(encodeURI(fullPath), window.location.href).href;
+          const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
+          absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
       }
       
       if(deckAudio.src !== absoluteUrl){
         console.log("Setting deck source to:", absoluteUrl);
         deckAudio.src = absoluteUrl;
+        deckAudio.load();
       }
     };
 
@@ -1530,13 +1532,18 @@
       ensureTrackIndexInCurrentSide();
       await setDeckSourceByIndex(currentTrackIndex);
       try { 
-  const p = deckAudio.play();
-  if (p !== undefined) {
-    p.then(() => console.log("deckAudio is playing!")).catch(e => console.error("deckAudio play failed", e));
-  }
-} catch(e) { 
-  console.error("deckAudio play failed sync", e); 
-}
+        const p = deckAudio.play();
+        if (p !== undefined) {
+          await p;
+          playing = true;
+          console.log("[Player] deckAudio started playback successfully!");
+        }
+      } catch(e) { 
+        console.warn("[Player] deckAudio play failed:", e);
+        if (e.name === "NotAllowedError") {
+          playing = false;
+        }
+      }
     };
 
     const pauseDeckTrack=()=>{ try { deckAudio.pause(); } catch(_) {} };
@@ -1674,7 +1681,7 @@
       if(sideStamp) sideStamp.textContent = "";
       if(labelSideText) labelSideText.textContent = "SIDE A";
       setTimer(0);
-      setTonearmAngle(ARM_REST_ANGLE, true);
+      setTonearmAngle(ARM_REST_ANGLE, false);
       stopStartCue();
       stopDeckTrack();
       try { vinylNoiseAudio.pause(); vinylNoiseAudio.currentTime = 0; } catch(_) {}
@@ -1702,6 +1709,10 @@
       } else {
         handlePress(null,"stop");
       }
+    });
+    deckAudio.addEventListener("error", ()=>{
+      const err = deckAudio.error;
+      console.warn("[Player] deckAudio error:", err?.code, err?.message, deckAudio.src);
     });
 
     const isHexColor=(value)=>/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value || "");
@@ -1979,11 +1990,11 @@
       await setDeckSourceByIndex(currentTrackIndex);
       loadSideDurationsFromMetadata().catch(e => console.error("loadSideDurationsFromMetadata error", e));
       
-      if(powered){
-        handlePress($("playBtn"), "play");
-      } else {
-        syncVinylNoise();
+      if(!powered){
+        powered = true;
+        updatePowerUi();
       }
+      handlePress($("playBtn"), "play");
     }
 
     async function handleArchiveMessage(event){
@@ -2100,7 +2111,7 @@
         return;
       }
       if(type==="play"){
-        if(playing || playT) return;
+        if((playing && !deckAudio.paused) || playT) return;
         playStartToken += 1;
         stopStartCue();
         // Continue from current cue position (arm seek), do not auto-reset.
@@ -2117,17 +2128,13 @@
         if(fromRestStart){
           // 1) Needle drops to record edge
           // 2) Noise starts only after needle lands
-          // 3) First track starts 2s later
+          // 3) First track starts shortly after landing
           const cueDropMs = 1800;
           setTonearmAngle(ARM_EDGE_ANGLE, true, cueDropMs);
           target=0;
           speed=0;
           playT=setTimeout(()=>{
             if(!powered) return;
-            // Vinyl landing sound disabled as requested
-            if(false && opts.vinylSound !== false) {
-              try { startCueAudio.currentTime = 0; startCueAudio.play().catch(()=>{}); } catch(_) {}
-            }
             target=base;
             speed=Math.max(speed, base * 0.45);
             leadInNoiseActive = true;
@@ -2142,7 +2149,7 @@
               playStartMs=performance.now();
               playDeckTrack().catch(()=>{});
               syncVinylNoise();
-            },2000);
+            }, 400);
           },cueDropMs);
           return;
         }
@@ -2156,7 +2163,7 @@
           playStartMs=performance.now();
           playDeckTrack().catch(()=>{});
           syncVinylNoise();
-        },620);
+        }, 150);
         return;
       }
       if(type==="pause"){
@@ -2521,8 +2528,22 @@
         sidebarScrollEl.addEventListener("scroll", updateSidebarScrollFade, { passive: true });
         updateSidebarScrollFade();
       }
-      // Always boot in empty-deck state; album is loaded only by explicit archive selection.
-      clearSelectedAlbumUi();
+      // Always boot in empty-deck state; album is loaded only by explicit archive selection
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("name") || params.get("album")) {
+        await applyAlbumFromQuery(null, false);
+        if (!powered) {
+          powered = true;
+          updatePowerUi();
+        }
+        handlePress($("playBtn"), "play");
+      } else {
+        try {
+          localStorage.setItem(RECORD_LOADED_KEY, "0");
+          localStorage.removeItem(PLAYING_UID_KEY);
+        } catch(_) {}
+        clearSelectedAlbumUi();
+      }
       loop();
     });
     window.addEventListener('resize', updateScale);
