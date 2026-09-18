@@ -6,8 +6,6 @@
     <title>Vinyl player by Milan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap');
 
@@ -841,27 +839,6 @@
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
         const API_BASE = "";
 
-        // Firebase Client SDK initialization for direct cloud sync & Vercel serverless resiliency
-        const firebaseConfig = {
-            projectId: "tonal-benefit-309615",
-            appId: "1:879302573511:web:8e04e061ec413981ad6de2",
-            apiKey: "AIzaSyA8gT_eynvTSa0ep28Eldw3nm_4GWDxQzY",
-            authDomain: "tonal-benefit-309615.firebaseapp.com",
-            firestoreDatabaseId: "ai-studio-vinylplayer-41dff54a-1e17-46b0-a919-76d4e69fdca8"
-        };
-        let clientDb = null;
-        try {
-            if (typeof firebase !== "undefined") {
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                }
-                clientDb = firebase.app().firestore(firebaseConfig.firestoreDatabaseId);
-                console.log("[Firestore] Direct client initialized successfully with database:", firebaseConfig.firestoreDatabaseId);
-            }
-        } catch (fbErr) {
-            console.warn("[Firestore] Direct client init note:", fbErr);
-        }
-
         // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG under 100KB
         async function compressImageToDataUrl(fileOrBlob, maxDim = 800, quality = 0.84) {
             return new Promise((resolve) => {
@@ -1430,45 +1407,7 @@
             return albums;
         }
 
-        let firestoreListenerAttached = false;
-        function initFirestoreRealtimeListener() {
-            if (!clientDb || firestoreListenerAttached) return;
-            firestoreListenerAttached = true;
-            try {
-                clientDb.collection("albums").orderBy("order", "asc").onSnapshot((snapshot) => {
-                    if (!snapshot || snapshot.empty) return;
-                    const parsed = [];
-                    snapshot.forEach(doc => {
-                        const d = doc.data();
-                        parsed.push({
-                            ...d,
-                            id: doc.id,
-                            _uid: d.folder || doc.id
-                        });
-                    });
-                    if (parsed.length > 0) {
-                        const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
-                        const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
-                        if (currentKey !== newKey || !collection.length) {
-                            console.log("[Firestore] Realtime sync received", parsed.length, "albums");
-                            applyCollectionData(parsed);
-                            try {
-                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
-                            } catch(_) {}
-                            preloadCovers(parsed);
-                        }
-                    }
-                }, (err) => {
-                    console.warn("[Firestore] Realtime listener note:", err);
-                });
-            } catch (err) {
-                console.warn("[Firestore] Could not attach realtime listener:", err);
-            }
-        }
-
         async function loadCollectionManifest() {
-            initFirestoreRealtimeListener();
-
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
                     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
@@ -1504,35 +1443,20 @@
                 }
             }
 
-            // Direct Firestore query fallback (e.g. on Vercel or when API is unreachable)
-            if (clientDb) {
-                try {
-                    const snap = await clientDb.collection("albums").orderBy("order", "asc").get();
-                    if (snap && !snap.empty) {
-                        const parsed = [];
-                        snap.forEach(doc => {
-                            const d = doc.data();
-                            parsed.push({ ...d, id: doc.id, _uid: d.folder || doc.id });
-                        });
-                        if (parsed.length) {
-                            applyCollectionData(parsed);
-                            try {
-                                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
-                            } catch(_) {}
-                            preloadCovers(parsed);
-                            refreshRecordLoadedState();
-                            return;
-                        }
-                    }
-                } catch (dbErr) {
-                    console.warn("[Firestore] Direct query attempt:", dbErr);
-                }
-            }
-
+            // Fallback to static manifest window.VINYL_COLLECTION or localStorage
             if (!collection.length && !originalCollection.length) {
                 if (typeof window !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
                     applyCollectionData(window.VINYL_COLLECTION);
+                    preloadCovers(window.VINYL_COLLECTION);
+                } else {
+                    try {
+                        const cached = JSON.parse(localStorage.getItem("vinyl_archive_albums_v1") || "[]");
+                        if (Array.isArray(cached) && cached.length) {
+                            applyCollectionData(cached);
+                        }
+                    } catch(_) {}
                 }
+                refreshRecordLoadedState();
             }
         }
 
@@ -3674,141 +3598,29 @@
                     const finalCoverDataUrl = clientCoverDataUrl || customCoverDataUrl || "";
                     const finalTrackNames = uploadedTrackNames.length ? uploadedTrackNames : selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, ""));
 
-                    let finalizeResult = null;
-                    let finalizeSuccess = false;
+                    uploadModalProgressBar.style.width = "90%";
+                    uploadModalProgressStatus.innerText = "Finalizacija albuma u Vinyl Collection folderu...";
 
-                    // 3a: Try server finalize endpoint first (with timeout to prevent any freeze)
-                    try {
-                        const serverFinalizePromise = sendUploadRequest({
-                            url: `${API_BASE}/api/upload-album-finalize`,
-                            jsonBody: {
-                                folderName,
-                                albumName,
-                                artistName,
-                                genre,
-                                year,
-                                color: uploadColorVal,
-                                coverPath,
-                                customCoverDataUrl: finalCoverDataUrl,
-                                tracks: finalTrackNames
-                            },
-                            timeout: 7000
-                        });
-                        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Server timeout")), 7000));
-                        finalizeResult = await Promise.race([serverFinalizePromise, timeoutPromise]);
-                        if (finalizeResult && (finalizeResult.status === "ok" || finalizeResult.album)) {
-                            finalizeSuccess = true;
-                        }
-                    } catch (finalizeErr) {
-                        console.warn("[Upload] Server finalize endpoint note (falling back to direct Firestore sync):", finalizeErr?.message);
-                    }
-
-                    // 3b: Direct client Firestore fallback (guarantees upload NEVER freezes at 90%)
-                    if (!finalizeSuccess) {
-                        uploadModalProgressBar.style.width = "95%";
-                        uploadModalProgressStatus.innerText = "Direktno čuvanje albuma u Firebase Cloud bazu...";
-
-                        const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-                        const directAlbum = {
-                            id: albumDocId,
-                            name: albumName.toUpperCase(),
-                            author: artistName.toUpperCase(),
-                            folder: `Vinyl Collection/${folderName}`,
-                            cover: coverPath || "",
-                            tracks: finalTrackNames,
+                    const finalizeResult = await sendUploadRequest({
+                        url: `${API_BASE}/api/upload-album-finalize`,
+                        jsonBody: {
+                            folderName,
+                            albumName,
+                            artistName,
+                            genre,
+                            year,
                             color: uploadColorVal,
-                            genre: genre,
-                            year: year,
-                            order: (collection.length ? Math.min(...collection.map(a => typeof a.order === "number" ? a.order : 0)) - 1 : -1),
-                            createdAt: new Date().toISOString()
-                        };
-
-                        if (finalCoverDataUrl) {
-                            directAlbum.customCover = finalCoverDataUrl;
-                            directAlbum.useCustomCover = true;
+                            coverPath,
+                            customCoverDataUrl: finalCoverDataUrl,
+                            tracks: finalTrackNames
                         }
-
-                        if (clientDb) {
-                            try {
-                                await clientDb.collection("albums").doc(albumDocId).set(directAlbum);
-                                console.log("[Upload] Album successfully saved directly into Firestore:", albumDocId);
-                                finalizeResult = {
-                                    status: "ok",
-                                    album: directAlbum,
-                                    folderName: folderName,
-                                    coverPath: coverPath,
-                                    customCoverDataUrl: finalCoverDataUrl,
-                                    tracks: finalTrackNames
-                                };
-                                finalizeSuccess = true;
-                            } catch (fbSaveErr) {
-                                console.error("[Upload] Direct Firestore save error:", fbSaveErr);
-                                throw fbSaveErr;
-                            }
-                        } else {
-                            finalizeResult = {
-                                status: "ok",
-                                album: directAlbum,
-                                folderName: folderName,
-                                coverPath: coverPath,
-                                customCoverDataUrl: finalCoverDataUrl,
-                                tracks: finalTrackNames
-                            };
-                            finalizeSuccess = true;
-                        }
-                    }
+                    });
 
                     return finalizeResult;
                 }
 
-                let result = null;
-                try {
-                    uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
-                    result = await doTrackByTrackUpload();
-                } catch (trackErr) {
-                    console.warn("[Upload] Notice during upload, falling back to direct cloud save:", trackErr);
-                    uploadModalProgressStatus.innerText = "Čuvanje u bazi podataka...";
-                    uploadModalProgressBar.style.width = "95%";
-
-                    try {
-                        const folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
-                        const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-                        let fallbackCover = "";
-                        if (selectedCoverFile) {
-                            fallbackCover = await compressImageToDataUrl(selectedCoverFile, 600, 0.82);
-                        }
-                        const directAlbum = {
-                            id: albumDocId,
-                            name: albumName.toUpperCase(),
-                            author: artistName.toUpperCase(),
-                            folder: `Vinyl Collection/${folderName}`,
-                            cover: `Vinyl Collection/${folderName}/folder.jpg`,
-                            tracks: selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, "")),
-                            color: uploadColorVal,
-                            genre: genre,
-                            year: year,
-                            order: (collection.length ? Math.min(...collection.map(a => typeof a.order === "number" ? a.order : 0)) - 1 : -1),
-                            createdAt: new Date().toISOString()
-                        };
-                        if (fallbackCover) {
-                            directAlbum.customCover = fallbackCover;
-                            directAlbum.useCustomCover = true;
-                        }
-                        if (clientDb) {
-                            await clientDb.collection("albums").doc(albumDocId).set(directAlbum);
-                        }
-                        result = {
-                            status: "ok",
-                            album: directAlbum,
-                            folderName: folderName,
-                            customCoverDataUrl: fallbackCover,
-                            tracks: directAlbum.tracks
-                        };
-                    } catch (directErr) {
-                        console.error("[Upload] Direct cloud fallback error:", directErr);
-                        throw trackErr;
-                    }
-                }
+                uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
+                const result = await doTrackByTrackUpload();
 
                 try {
                     if (result && (result.status === "ok" || result.album || result.folderName)) {
@@ -4057,7 +3869,7 @@
                     origItem.color = newColor;
                 }
 
-                // Synchronize album edit with central Firebase Firestore
+                // Synchronize album edit with server manifest
                 fetch(`${API_BASE}/api/update-album`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -4072,28 +3884,7 @@
                         customCover: item.customCover || "",
                         useCustomCover: item.useCustomCover !== false
                     })
-                }).catch(err => console.warn("Firestore update sync failed:", err));
-
-                // Direct client Firestore update for instant persistence across incognito & Vercel
-                if (clientDb) {
-                    const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
-                    const updatePayload = {
-                        name: newName,
-                        author: newAuthor,
-                        genre: newGenre,
-                        year: newYear,
-                        color: newColor,
-                        useCustomCover: item.useCustomCover !== false
-                    };
-                    if (item.customCover && item.customCover.length < 850000) {
-                        updatePayload.customCover = item.customCover;
-                    } else if (!item.customCover) {
-                        updatePayload.customCover = "";
-                    }
-                    clientDb.collection("albums").doc(docId).set(updatePayload, { merge: true })
-                        .then(() => console.log("[Firestore] Album edit synced directly to cloud:", docId))
-                        .catch(err => console.warn("[Firestore] Direct edit sync notice:", err));
-                }
+                }).catch(err => console.warn("Album update sync failed:", err));
                 
                 try {
                     localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
@@ -4314,17 +4105,6 @@
                     }).then(() => {
                         loadCollectionManifest();
                     }).catch(()=>{});
-
-                    // Direct client Firestore delete & tombstone
-                    if (clientDb) {
-                        const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
-                        clientDb.collection("albums").doc(docId).delete().catch(() => {});
-                        clientDb.collection("deleted_albums").doc(docId).set({
-                            id: docId,
-                            folder: item.folder || folderKey,
-                            deletedAt: new Date().toISOString()
-                        }).catch(() => {});
-                    }
 
                     if (folderKey.startsWith("LOCAL://")) {
                          const albumId = folderKey.replace("LOCAL://", "");
@@ -4641,29 +4421,12 @@
                     return 0;
                 });
                 
-                // Synchronize custom order with Firebase Firestore
+                // Synchronize custom order with server manifest
                 fetch(`${API_BASE}/api/reorder-albums`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order: newOrder })
-                }).catch(err => console.warn("Firestore reorder sync failed:", err));
-
-                // Direct client Firestore batch reorder
-                if (clientDb) {
-                    try {
-                        const batch = clientDb.batch();
-                        newOrder.forEach((uid, idx) => {
-                            const found = originalCollection.find(x => x._uid === uid);
-                            if (found) {
-                                const docId = (found.id || uid).replace(/[^a-zA-Z0-9_-]/g, "_");
-                                batch.set(clientDb.collection("albums").doc(docId), { order: idx }, { merge: true });
-                            }
-                        });
-                        batch.commit().catch(e => console.warn("[Firestore] Direct batch reorder notice:", e));
-                    } catch (batchErr) {
-                        console.warn("[Firestore] Batch reorder error:", batchErr);
-                    }
-                }
+                }).catch(err => console.warn("Reorder sync failed:", err));
                 
                 reorderModalOverlay.classList.remove("active");
                 

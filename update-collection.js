@@ -119,22 +119,32 @@ async function updateCollection() {
         const existingAlbum = collectionMap.get(finalRelativePath) || collectionMap.get(folderRelativePath);
         
         const albumData = {
-          name: name,
-          author: author,
+          id: existingAlbum?.id || `Vinyl_Collection_${newAlbumFolderName || albumFolderName}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+          name: existingAlbum?.name || name,
+          author: existingAlbum?.author || author,
           color: existingAlbum?.color || getRandomDarkColor(),
           duration: existingAlbum?.duration || "",
           folder: finalRelativePath,
           cover: existingAlbum?.cover && existingAlbum.cover !== "" ? existingAlbum.cover : cover,
-          tracks: tracks
+          customCover: existingAlbum?.customCover || "",
+          useCustomCover: existingAlbum?.useCustomCover !== undefined ? existingAlbum.useCustomCover : (!!existingAlbum?.customCover),
+          genre: existingAlbum?.genre || "ROCK",
+          year: existingAlbum?.year || "",
+          order: typeof existingAlbum?.order === "number" ? existingAlbum.order : newCollection.length,
+          tracks: tracks,
+          _uid: finalRelativePath
         };
 
         newCollection.push(albumData);
       }
     }
 
+    // Sort collection by order
+    newCollection.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
     // Write back to vinyl-collection.json
     await fs.writeFile(MANIFEST_PATH, JSON.stringify(newCollection, null, 2), 'utf-8');
-    await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(newCollection, null, 2)};`, 'utf-8');
+    await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(newCollection, null, 2)};\n`, 'utf-8');
     console.log(`Successfully updated vinyl-collection.json with ${newCollection.length} albums.`);
     return newCollection;
   } catch (err) {

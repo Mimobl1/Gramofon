@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { checkFirestoreHealth } from "./server/firebase.js";
 import { 
   getAlbums, 
   updateAlbumMetadata, 
@@ -22,6 +21,14 @@ import { updateCollection } from "./update-collection.js";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Initialize collection from public/Vinyl Collection on startup
+  try {
+    const initialAlbums = await updateCollection();
+    console.log(`[Server] Initialized collection from disk: ${initialAlbums.length} albums in Vinyl Collection folder.`);
+  } catch (err) {
+    console.warn("[Server] Initial collection scan warning:", err);
+  }
 
   // CORS Middleware: ensures iframe, preview, and mobile environments have full access
   app.use((req, res, next) => {
@@ -52,12 +59,12 @@ async function startServer() {
     next();
   });
 
-  // Health and Firebase connection check
+  // Health check: Filesystem Vinyl Collection storage
   app.get("/api/health", async (req, res) => {
-    const isFirebaseHealthy = await checkFirestoreHealth();
     res.json({
       status: "ok",
-      firebase: isFirebaseHealthy ? "connected" : "degraded",
+      storage: "filesystem",
+      collectionFolder: "public/Vinyl Collection",
       timestamp: new Date().toISOString()
     });
   });
