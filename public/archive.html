@@ -3241,98 +3241,156 @@
 
                 const uploadColorVal = document.getElementById("uploadAlbumColor")?.value || "#1a1a1a";
 
-                async function sendUploadRequest({ url, formData, jsonBody, onProgress, timeout = 60000 }) {
-                    let fetchUrl = url;
-                    if (!fetchUrl.startsWith("http") && !fetchUrl.startsWith("/")) {
-                        fetchUrl = `/${fetchUrl}`;
-                    }
-
-                    // 1. Primary path: XMLHttpRequest (supported everywhere, exact timeouts, robust across iframes)
+                function resolveApiUrl(rawUrl) {
+                    if (!rawUrl) return "/";
+                    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) return rawUrl;
+                    const cleanPath = rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`;
+                    let origin = "";
                     try {
-                        return await new Promise((resolve, reject) => {
-                            const xhr = new XMLHttpRequest();
-                            xhr.open("POST", fetchUrl, true);
-                            xhr.timeout = timeout;
-
-                            if (jsonBody) {
-                                xhr.setRequestHeader("Content-Type", "application/json");
-                            }
-
-                            if (xhr.upload && onProgress) {
-                                xhr.upload.onprogress = onProgress;
-                            }
-
-                            xhr.onload = () => {
-                                if (xhr.status >= 200 && xhr.status < 300) {
-                                    try {
-                                        resolve(JSON.parse(xhr.responseText));
-                                    } catch (_) {
-                                        resolve({ status: "ok" });
-                                    }
-                                } else {
-                                    let msg = `Server greška (${xhr.status})`;
-                                    try {
-                                        const parsed = JSON.parse(xhr.responseText);
-                                        if (parsed && parsed.error) msg = parsed.error;
-                                    } catch (_) {}
-                                    reject(new Error(msg));
-                                }
-                            };
-
-                            xhr.onerror = () => reject(new Error("XHR_NETWORK_ERROR"));
-                            xhr.ontimeout = () => reject(new Error("Isteklo vreme za odgovor servera (timeout)."));
-                            xhr.send(jsonBody ? JSON.stringify(jsonBody) : formData);
-                        });
-                    } catch (xhrErr) {
-                        if (xhrErr.message !== "XHR_NETWORK_ERROR") {
-                            throw xhrErr;
+                        if (window.location && window.location.origin && window.location.origin !== "null") {
+                            origin = window.location.origin;
                         }
-                        console.warn("XHR network error encountered. Falling back to fetch() API for:", fetchUrl);
-                    }
-
-                    // 2. Secondary fallback: fetch with AbortController timeout
-                    const controller = new AbortController();
-                    const timerId = setTimeout(() => controller.abort(), timeout);
-
-                    try {
-                        const headers = {};
-                        if (jsonBody) headers["Content-Type"] = "application/json";
-
-                        const res = await fetch(fetchUrl, {
-                            method: "POST",
-                            headers,
-                            body: jsonBody ? JSON.stringify(jsonBody) : formData,
-                            signal: controller.signal
-                        });
-
-                        clearTimeout(timerId);
-
-                        if (!res.ok) {
-                            let msg = `Server greška (${res.status})`;
-                            try {
-                                const parsed = await res.json();
-                                if (parsed && parsed.error) msg = parsed.error;
-                            } catch (_) {
-                                try {
-                                    const txt = await res.text();
-                                    if (txt && txt.length < 200) msg = txt;
-                                } catch (_) {}
-                            }
-                            throw new Error(msg);
-                        }
-
+                    } catch (_) {}
+                    if (!origin) {
                         try {
-                            return await res.json();
-                        } catch (_) {
-                            return { status: "ok" };
-                        }
-                    } catch (fetchErr) {
-                        clearTimeout(timerId);
-                        if (fetchErr.name === "AbortError") {
-                            throw new Error("Isteklo vreme za slanje (timeout).");
-                        }
-                        throw fetchErr;
+                            if (window.parent && window.parent.location && window.parent.location.origin && window.parent.location.origin !== "null") {
+                                origin = window.parent.location.origin;
+                            }
+                        } catch (_) {}
                     }
+                    return origin ? `${origin}${cleanPath}` : cleanPath;
+                }
+
+                function getCandidateUrls(endpointPath) {
+                    const primary = resolveApiUrl(endpointPath);
+                    const candidates = [primary];
+                    if (primary.startsWith("http://") || primary.startsWith("https://")) {
+                        try {
+                            const u = new URL(primary);
+                            candidates.push(u.pathname);
+                        } catch (_) {}
+                    }
+                    if (endpointPath.includes("/api/upload-album-init")) {
+                        candidates.push(resolveApiUrl("/upload-album-init"));
+                        candidates.push(resolveApiUrl("/api/upload/init"));
+                        candidates.push(resolveApiUrl("/upload/init"));
+                    } else if (endpointPath.includes("/api/upload-album-chunk")) {
+                        candidates.push(resolveApiUrl("/upload-album-chunk"));
+                        candidates.push(resolveApiUrl("/api/upload/chunk"));
+                        candidates.push(resolveApiUrl("/upload/chunk"));
+                    } else if (endpointPath.includes("/api/upload-album-finalize")) {
+                        candidates.push(resolveApiUrl("/upload-album-finalize"));
+                        candidates.push(resolveApiUrl("/api/upload/finalize"));
+                        candidates.push(resolveApiUrl("/upload/finalize"));
+                    } else if (endpointPath.includes("/api/upload-album")) {
+                        candidates.push(resolveApiUrl("/upload-album"));
+                        candidates.push(resolveApiUrl("/api/upload"));
+                        candidates.push(resolveApiUrl("/upload"));
+                    }
+                    return Array.from(new Set(candidates));
+                }
+
+                async function sendUploadRequest({ url, formData, jsonBody, onProgress, timeout = 60000 }) {
+                    const candidates = getCandidateUrls(url);
+                    let lastError = null;
+
+                    for (let cIdx = 0; cIdx < candidates.length; cIdx++) {
+                        const fetchUrl = candidates[cIdx];
+                        console.log(`[Upload] Attempting POST to ${fetchUrl} (candidate ${cIdx + 1}/${candidates.length})`);
+
+                        // 1. Try XMLHttpRequest
+                        try {
+                            const result = await new Promise((resolve, reject) => {
+                                const xhr = new XMLHttpRequest();
+                                xhr.open("POST", fetchUrl, true);
+                                xhr.timeout = timeout;
+
+                                if (jsonBody) {
+                                    xhr.setRequestHeader("Content-Type", "application/json");
+                                }
+
+                                if (xhr.upload && onProgress) {
+                                    xhr.upload.onprogress = onProgress;
+                                }
+
+                                xhr.onload = () => {
+                                    if (xhr.status >= 200 && xhr.status < 300) {
+                                        try {
+                                            resolve(JSON.parse(xhr.responseText));
+                                        } catch (_) {
+                                            resolve({ status: "ok" });
+                                        }
+                                    } else {
+                                        let msg = `Server greška (${xhr.status})`;
+                                        try {
+                                            const parsed = JSON.parse(xhr.responseText);
+                                            if (parsed && parsed.error) msg = parsed.error;
+                                        } catch (_) {}
+                                        const err = new Error(msg);
+                                        err.status = xhr.status;
+                                        reject(err);
+                                    }
+                                };
+
+                                xhr.onerror = () => {
+                                    const err = new Error("XHR_NETWORK_ERROR");
+                                    err.status = 0;
+                                    reject(err);
+                                };
+                                xhr.ontimeout = () => {
+                                    const err = new Error("Isteklo vreme za odgovor servera (timeout).");
+                                    err.status = 408;
+                                    reject(err);
+                                };
+
+                                xhr.send(jsonBody ? JSON.stringify(jsonBody) : formData);
+                            });
+
+                            return result;
+                        } catch (xhrErr) {
+                            lastError = xhrErr;
+                            console.warn(`[Upload] XHR failed for ${fetchUrl} (status: ${xhrErr.status || 'unknown'}):`, xhrErr.message);
+
+                            // If not 404 and not network error, try fetch fallback on this same URL
+                            if (xhrErr.status !== 404) {
+                                try {
+                                    const controller = new AbortController();
+                                    const timerId = setTimeout(() => controller.abort(), timeout);
+                                    const headers = {};
+                                    if (jsonBody) headers["Content-Type"] = "application/json";
+
+                                    const res = await fetch(fetchUrl, {
+                                        method: "POST",
+                                        headers,
+                                        body: jsonBody ? JSON.stringify(jsonBody) : formData,
+                                        signal: controller.signal
+                                    });
+                                    clearTimeout(timerId);
+
+                                    if (res.ok) {
+                                        try {
+                                            return await res.json();
+                                        } catch (_) {
+                                            return { status: "ok" };
+                                        }
+                                    } else {
+                                        let msg = `Server greška (${res.status})`;
+                                        try {
+                                            const parsed = await res.json();
+                                            if (parsed && parsed.error) msg = parsed.error;
+                                        } catch (_) {}
+                                        const err = new Error(msg);
+                                        err.status = res.status;
+                                        lastError = err;
+                                    }
+                                } catch (fetchErr) {
+                                    console.warn(`[Upload] fetch fallback also failed for ${fetchUrl}:`, fetchErr.message);
+                                }
+                            }
+                        }
+                    }
+
+                    throw lastError || new Error("Svi pokušaji slanja na server su neuspešni.");
                 }
 
                 // Resilient Track-by-Track Uploader with live byte progress
@@ -3472,10 +3530,49 @@
                     return finalizeResult;
                 }
 
+                let result = null;
                 try {
                     uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
-                    const result = await doTrackByTrackUpload();
+                    result = await doTrackByTrackUpload();
+                } catch (trackErr) {
+                    console.warn("[Upload] Track-by-track upload failed, trying single multipart upload fallback:", trackErr);
+                    uploadModalProgressStatus.innerText = "Pokušaj direktnog slanja albuma na server...";
+                    uploadModalProgressBar.style.width = "30%";
+                    uploadModalProgressBar.style.background = "#3b82f6";
 
+                    try {
+                        const singleForm = new FormData();
+                        singleForm.append("artistName", artistName);
+                        singleForm.append("albumName", albumName);
+                        singleForm.append("genre", genre);
+                        singleForm.append("year", year);
+                        singleForm.append("color", uploadColorVal);
+                        if (selectedCoverFile) {
+                            singleForm.append("cover", selectedCoverFile);
+                        }
+                        for (let i = 0; i < selectedAudioFiles.length; i++) {
+                            singleForm.append("files", selectedAudioFiles[i], selectedAudioFiles[i].name);
+                        }
+
+                        result = await sendUploadRequest({
+                            url: `${API_BASE}/api/upload-album`,
+                            formData: singleForm,
+                            timeout: 180000,
+                            onProgress: (e) => {
+                                if (e.lengthComputable) {
+                                    const pct = Math.round((e.loaded / e.total) * 90);
+                                    uploadModalProgressBar.style.width = `${Math.max(10, pct)}%`;
+                                    uploadModalProgressStatus.innerText = `Direktno slanje: ${pct}%...`;
+                                }
+                            }
+                        });
+                    } catch (singleErr) {
+                        console.error("[Upload] Direct upload fallback also failed:", singleErr);
+                        throw trackErr;
+                    }
+                }
+
+                try {
                     if (result && (result.status === "ok" || result.album || result.folderName)) {
                         uploadModalProgressBar.style.width = "100%";
                         uploadModalProgressBar.style.background = "#10b981";
@@ -3485,13 +3582,13 @@
                         const newAlbum = result.album || {
                             name: albumName,
                             author: artistName,
-                            folder: `Vinyl Collection/${folderName}`,
+                            folder: result.folderName ? `Vinyl Collection/${result.folderName}` : `Vinyl Collection/${artistName} - ${albumName}`,
                             color: uploadColorVal,
                             genre: genre,
                             year: year,
-                            cover: coverPath || "",
-                            customCover: customCoverDataUrl || "",
-                            tracks: uploadedTrackNames
+                            cover: result.coverPath || "",
+                            customCover: result.customCoverDataUrl || "",
+                            tracks: result.tracks || selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, ""))
                         };
 
                         const norm = normalizeCollectionItem(newAlbum, 0);

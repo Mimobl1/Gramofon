@@ -44,6 +44,14 @@ async function startServer() {
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
+  // Request logger for API and write endpoints
+  app.use((req, res, next) => {
+    if (req.url.startsWith("/api") || req.url.startsWith("/upload") || req.url.startsWith("/albums") || req.method !== "GET") {
+      console.log(`[API] ${req.method} ${req.url} (original: ${req.originalUrl})`);
+    }
+    next();
+  });
+
   // Health and Firebase connection check
   app.get("/api/health", async (req, res) => {
     const isFirebaseHealthy = await checkFirestoreHealth();
@@ -72,7 +80,7 @@ async function startServer() {
   }));
 
   // GET /api/albums - Fetch all albums
-  app.get("/api/albums", async (req, res) => {
+  app.get(["/api/albums", "/albums"], async (req, res) => {
     try {
       const albums = await getAlbums();
       res.json(albums);
@@ -83,7 +91,7 @@ async function startServer() {
   });
 
   // POST /api/upload-album-init - Step 1: Create album directory & save cover
-  app.post("/api/upload-album-init", multerUpload.any(), async (req, res) => {
+  app.post(["/api/upload-album-init", "/api/upload/init", "/upload-album-init", "/upload/init"], multerUpload.any(), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[] | undefined;
       const result = await initAlbumUpload(req.body, files);
@@ -95,7 +103,7 @@ async function startServer() {
   });
 
   // POST /api/upload-album-chunk - Step 2: Upload track or track chunk safely
-  app.post("/api/upload-album-chunk", multerUpload.any(), async (req, res) => {
+  app.post(["/api/upload-album-chunk", "/api/upload/chunk", "/upload-album-chunk", "/upload/chunk"], multerUpload.any(), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[] | undefined;
       const chunkFile = (files && files.length > 0 ? files[0] : null) || req.file;
@@ -112,7 +120,7 @@ async function startServer() {
   });
 
   // POST /api/upload-album-finalize - Step 3: Finalize album & store in Firestore
-  app.post("/api/upload-album-finalize", async (req, res) => {
+  app.post(["/api/upload-album-finalize", "/api/upload/finalize", "/upload-album-finalize", "/upload/finalize"], async (req, res) => {
     try {
       const result = await finalizeAlbumUpload(req.body);
       res.json(result);
@@ -122,8 +130,8 @@ async function startServer() {
     }
   });
 
-  // POST /api/upload-album - Single multipart upload fallback
-  app.post("/api/upload-album", multerUpload.any(), async (req, res) => {
+  // POST /api/upload-album - Single multipart upload fallback (aliases: /api/upload, /upload, etc.)
+  app.post(["/api/upload-album", "/api/upload", "/upload-album", "/upload", "/api/upload/album", "/upload/album"], multerUpload.any(), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       const result = await handleSingleAlbumUpload(req.body, files);
@@ -135,7 +143,7 @@ async function startServer() {
   });
 
   // POST /api/update-album - Edit album metadata
-  app.post("/api/update-album", async (req, res) => {
+  app.post(["/api/update-album", "/update-album"], async (req, res) => {
     try {
       const { folder, id, ...updates } = req.body;
       const target = folder || id;
@@ -151,7 +159,7 @@ async function startServer() {
   });
 
   // POST /api/reorder-albums - Reorder album collection
-  app.post("/api/reorder-albums", async (req, res) => {
+  app.post(["/api/reorder-albums", "/reorder-albums"], async (req, res) => {
     try {
       const { order } = req.body;
       if (!Array.isArray(order)) {
@@ -166,7 +174,7 @@ async function startServer() {
   });
 
   // DELETE /api/albums - Delete an album
-  app.delete("/api/albums", async (req, res) => {
+  app.delete(["/api/albums", "/albums"], async (req, res) => {
     try {
       const { folder, id } = req.body;
       const target = folder || id;
@@ -182,7 +190,7 @@ async function startServer() {
   });
 
   // POST /api/clear-all-albums - Clear all albums (CMS reset)
-  app.post("/api/clear-all-albums", async (req, res) => {
+  app.post(["/api/clear-all-albums", "/clear-all-albums"], async (req, res) => {
     try {
       await clearAllAlbums();
       res.json({ status: "ok", message: "Archive cleared successfully" });
@@ -193,13 +201,23 @@ async function startServer() {
   });
 
   // POST /api/optimize-collection - Optimize audio files
-  app.post("/api/optimize-collection", async (req, res) => {
+  app.post(["/api/optimize-collection", "/optimize-collection"], async (req, res) => {
     try {
       optimizeAllAudio().then(() => updateCollection()).catch(console.error);
       res.json({ status: "ok", message: "Optimization started in background" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // API 404 handler for any unmatched /api/* or /upload* routes
+  app.all(["/api/*", "/api", "/upload/*", "/upload"], (req, res) => {
+    console.warn(`[API 404] Unhandled API route: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({
+      error: `Ruta nije pronađena na serveru (404): ${req.method} ${req.originalUrl}`,
+      method: req.method,
+      url: req.originalUrl
+    });
   });
 
   // Global API error handler

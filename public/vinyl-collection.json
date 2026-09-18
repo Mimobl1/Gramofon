@@ -2,7 +2,7 @@
   {
     "name": "QWE",
     "author": "ASD",
-    "color": "#76186F",
+    "color": "#2a333a",
     "duration": "",
     "folder": "Vinyl Collection/ASD - QWE",
     "cover": "",
@@ -14,7 +14,7 @@
   {
     "name": "TEST",
     "author": "MIMA",
-    "color": "#334F2E",
+    "color": "#2f2a3a",
     "duration": "",
     "folder": "Vinyl Collection/MIMA - TEST",
     "cover": "Vinyl Collection/MIMA - TEST/folder.png",
@@ -26,7 +26,7 @@
   {
     "name": "18.1.24., 12.26",
     "author": "MY GIRL",
-    "color": "#230C7F",
+    "color": "#2a2f3a",
     "duration": "",
     "folder": "Vinyl Collection/MY GIRL - 18.1.24., 12.26",
     "cover": "",
@@ -50,8 +50,7 @@
       "06_ Chim Chim Cheree.mp3",
       "07_ Opening Sections of Ascension.mp3",
       "08_ Opening Sections of The Father And The Son And The Holy Ghost.mp3",
-      "09_ Manisfestation.mp3",
-      "10_ Ogunda.mp3"
+      "09_ Manisfestation.mp3"
     ]
   }
 ]
