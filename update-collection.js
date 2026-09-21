@@ -36,11 +36,29 @@ async function updateCollection() {
 
     const newCollection = [];
 
-    // Read directories in Vinyl Collection
-    const items = await fs.readdir(COLLECTION_DIR, { withFileTypes: true });
+    // Ensure COLLECTION_DIR exists
+    try {
+      await fs.mkdir(COLLECTION_DIR, { recursive: true });
+    } catch (_) {}
+
+    // Read directories in Vinyl Collection safely
+    let items = [];
+    try {
+      items = await fs.readdir(COLLECTION_DIR, { withFileTypes: true });
+    } catch (readErr) {
+      console.warn(`[update-collection] Warning reading ${COLLECTION_DIR}:`, readErr?.message);
+    }
+
+    const dirItems = items.filter(item => item.isDirectory());
+
+    // If there are no album directories on disk, preserve existing collection
+    if (dirItems.length === 0 && existingCollection.length > 0) {
+      console.log(`[update-collection] No album directories found on disk. Preserving existing manifest with ${existingCollection.length} album(s).`);
+      await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(existingCollection, null, 2)};\n`, 'utf-8');
+      return existingCollection;
+    }
     
-    for (const item of items) {
-      if (item.isDirectory()) {
+    for (const item of dirItems) {
         const albumFolderName = item.name;
         const albumFolderPath = path.join(COLLECTION_DIR, albumFolderName);
         const folderRelativePath = `Vinyl Collection/${albumFolderName}`;
@@ -136,7 +154,6 @@ async function updateCollection() {
         };
 
         newCollection.push(albumData);
-      }
     }
 
     // Sort collection by order
@@ -148,15 +165,19 @@ async function updateCollection() {
     console.log(`Successfully updated vinyl-collection.json with ${newCollection.length} albums.`);
     return newCollection;
   } catch (err) {
-    console.error('Error updating collection:', err);
-    throw err;
+    console.warn('[update-collection] Non-fatal notice updating collection:', err?.message || err);
+    return [];
   }
 }
 
 export { updateCollection };
 
 async function run() {
-  await updateCollection();
+  try {
+    await updateCollection();
+  } catch (err) {
+    console.warn('[update-collection] Warning running update collection:', err?.message || err);
+  }
   
   if (process.argv.includes('--watch')) {
     console.log(`Watching for changes in ${COLLECTION_DIR}...`);
