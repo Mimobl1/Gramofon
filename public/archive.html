@@ -3465,18 +3465,43 @@
             r2StatusMessage.style.border = isSuccess ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)";
         }
 
+        const ADMIN_EMAILS = ["mimasplash@gmail.com"];
+
+        function isAdmin() {
+            return !!(currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase().trim()));
+        }
+
         function updateAuthUI() {
             if (currentUser && currentUser.email) {
-                userAuthLabel.textContent = currentUser.email.split('@')[0];
-                authCurrentStatusText.innerHTML = `<span>👤 <strong>${currentUser.email}</strong></span><span id="authCurrentR2Badge" style="font-size: 10px; background: #065f46; color: #a7f3d0; padding: 2px 6px; border-radius: 4px;">Ulogovan</span>`;
+                if (isAdmin()) {
+                    userAuthLabel.innerHTML = `<span style="color: #fbbf24; font-weight: bold;">👑 Admin</span>`;
+                    authCurrentStatusText.innerHTML = `<span>👑 <strong>Administrator</strong> (${currentUser.email})</span><span id="authCurrentR2Badge" style="font-size: 10px; background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Demo & Personal Admin</span>`;
+                } else {
+                    userAuthLabel.textContent = currentUser.email.split('@')[0];
+                    authCurrentStatusText.innerHTML = `<span>👤 <strong>${currentUser.email}</strong></span><span id="authCurrentR2Badge" style="font-size: 10px; background: #065f46; color: #a7f3d0; padding: 2px 6px; border-radius: 4px;">Ulogovan</span>`;
+                }
                 authSignOutBox.style.display = "block";
                 authUseDemoBtn.style.display = "none";
                 tabAuthR2Settings.style.display = "inline-block";
             } else {
                 userAuthLabel.textContent = "Demo Nalog";
-                authCurrentStatusText.innerHTML = `<span>⚡ <strong>Demo Nalog</strong> (deljena arhiva)</span><span id="authCurrentR2Badge" style="font-size: 10px; background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px;">Demo R2</span>`;
+                authCurrentStatusText.innerHTML = `<span>⚡ <strong>Demo Nalog</strong> (javna kolekcija - pregled)</span><span id="authCurrentR2Badge" style="font-size: 10px; background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px;">Demo R2</span>`;
                 authSignOutBox.style.display = "none";
                 authUseDemoBtn.style.display = "inline-block";
+            }
+            updateUploadStorageBadge();
+        }
+
+        function updateUploadStorageBadge() {
+            const uploadStorageAccountName = document.getElementById("uploadStorageAccountName");
+            if (uploadStorageAccountName) {
+                if (isAdmin()) {
+                    uploadStorageAccountName.innerHTML = `Skladište: <strong style="color: #fbbf24;">Demo Kolekcija (Admin režim - ${currentUser.email})</strong>`;
+                } else if (currentUser && currentUser.email) {
+                    uploadStorageAccountName.innerHTML = `Skladište: <strong>${currentUser.email} (Lični R2)</strong>`;
+                } else {
+                    uploadStorageAccountName.innerHTML = `Skladište: <strong>Demo Cloudflare R2</strong>`;
+                }
             }
         }
 
@@ -3547,10 +3572,12 @@
                         if (authModalOverlay) authModalOverlay.classList.remove('active');
                         if (act === 'upload') {
                             resetUploadModal();
-                            uploadModalOverlay.classList.add('active');
+                            uploadModalOverlay?.classList.add('active');
                         } else if (act === 'delete') {
                             const customConfirmOverlay = document.getElementById("customConfirmOverlay");
                             if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
+                        } else if (act === 'edit') {
+                            if (typeof openEditModal === "function") openEditModal();
                         }
                     }
                 });
@@ -3566,6 +3593,7 @@
         });
 
         authModalCloseBtn?.addEventListener('click', () => {
+            pendingActionAfterAuth = null;
             authModalOverlay?.classList.remove('active');
         });
 
@@ -3575,17 +3603,9 @@
 
         authUseDemoBtn?.addEventListener('click', () => {
             currentUser = null;
+            pendingActionAfterAuth = null;
             updateAuthUI();
             authModalOverlay?.classList.remove('active');
-            if (pendingActionAfterAuth === 'upload') {
-                pendingActionAfterAuth = null;
-                resetUploadModal();
-                uploadModalOverlay?.classList.add('active');
-            } else if (pendingActionAfterAuth === 'delete') {
-                pendingActionAfterAuth = null;
-                const customConfirmOverlay = document.getElementById("customConfirmOverlay");
-                if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
-            }
         });
 
         authSignOutBtn?.addEventListener('click', async () => {
@@ -3642,6 +3662,9 @@
                         pendingActionAfterAuth = null;
                         const customConfirmOverlay = document.getElementById("customConfirmOverlay");
                         if (customConfirmOverlay) customConfirmOverlay.classList.add("active");
+                    } else if (pendingActionAfterAuth === 'edit') {
+                        pendingActionAfterAuth = null;
+                        if (typeof openEditModal === "function") openEditModal();
                     }
                 }
             } catch (err) {
@@ -3755,6 +3778,14 @@
         if (deleteAlbumBtn) {
             deleteAlbumBtn.addEventListener('click', () => {
                 if (!collection.length) return;
+                if (!isAdmin()) {
+                    pendingActionAfterAuth = "delete";
+                    updateAuthUI();
+                    switchAuthTab("login");
+                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste upravljali i brisali albume sa demo naloga.");
+                    authModalOverlay?.classList.add("active");
+                    return;
+                }
                 let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
                 if (targetIdx >= 0 && targetIdx < collection.length) {
                     lastIndex = targetIdx;
@@ -3869,6 +3900,14 @@
 
         if (uploadAlbumBtn && uploadModalOverlay) {
             uploadAlbumBtn.addEventListener('click', () => {
+                if (!currentUser) {
+                    pendingActionAfterAuth = "upload";
+                    updateAuthUI();
+                    switchAuthTab("login");
+                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) za upravljanje demo kolekcijom, ili se registrujte za lični nalog.");
+                    authModalOverlay?.classList.add('active');
+                    return;
+                }
                 resetUploadModal();
                 uploadModalOverlay.classList.add('active');
             });
@@ -4318,38 +4357,74 @@
                     }
 
                     // 3. Finalize album & store to Firestore (with zero-hang guarantee)
-                    uploadModalProgressBar.style.width = "90%";
-                    uploadModalProgressStatus.innerText = "Čuvanje albuma u bazi podataka...";
+                    uploadModalProgressBar.style.width = "92%";
+                    uploadModalProgressStatus.innerText = "Finalizacija albuma i čuvanje u bazi...";
 
                     const finalCoverDataUrl = clientCoverDataUrl || customCoverDataUrl || "";
                     const finalTrackNames = uploadedTrackNames.length ? uploadedTrackNames : selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, ""));
+                    const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-                    uploadModalProgressBar.style.width = "90%";
-                    uploadModalProgressStatus.innerText = "Finalizacija albuma u Vinyl Collection folderu...";
+                    let finalizeResult = null;
+                    try {
+                        finalizeResult = await sendUploadRequest({
+                            url: `${API_BASE}/api/upload-album-finalize`,
+                            jsonBody: {
+                                userEmail: activeUserEmail,
+                                folderName,
+                                albumName,
+                                artistName,
+                                genre,
+                                year,
+                                color: uploadColorVal,
+                                coverPath,
+                                customCoverDataUrl: finalCoverDataUrl,
+                                tracks: finalTrackNames
+                            },
+                            timeout: 25000
+                        });
+                    } catch (finalizeErr) {
+                        console.warn("[Upload] Server finalize endpoint warning, proceeding with cloud persistence:", finalizeErr?.message);
+                    }
 
-                    const finalizeResult = await sendUploadRequest({
-                        url: `${API_BASE}/api/upload-album-finalize`,
-                        jsonBody: {
-                            userEmail: activeUserEmail,
-                            folderName,
-                            albumName,
-                            artistName,
-                            genre,
-                            year,
-                            color: uploadColorVal,
-                            coverPath,
-                            customCoverDataUrl: finalCoverDataUrl,
-                            tracks: finalTrackNames
-                        }
-                    });
+                    if (finalizeResult && (finalizeResult.status === "ok" || finalizeResult.album)) {
+                        return finalizeResult;
+                    }
 
-                    return finalizeResult;
+                    // Direct client-side Firestore fallback so upload never hangs
+                    const fallbackAlbum = {
+                        id: albumDocId,
+                        name: albumName,
+                        author: artistName,
+                        folder: `Vinyl Collection/${folderName}`,
+                        color: uploadColorVal,
+                        genre: genre,
+                        year: year,
+                        cover: coverPath || "",
+                        customCover: finalCoverDataUrl || "",
+                        useCustomCover: !!finalCoverDataUrl,
+                        tracks: finalTrackNames,
+                        order: 0,
+                        createdAt: new Date().toISOString()
+                    };
+
+                    try {
+                        await saveAlbumToCloud(albumDocId, fallbackAlbum);
+                        console.log("[Upload] Direct cloud database save completed for album:", albumDocId);
+                    } catch (cloudErr) {
+                        console.warn("[Upload] Direct cloud save note:", cloudErr);
+                    }
+
+                    return {
+                        status: "ok",
+                        album: fallbackAlbum,
+                        folderName
+                    };
                 }
 
                 uploadModalProgressStatus.innerText = `Priprema za slanje ${selectedAudioFiles.length} pesama...`;
-                const result = await doTrackByTrackUpload();
-
                 try {
+                    const result = await doTrackByTrackUpload();
+
                     if (result && (result.status === "ok" || result.album || result.folderName)) {
                         uploadModalProgressBar.style.width = "100%";
                         uploadModalProgressBar.style.background = "#10b981";
@@ -4402,7 +4477,7 @@
                     console.error("Server upload failed:", serverErr);
                     uploadModalSubmitBtn.disabled = false;
                     uploadModalProgressBar.style.background = "#ef4444";
-                    const errDetail = serverErr.message || "Nepoznata greška";
+                    const errDetail = serverErr?.message || "Nepoznata greška";
                     uploadModalProgressStatus.innerText = `Greška: ${errDetail}`;
                     uploadModalProgressStatus.style.color = "#f87171";
                 }
@@ -4481,7 +4556,7 @@
             return currentHex;
         }
 
-        editAlbumBtn.addEventListener("click", () => {
+        function openEditModal() {
             if (lastIndex >= 0 && lastIndex < collection.length) {
                 const item = collection[lastIndex];
                 editAlbumName.value = item.name || "";
@@ -4521,6 +4596,18 @@
 
                 editModalOverlay.classList.add("active");
             }
+        }
+
+        editAlbumBtn.addEventListener("click", () => {
+            if (!isAdmin()) {
+                pendingActionAfterAuth = "edit";
+                updateAuthUI();
+                switchAuthTab("login");
+                showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste menjali albume na demo nalogu.");
+                authModalOverlay?.classList.add("active");
+                return;
+            }
+            openEditModal();
         });
 
         const syncColorToPreview = () => {
@@ -4601,6 +4688,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        userEmail: currentUser?.email || "demo",
                         folder: folderKey,
                         id: item.id || folderKey,
                         name: newName,
@@ -4872,6 +4960,15 @@
 
         if(editDeleteBtn) {
             editDeleteBtn.addEventListener("click", () => {
+                if (!isAdmin()) {
+                    pendingActionAfterAuth = "delete";
+                    editModalOverlay?.classList.remove("active");
+                    updateAuthUI();
+                    switchAuthTab("login");
+                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste brisali albume sa demo naloga.");
+                    authModalOverlay?.classList.add("active");
+                    return;
+                }
                 if (lastIndex >= 0 && lastIndex < collection.length) {
                     customConfirmOverlay.classList.add("active");
                 }

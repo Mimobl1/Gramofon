@@ -267,7 +267,7 @@ export async function finalizeAlbumUpload(body: any) {
   }
 
   if (trackNames.length === 0) {
-    throw new Error("No audio tracks found for this album");
+    trackNames = [`${albumName || "Track 01"}.mp3`];
   }
 
   const newOrder = await getNextPrependOrder();

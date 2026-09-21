@@ -107,7 +107,10 @@ export async function syncAlbumToFirestore(album: any): Promise<void> {
       payload.customCover = album.customCover;
     }
 
-    await setDoc(doc(db, "albums", docId), payload, { merge: true });
+    // Set with timeout to avoid blocking server responses if Firestore connection is slow
+    const savePromise = setDoc(doc(db, "albums", docId), payload, { merge: true });
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore sync timeout")), 4000));
+    await Promise.race([savePromise, timeoutPromise]);
     console.log(`[Server Firestore] Album synced to cloud: ${docId} (color: ${payload.color})`);
   } catch (err: any) {
     console.warn("[Server Firestore] Failed to sync album:", err?.message || err);
