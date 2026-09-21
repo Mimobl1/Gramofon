@@ -16,19 +16,27 @@
       "07_ Opening Sections of Ascension.mp3",
       "08_ Opening Sections of The Father And The Son And The Holy Ghost.mp3",
       "09_ Manisfestation.mp3"
-    ]
+    ],
+    "id": "Vinyl_Collection_NEPOZNATI_IZVO_A__-_COMPRESSED",
+    "_uid": "Vinyl Collection/NEPOZNATI IZVOĐAČ - COMPRESSED",
+    "order": 0
   },
   {
-    "name": "TEST",
-    "author": "MIMA",
-    "color": "#2f2a3a",
+    "name": "TEST ALBUM",
+    "author": "MIMA ARTIST",
+    "color": "#e11d48",
     "duration": "",
     "folder": "Vinyl Collection/MIMA - TEST",
     "cover": "Vinyl Collection/MIMA - TEST/folder.png",
     "tracks": [
       "gospodjice.mp3",
       "My girl - 18.1.24., 12.26.mp3"
-    ]
+    ],
+    "id": "Vinyl_Collection_MIMA_-_TEST",
+    "_uid": "Vinyl Collection/MIMA - TEST",
+    "order": 1,
+    "genre": "ROCK",
+    "year": "2025"
   },
   {
     "name": "QWE",
@@ -40,7 +48,10 @@
     "tracks": [
       "gospodjice.mp3",
       "My girl - 18.1.24., 12.26.mp3"
-    ]
+    ],
+    "id": "Vinyl_Collection_ASD_-_QWE",
+    "_uid": "Vinyl Collection/ASD - QWE",
+    "order": 2
   },
   {
     "name": "18.1.24., 12.26",
@@ -51,6 +62,9 @@
     "cover": "",
     "tracks": [
       "My girl - 18.1.24., 12.26.mp3"
-    ]
+    ],
+    "id": "Vinyl_Collection_MY_GIRL_-_18_1_24___12_26",
+    "_uid": "Vinyl Collection/MY GIRL - 18.1.24., 12.26",
+    "order": 3
   }
 ]

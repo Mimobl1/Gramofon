@@ -2007,6 +2007,22 @@
         await closeArchiveLayer(true);
         applySelectedAlbumAndStart(data.album).catch(()=>{});
       }
+      if(data.type === "archive-album-updated" && data.album){
+        const album = data.album;
+        if(currentAlbumFolder === album.folder || currentAlbumName === album.name || currentAlbumFolder === album._uid){
+          if(album.color && isHexColor(album.color) && vinylLabel){
+            vinylLabel.style.background = album.color;
+          }
+          if(album.author && labelBrand){
+            labelBrand.textContent = album.author.toUpperCase().slice(0, 24);
+          }
+          if(album.name && labelTitle){
+            labelTitle.textContent = String(album.name).toUpperCase().slice(0, 22);
+          }
+          if(sidebarTitle && album.name) sidebarTitle.textContent = album.name;
+          if(sidebarArtist && album.author) sidebarArtist.textContent = album.author;
+        }
+      }
     }
 
     async function runDropInAnimation() {

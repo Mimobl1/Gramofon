@@ -2,6 +2,11 @@ import path from "path";
 import fs from "fs";
 import fsPromises from "fs/promises";
 import { updateCollection } from "../update-collection.js";
+import {
+  syncAlbumToFirestore,
+  deleteAlbumFromFirestore,
+  syncAllAlbumsToFirestore
+} from "./firestoreService.js";
 
 export interface AlbumRecord {
   id: string;
@@ -111,17 +116,19 @@ export async function saveAlbum(albumData: AlbumRecord): Promise<AlbumRecord> {
   // Sort by order
   updatedList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   await writeManifests(updatedList);
-  console.log(`[AlbumService] Album "${albumData.name}" saved to vinyl-collection.json and collection-data.js`);
+  await syncAlbumToFirestore(albumWithUid).catch(() => {});
+  console.log(`[AlbumService] Album "${albumData.name}" saved to vinyl-collection.json and Firestore cloud`);
 
   return albumWithUid;
 }
 
 /**
- * Updates album metadata in local manifest
+ * Updates album metadata in local manifest and Firestore
  */
 export async function updateAlbumMetadata(targetIdOrFolder: string, updates: Partial<AlbumRecord>): Promise<void> {
   const safeFolder = path.basename(targetIdOrFolder);
   const albums = await getAlbums();
+  let updatedItem: AlbumRecord | null = null;
 
   const updatedList = albums.map(album => {
     if (
@@ -130,16 +137,20 @@ export async function updateAlbumMetadata(targetIdOrFolder: string, updates: Par
       path.basename(album.folder) === safeFolder ||
       album._uid === targetIdOrFolder
     ) {
-      return {
+      updatedItem = {
         ...album,
         ...updates
       };
+      return updatedItem;
     }
     return album;
   });
 
   await writeManifests(updatedList);
-  console.log(`[AlbumService] Updated metadata for "${targetIdOrFolder}"`);
+  if (updatedItem) {
+    await syncAlbumToFirestore(updatedItem).catch(() => {});
+  }
+  console.log(`[AlbumService] Updated metadata for "${targetIdOrFolder}" (synced to Firestore)`);
 }
 
 /**
@@ -173,7 +184,8 @@ export async function reorderAlbums(orderList: string[]): Promise<void> {
   }
 
   await writeManifests(reordered);
-  console.log(`[AlbumService] Reordered ${reordered.length} albums in manifest`);
+  await syncAllAlbumsToFirestore(reordered).catch(() => {});
+  console.log(`[AlbumService] Reordered ${reordered.length} albums in manifest & Firestore`);
 }
 
 /**
@@ -204,7 +216,8 @@ export async function deleteAlbum(target: string): Promise<void> {
     await writeManifests(filtered);
   });
 
-  console.log(`[AlbumService] Album "${safeFolder}" deleted successfully.`);
+  await deleteAlbumFromFirestore(target).catch(() => {});
+  console.log(`[AlbumService] Album "${safeFolder}" deleted successfully (and marked deleted in Firestore).`);
 }
 
 /**
