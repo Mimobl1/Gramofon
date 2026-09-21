@@ -6,6 +6,8 @@
     <title>Vinyl player by Milan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap');
 
@@ -839,6 +841,27 @@
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
         const API_BASE = "";
 
+        // Firebase Client SDK initialization for In-App CMS cloud persistence
+        const firebaseConfig = {
+            projectId: "tonal-benefit-309615",
+            appId: "1:879302573511:web:8e04e061ec413981ad6de2",
+            apiKey: "AIzaSyA8gT_eynvTSa0ep28Eldw3nm_4GWDxQzY",
+            authDomain: "tonal-benefit-309615.firebaseapp.com",
+            firestoreDatabaseId: "ai-studio-vinylplayer-41dff54a-1e17-46b0-a919-76d4e69fdca8"
+        };
+        let clientDb = null;
+        try {
+            if (typeof firebase !== "undefined") {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                clientDb = firebase.app().firestore(firebaseConfig.firestoreDatabaseId);
+                console.log("[Firestore] In-App CMS cloud database active:", firebaseConfig.firestoreDatabaseId);
+            }
+        } catch (fbErr) {
+            console.warn("[Firestore] In-App CMS init notice:", fbErr);
+        }
+
         // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG under 100KB
         async function compressImageToDataUrl(fileOrBlob, maxDim = 800, quality = 0.84) {
             return new Promise((resolve) => {
@@ -1407,7 +1430,130 @@
             return albums;
         }
 
+        let baseRepoAlbums = [];
+        let deletedAlbumIds = new Set();
+        let firestoreAlbumsMap = new Map();
+        let firestoreListenerAttached = false;
+
+        function mergeAndApplyCollection() {
+            const baseList = Array.isArray(baseRepoAlbums) && baseRepoAlbums.length ? baseRepoAlbums : (Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length ? window.VINYL_COLLECTION : []);
+            if (!baseList.length && !firestoreAlbumsMap.size) return;
+
+            const merged = [];
+            const matchedFirestoreDocIds = new Set();
+
+            // 1. Merge base repository albums with Firestore overrides
+            baseList.forEach(album => {
+                const docId = (album.id || album.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                const folderKey = (album.folder || "").toLowerCase();
+
+                // If marked as deleted in Firestore, hide it
+                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) {
+                    return;
+                }
+
+                const fsDoc = firestoreAlbumsMap.get(docId) || firestoreAlbumsMap.get(folderKey);
+                if (fsDoc) {
+                    matchedFirestoreDocIds.add((fsDoc.id || docId).replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase());
+                    merged.push({
+                        ...album,
+                        name: fsDoc.name || album.name,
+                        author: fsDoc.author || album.author,
+                        genre: fsDoc.genre !== undefined ? fsDoc.genre : album.genre,
+                        year: fsDoc.year !== undefined ? fsDoc.year : album.year,
+                        color: fsDoc.color || album.color,
+                        cover: fsDoc.cover || album.cover,
+                        customCover: fsDoc.customCover !== undefined ? fsDoc.customCover : album.customCover,
+                        useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : album.useCustomCover,
+                        order: typeof fsDoc.order === "number" ? fsDoc.order : (album.order ?? 999),
+                        tracks: Array.isArray(fsDoc.tracks) && fsDoc.tracks.length ? fsDoc.tracks : album.tracks,
+                        _uid: album.folder || album.id
+                    });
+                } else {
+                    merged.push({
+                        ...album,
+                        _uid: album.folder || album.id,
+                        order: typeof album.order === "number" ? album.order : 999
+                    });
+                }
+            });
+
+            // 2. Any additional album docs created directly in Firestore
+            firestoreAlbumsMap.forEach((fsDoc, key) => {
+                const docId = (fsDoc.id || fsDoc.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                const folderKey = (fsDoc.folder || "").toLowerCase();
+                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
+                if (!matchedFirestoreDocIds.has(docId) && !matchedFirestoreDocIds.has(folderKey)) {
+                    matchedFirestoreDocIds.add(docId);
+                    merged.push({
+                        ...fsDoc,
+                        _uid: fsDoc.folder || fsDoc.id,
+                        order: typeof fsDoc.order === "number" ? fsDoc.order : 999
+                    });
+                }
+            });
+
+            // 3. Sort by custom order
+            merged.sort((a, b) => {
+                const orderA = typeof a.order === "number" ? a.order : 999;
+                const orderB = typeof b.order === "number" ? b.order : 999;
+                return orderA - orderB;
+            });
+
+            if (merged.length > 0) {
+                const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
+                const newKey = merged.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
+                if (currentKey !== newKey || (!collection.length && merged.length > 0)) {
+                    applyCollectionData(merged);
+                }
+                try {
+                    localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(merged));
+                } catch(_) {}
+                preloadCovers(merged);
+                refreshRecordLoadedState();
+            }
+        }
+
+        function initFirestoreRealtimeListener() {
+            if (!clientDb || firestoreListenerAttached) return;
+            firestoreListenerAttached = true;
+            try {
+                clientDb.collection("deleted_albums").onSnapshot((snap) => {
+                    if (snap) {
+                        deletedAlbumIds.clear();
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            if (doc.id) deletedAlbumIds.add(doc.id.toLowerCase());
+                            if (d && d.id) deletedAlbumIds.add(d.id.toLowerCase());
+                            if (d && d.folder) deletedAlbumIds.add(d.folder.toLowerCase());
+                        });
+                        mergeAndApplyCollection();
+                    }
+                }, (err) => console.warn("[Firestore] Deleted albums listener notice:", err));
+
+                clientDb.collection("albums").onSnapshot((snap) => {
+                    if (snap) {
+                        firestoreAlbumsMap.clear();
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            const cleanId = doc.id.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                            const item = { ...d, id: doc.id };
+                            firestoreAlbumsMap.set(cleanId, item);
+                            if (d && d.folder) {
+                                firestoreAlbumsMap.set(d.folder.toLowerCase(), item);
+                            }
+                        });
+                        mergeAndApplyCollection();
+                    }
+                }, (err) => console.warn("[Firestore] Albums realtime listener notice:", err));
+            } catch (err) {
+                console.warn("[Firestore] Realtime listener error:", err);
+            }
+        }
+
         async function loadCollectionManifest() {
+            initFirestoreRealtimeListener();
+
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
                     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
@@ -1419,20 +1565,11 @@
                     if (res && res.ok) {
                         const data = await res.json();
                         const parsed = Array.isArray(data) ? data : [];
-                        const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
-                        const newKey = parsed.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}`).join("|");
-
-                        if (currentKey !== newKey || (!collection.length && parsed.length > 0) || (collection.length > 0 && parsed.length === 0)) {
-                            applyCollectionData(parsed);
-                        }
-                        try {
-                            localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(parsed));
-                        } catch(_) {}
+                        baseRepoAlbums = parsed;
+                        mergeAndApplyCollection();
                         if (parsed.length) {
-                            preloadCovers(parsed);
                             enrichAlbumDurations(parsed).catch(() => {});
                         }
-                        refreshRecordLoadedState();
                         return;
                     }
                 } catch (e) {
@@ -1444,15 +1581,16 @@
             }
 
             // Fallback to static manifest window.VINYL_COLLECTION or localStorage
-            if (!collection.length && !originalCollection.length) {
+            if (!baseRepoAlbums.length) {
                 if (typeof window !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
-                    applyCollectionData(window.VINYL_COLLECTION);
-                    preloadCovers(window.VINYL_COLLECTION);
+                    baseRepoAlbums = window.VINYL_COLLECTION;
+                    mergeAndApplyCollection();
                 } else {
                     try {
                         const cached = JSON.parse(localStorage.getItem("vinyl_archive_albums_v1") || "[]");
                         if (Array.isArray(cached) && cached.length) {
-                            applyCollectionData(cached);
+                            baseRepoAlbums = cached;
+                            mergeAndApplyCollection();
                         }
                     } catch(_) {}
                 }
@@ -3886,6 +4024,30 @@
                     })
                 }).catch(err => console.warn("Album update sync failed:", err));
                 
+                // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel & cross-device
+                if (clientDb) {
+                    const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
+                    const updatePayload = {
+                        id: docId,
+                        folder: item.folder || folderKey,
+                        name: newName,
+                        author: newAuthor,
+                        genre: newGenre,
+                        year: newYear,
+                        color: newColor,
+                        useCustomCover: item.useCustomCover !== false,
+                        tracks: Array.isArray(item.tracks) ? item.tracks : []
+                    };
+                    if (item.customCover && item.customCover.length < 850000) {
+                        updatePayload.customCover = item.customCover;
+                    } else if (!item.customCover) {
+                        updatePayload.customCover = "";
+                    }
+                    clientDb.collection("albums").doc(docId).set(updatePayload, { merge: true })
+                        .then(() => console.log("[Firestore] Album edit saved to cloud:", docId))
+                        .catch(err => console.warn("[Firestore] Direct edit sync notice:", err));
+                }
+                
                 try {
                     localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
                 } catch(_) {}
@@ -4105,6 +4267,17 @@
                     }).then(() => {
                         loadCollectionManifest();
                     }).catch(()=>{});
+
+                    // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel
+                    if (clientDb) {
+                        const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
+                        clientDb.collection("albums").doc(docId).delete().catch(() => {});
+                        clientDb.collection("deleted_albums").doc(docId).set({
+                            id: docId,
+                            folder: item.folder || folderKey,
+                            deletedAt: new Date().toISOString()
+                        }).catch(() => {});
+                    }
 
                     if (folderKey.startsWith("LOCAL://")) {
                          const albumId = folderKey.replace("LOCAL://", "");
@@ -4427,6 +4600,30 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order: newOrder })
                 }).catch(err => console.warn("Reorder sync failed:", err));
+                
+                // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel
+                if (clientDb) {
+                    try {
+                        const batch = clientDb.batch();
+                        newOrder.forEach((uid, idx) => {
+                            const found = originalCollection.find(x => x._uid === uid);
+                            if (found) {
+                                const docId = (found.id || uid).replace(/[^a-zA-Z0-9_-]/g, "_");
+                                batch.set(clientDb.collection("albums").doc(docId), {
+                                    id: docId,
+                                    name: found.name || "",
+                                    author: found.author || "",
+                                    folder: found.folder || uid,
+                                    tracks: Array.isArray(found.tracks) ? found.tracks : [],
+                                    order: idx
+                                }, { merge: true });
+                            }
+                        });
+                        batch.commit().catch(e => console.warn("[Firestore] Batch reorder notice:", e));
+                    } catch (batchErr) {
+                        console.warn("[Firestore] Batch reorder error:", batchErr);
+                    }
+                }
                 
                 reorderModalOverlay.classList.remove("active");
                 

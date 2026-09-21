@@ -4,10 +4,10 @@ service cloud.firestore {
 
     // Helper functions for data validation
     function isValidAlbum(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 200
-        && data.author is string && data.author.size() > 0 && data.author.size() <= 200
-        && data.folder is string && data.folder.size() > 0 && data.folder.size() <= 500
-        && data.tracks is list && data.tracks.size() <= 200
+      return (!('name' in data) || (data.name is string && data.name.size() <= 200))
+        && (!('author' in data) || (data.author is string && data.author.size() <= 200))
+        && (!('folder' in data) || (data.folder is string && data.folder.size() <= 500))
+        && (!('tracks' in data) || (data.tracks is list && data.tracks.size() <= 200))
         && (!('color' in data) || (data.color is string && data.color.size() <= 30))
         && (!('genre' in data) || (data.genre is string && data.genre.size() <= 100))
         && (!('year' in data) || (data.year is string && data.year.size() <= 50))
