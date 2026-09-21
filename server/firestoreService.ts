@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, setDoc, deleteDoc, getDocs, collection } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, deleteDoc, getDocs, collection } from "firebase/firestore";
 import fs from "fs";
 import path from "path";
 
@@ -29,6 +29,51 @@ function getDb() {
   } catch (err) {
     console.warn("[Server Firestore] Init warning:", err);
     return null;
+  }
+}
+
+export interface UserR2Settings {
+  email: string;
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucketName: string;
+  publicUrl: string;
+  updatedAt?: string;
+}
+
+export function cleanEmailDocId(email: string): string {
+  return (email || "").toLowerCase().trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+export async function getUserR2Settings(email: string): Promise<UserR2Settings | null> {
+  const db = getDb();
+  if (!db || !email) return null;
+  try {
+    const docId = cleanEmailDocId(email);
+    const snap = await getDoc(doc(db, "users_r2", docId));
+    if (snap.exists()) {
+      return snap.data() as UserR2Settings;
+    }
+  } catch (err: any) {
+    console.warn("[Server Firestore] Error fetching user R2 settings:", err?.message || err);
+  }
+  return null;
+}
+
+export async function saveUserR2Settings(settings: UserR2Settings): Promise<void> {
+  const db = getDb();
+  if (!db || !settings.email) return;
+  try {
+    const docId = cleanEmailDocId(settings.email);
+    await setDoc(doc(db, "users_r2", docId), {
+      ...settings,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log(`[Server Firestore] Saved R2 settings for user ${settings.email}`);
+  } catch (err: any) {
+    console.warn("[Server Firestore] Error saving user R2 settings:", err?.message || err);
+    throw err;
   }
 }
 
@@ -66,6 +111,24 @@ export async function syncAlbumToFirestore(album: any): Promise<void> {
     console.log(`[Server Firestore] Album synced to cloud: ${docId} (color: ${payload.color})`);
   } catch (err: any) {
     console.warn("[Server Firestore] Failed to sync album:", err?.message || err);
+  }
+}
+
+export async function clearAllAlbumsFromFirestore(): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  try {
+    const snap = await getDocs(collection(db, "albums"));
+    for (const d of snap.docs) {
+      await deleteDoc(doc(db, "albums", d.id)).catch(() => {});
+    }
+    const delSnap = await getDocs(collection(db, "deleted_albums"));
+    for (const d of delSnap.docs) {
+      await deleteDoc(doc(db, "deleted_albums", d.id)).catch(() => {});
+    }
+    console.log("[Server Firestore] Cleared all documents from Firestore collections albums & deleted_albums");
+  } catch (err: any) {
+    console.warn("[Server Firestore] Error clearing Firestore albums:", err?.message || err);
   }
 }
 

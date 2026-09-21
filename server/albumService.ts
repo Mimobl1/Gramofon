@@ -5,7 +5,8 @@ import { updateCollection } from "../update-collection.js";
 import {
   syncAlbumToFirestore,
   deleteAlbumFromFirestore,
-  syncAllAlbumsToFirestore
+  syncAllAlbumsToFirestore,
+  clearAllAlbumsFromFirestore
 } from "./firestoreService.js";
 
 export interface AlbumRecord {
@@ -232,5 +233,6 @@ export async function clearAllAlbums(): Promise<void> {
   }
 
   await writeManifests([]);
-  console.log("[AlbumService] Cleared all albums from Vinyl Collection folder.");
+  await clearAllAlbumsFromFirestore().catch(() => {});
+  console.log("[AlbumService] Cleared all albums from Vinyl Collection folder and Firestore.");
 }

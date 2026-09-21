@@ -17,6 +17,18 @@ import {
 } from "./server/uploadService.js";
 import { optimizeAllAudio } from "./optimize-audio.js";
 import { updateCollection } from "./update-collection.js";
+import { 
+  isR2Configured, 
+  testR2Connection, 
+  getR2ObjectStream,
+  getR2Config,
+  deleteR2ObjectsByPrefix,
+  R2Credentials
+} from "./server/r2Service.js";
+import {
+  getUserR2Settings,
+  saveUserR2Settings
+} from "./server/firestoreService.js";
 
 async function startServer() {
   const app = express();
@@ -59,14 +71,148 @@ async function startServer() {
     next();
   });
 
-  // Health check: Filesystem Vinyl Collection storage
+  // Health check: Filesystem Vinyl Collection storage & R2 status
   app.get("/api/health", async (req, res) => {
     res.json({
       status: "ok",
-      storage: "filesystem",
+      storage: isR2Configured() ? "cloudflare-r2" : "filesystem",
+      r2Configured: isR2Configured(),
       collectionFolder: "public/Vinyl Collection",
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Cloudflare R2 Status Check
+  app.get("/api/r2/status", async (req, res) => {
+    const conf = getR2Config();
+    res.json({
+      configured: isR2Configured(),
+      bucket: conf.bucketName || null,
+      publicUrl: conf.publicUrl || null,
+      message: isR2Configured() 
+        ? "Cloudflare R2 is configured and active for direct audio streaming."
+        : "Cloudflare R2 is not configured. Audio will be stored locally or locally-cached."
+    });
+  });
+
+  // Cloudflare R2 Connection Test (global or user-specific)
+  app.post("/api/r2/test", async (req, res) => {
+    try {
+      const email = (req.body?.email || req.body?.userEmail || "").toString().trim().toLowerCase();
+      let creds: Partial<R2Credentials> | null = null;
+      if (email && email !== "demo" && email !== "demo@vinyl.local") {
+        const userSettings = await getUserR2Settings(email);
+        if (userSettings) {
+          creds = {
+            accountId: userSettings.accountId,
+            accessKeyId: userSettings.accessKeyId,
+            secretAccessKey: userSettings.secretAccessKey,
+            bucketName: userSettings.bucketName,
+            publicUrl: userSettings.publicUrl
+          };
+        }
+      }
+      // If direct credentials supplied in body for testing before save
+      if (req.body?.accountId && req.body?.accessKeyId && req.body?.secretAccessKey) {
+        creds = {
+          accountId: req.body.accountId,
+          accessKeyId: req.body.accessKeyId,
+          secretAccessKey: req.body.secretAccessKey,
+          bucketName: req.body.bucketName || "vinyl-archive",
+          publicUrl: req.body.publicUrl || ""
+        };
+      }
+      const result = await testR2Connection(creds);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || String(err) });
+    }
+  });
+
+  // GET /api/user-r2-settings - Fetch user R2 settings
+  app.get("/api/user-r2-settings", async (req, res) => {
+    try {
+      const email = (req.query.email as string || "").trim().toLowerCase();
+      if (!email || email === "demo" || email === "demo@vinyl.local") {
+        // Return default demo configuration status
+        const def = getR2Config();
+        return res.json({
+          email: "demo",
+          accountId: def.accountId,
+          accessKeyId: def.accessKeyId ? "••••••••" : "",
+          secretAccessKey: def.secretAccessKey ? "••••••••" : "",
+          bucketName: def.bucketName,
+          publicUrl: def.publicUrl,
+          isConfigured: isR2Configured()
+        });
+      }
+      const settings = await getUserR2Settings(email);
+      if (!settings) {
+        return res.json({
+          email,
+          isConfigured: false
+        });
+      }
+      return res.json({
+        email: settings.email,
+        accountId: settings.accountId,
+        accessKeyId: settings.accessKeyId,
+        secretAccessKey: settings.secretAccessKey,
+        bucketName: settings.bucketName,
+        publicUrl: settings.publicUrl,
+        isConfigured: Boolean(settings.accountId && settings.accessKeyId && settings.secretAccessKey && settings.bucketName)
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to fetch user R2 settings" });
+    }
+  });
+
+  // POST /api/user-r2-settings - Save user R2 settings
+  app.post("/api/user-r2-settings", async (req, res) => {
+    try {
+      const { email, accountId, accessKeyId, secretAccessKey, bucketName, publicUrl } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email je obavezan." });
+      }
+      if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+        return res.status(400).json({ error: "Account ID, Access Key ID, Secret Access Key i Bucket Name su obavezni." });
+      }
+      await saveUserR2Settings({
+        email: email.trim().toLowerCase(),
+        accountId: accountId.trim(),
+        accessKeyId: accessKeyId.trim(),
+        secretAccessKey: secretAccessKey.trim(),
+        bucketName: bucketName.trim(),
+        publicUrl: (publicUrl || "").trim()
+      });
+      res.json({ status: "ok", message: "Cloudflare R2 podešavanja su uspešno sačuvana!" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Greška pri čuvanju R2 podešavanja." });
+    }
+  });
+
+  // Audio Streaming Proxy for Cloudflare R2 (supports HTTP 206 Partial Content)
+  app.get("/api/r2-stream/:key(*)", async (req, res) => {
+    try {
+      const key = req.params.key;
+      if (!key) {
+        return res.status(400).send("Key required");
+      }
+      const range = req.headers.range;
+      const { stream, contentType, contentLength, contentRange, statusCode } = await getR2ObjectStream(key, range);
+      
+      res.status(statusCode);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Accept-Ranges", "bytes");
+      if (contentLength) res.setHeader("Content-Length", contentLength);
+      if (contentRange) res.setHeader("Content-Range", contentRange);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+
+      stream.pipe(res);
+    } catch (err: any) {
+      console.error("[R2 Stream] Error streaming object:", err?.message);
+      res.status(err?.$metadata?.httpStatusCode || 404).send("Audio file not found in R2");
+    }
   });
 
   // Audio Streaming: Enable HTTP 206 Partial Content for instant seeking
@@ -183,12 +329,18 @@ async function startServer() {
   // DELETE /api/albums - Delete an album
   app.delete(["/api/albums", "/albums"], async (req, res) => {
     try {
-      const { folder, id } = req.body;
+      const { folder, id, userEmail } = req.body;
       const target = folder || id;
       if (!target) {
         return res.status(400).json({ error: "folder or id required" });
       }
       await deleteAlbum(target);
+
+      // Clean R2 objects if custom or user R2 bucket
+      const userSettings = userEmail ? await getUserR2Settings(userEmail) : null;
+      const folderBase = path.basename(target);
+      await deleteR2ObjectsByPrefix(`Vinyl Collection/${folderBase}`, userSettings);
+
       res.json({ status: "ok" });
     } catch (err: any) {
       console.error("[API] delete album error:", err);

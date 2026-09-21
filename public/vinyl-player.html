@@ -1350,7 +1350,11 @@
       if(!trackName) return;
       
       let fullPath = trackName;
-      if (currentAlbumFolder && !trackName.startsWith(currentAlbumFolder)) {
+      if (trackName.startsWith("http://") || trackName.startsWith("https://")) {
+          fullPath = trackName;
+      } else if (currentAlbumFolder && (currentAlbumFolder.startsWith("http://") || currentAlbumFolder.startsWith("https://"))) {
+          fullPath = currentAlbumFolder.replace(/\/$/, "") + "/" + trackName;
+      } else if (currentAlbumFolder && !trackName.startsWith(currentAlbumFolder)) {
           fullPath = currentAlbumFolder + "/" + trackName;
       }
       
@@ -1389,8 +1393,12 @@
       }
       
       if (!absoluteUrl) {
-          const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
-          absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
+          if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
+              absoluteUrl = fullPath;
+          } else {
+              const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
+              absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
+          }
       }
       
       if(deckAudio.src !== absoluteUrl){
@@ -1478,10 +1486,18 @@
             
             if (!absoluteUrl) {
                 let fullPath = src;
-                if (currentAlbumFolder && !src.startsWith(currentAlbumFolder)) {
+                if (src.startsWith("http://") || src.startsWith("https://")) {
+                    fullPath = src;
+                    absoluteUrl = src;
+                } else if (currentAlbumFolder && (currentAlbumFolder.startsWith("http://") || currentAlbumFolder.startsWith("https://"))) {
+                    fullPath = currentAlbumFolder.replace(/\/$/, "") + "/" + src;
+                    absoluteUrl = fullPath;
+                } else if (currentAlbumFolder && !src.startsWith(currentAlbumFolder)) {
                     fullPath = currentAlbumFolder + "/" + src;
                 }
-                absoluteUrl = encodeURI(fullPath);
+                if (!absoluteUrl) {
+                    absoluteUrl = encodeURI(fullPath);
+                }
             }
             
             const fallback = getRealisticFallbackDuration(src, idx);

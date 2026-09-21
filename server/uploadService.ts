@@ -12,6 +12,33 @@ import {
   getNextPrependOrder, 
   AlbumRecord 
 } from "./albumService.js";
+import { 
+  isR2Configured, 
+  uploadFileToR2, 
+  uploadBufferToR2, 
+  getR2PublicUrl,
+  getR2Config,
+  R2Credentials
+} from "./r2Service.js";
+import { getUserR2Settings } from "./firestoreService.js";
+
+async function resolveUserCreds(body: any): Promise<Partial<R2Credentials> | null> {
+  const email = (body.userEmail || body.email || "").toString().trim().toLowerCase();
+  if (!email || email === "demo" || email === "demo@vinyl.local") {
+    return null;
+  }
+  const userSettings = await getUserR2Settings(email);
+  if (userSettings && userSettings.accountId && userSettings.accessKeyId) {
+    return {
+      accountId: userSettings.accountId,
+      accessKeyId: userSettings.accessKeyId,
+      secretAccessKey: userSettings.secretAccessKey,
+      bucketName: userSettings.bucketName,
+      publicUrl: userSettings.publicUrl
+    };
+  }
+  return null;
+}
 
 const TMP_DIR = path.join(process.cwd(), "tmp_uploads");
 if (!fs.existsSync(TMP_DIR)) {
@@ -30,6 +57,7 @@ export async function initAlbumUpload(body: any, files?: Express.Multer.File[]) 
   const artist = (body.artistName || "NEPOZNATI IZVOĐAČ").toString().trim().toUpperCase();
   const album = (body.albumName || "NOVI ALBUM").toString().trim().toUpperCase();
   const folderName = sanitizeFolderName(artist, album);
+  const userCreds = await resolveUserCreds(body);
 
   const targetDir = path.join(process.cwd(), "public", "Vinyl Collection", folderName);
   try {
@@ -60,6 +88,19 @@ export async function initAlbumUpload(body: any, files?: Express.Multer.File[]) 
     }
 
     coverPath = `Vinyl Collection/${folderName}/folder${ext}`;
+
+    if (isR2Configured(userCreds)) {
+      try {
+        const coverBuf = await fsPromises.readFile(coverFile.path).catch(() => fsPromises.readFile(targetCover));
+        if (coverBuf) {
+          const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/folder${ext}`, coverBuf, undefined, userCreds);
+          coverPath = r2Res.publicUrl;
+          console.log(`[R2] Cover image uploaded to Cloudflare R2: ${r2Res.publicUrl}`);
+        }
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 cover upload notice:", r2Err?.message);
+      }
+    }
 
     if (!customCoverDataUrl) {
       try {
@@ -95,6 +136,7 @@ export async function handleTrackChunk(
   const rawFileName = (body.fileName || file.originalname || "").toString().trim();
   const chunkIndex = parseInt(body.chunkIndex || "0", 10);
   const totalChunks = parseInt(body.totalChunks || "1", 10);
+  const userCreds = await resolveUserCreds(body);
 
   if (!folderName || !rawFileName) {
     try { await fsPromises.unlink(file.path); } catch (_) {}
@@ -117,6 +159,17 @@ export async function handleTrackChunk(
     } catch (fsErr: any) {
       console.warn("[Upload] Could not write file to public disk (read-only filesystem):", fsErr?.message);
     }
+
+    if (isR2Configured(userCreds)) {
+      try {
+        const r2Key = `Vinyl Collection/${safeFolder}/${outFileName}`;
+        await uploadFileToR2(r2Key, file.path, undefined, userCreds);
+        console.log(`[R2] Uploaded track to Cloudflare R2: ${r2Key}`);
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 track upload notice:", r2Err?.message);
+      }
+    }
+
     try { await fsPromises.unlink(file.path); } catch (_) {}
 
     return {
@@ -144,6 +197,17 @@ export async function handleTrackChunk(
     } catch (fsErr: any) {
       console.warn("[Upload] Could not copy final assembled track to public disk:", fsErr?.message);
     }
+
+    if (isR2Configured(userCreds)) {
+      try {
+        const r2Key = `Vinyl Collection/${safeFolder}/${outFileName}`;
+        await uploadFileToR2(r2Key, partFilePath, undefined, userCreds);
+        console.log(`[R2] Uploaded assembled track to Cloudflare R2: ${r2Key}`);
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 chunked track upload notice:", r2Err?.message);
+      }
+    }
+
     try { await fsPromises.unlink(partFilePath); } catch (_) {}
 
     return {
@@ -175,6 +239,8 @@ export async function finalizeAlbumUpload(body: any) {
     customCoverDataUrl,
     tracks: providedTracks
   } = body;
+
+  const userCreds = await resolveUserCreds(body);
 
   if (!folderName) {
     throw new Error("folderName is required");
@@ -209,11 +275,20 @@ export async function finalizeAlbumUpload(body: any) {
 
   const finalColor = (color && /^#[0-9A-Fa-f]{3,6}$/.test(color)) ? color : "#1a1a1a";
 
+  let albumFolder = `Vinyl Collection/${safeFolder}`;
+  if (isR2Configured(userCreds)) {
+    const r2Conf = getR2Config(userCreds);
+    if (r2Conf.publicUrl) {
+      const base = r2Conf.publicUrl.trim().replace(/\/$/, "");
+      albumFolder = `${base}/Vinyl Collection/${safeFolder}`;
+    }
+  }
+
   const albumRecord: AlbumRecord = {
     id: albumDocId,
     name: (albumName || safeFolder).toString().trim().toUpperCase(),
     author: (artistName || "NEPOZNATI IZVOĐAČ").toString().trim().toUpperCase(),
-    folder: `Vinyl Collection/${safeFolder}`,
+    folder: albumFolder,
     cover: coverPath || "",
     tracks: trackNames,
     color: finalColor,
@@ -297,6 +372,17 @@ export async function handleSingleAlbumUpload(body: any, files: Express.Multer.F
     await fsPromises.copyFile(coverFile.path, targetCover);
     coverPath = `Vinyl Collection/${folderName}/folder${ext}`;
 
+    if (isR2Configured()) {
+      try {
+        const coverBuf = await fsPromises.readFile(targetCover);
+        const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/folder${ext}`, coverBuf);
+        coverPath = r2Res.publicUrl;
+        console.log(`[R2] Single-upload cover uploaded to Cloudflare R2: ${r2Res.publicUrl}`);
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 cover notice:", r2Err?.message);
+      }
+    }
+
     try {
       const buf = await fsPromises.readFile(targetCover);
       const mime = ext === ".png" ? "image/png" : "image/jpeg";
@@ -316,6 +402,15 @@ export async function handleSingleAlbumUpload(body: any, files: Express.Multer.F
     await fsPromises.copyFile(file.path, finalOutPath);
     trackNames.push(outFileName);
     trackPaths.push(finalOutPath);
+
+    if (isR2Configured()) {
+      try {
+        await uploadFileToR2(`Vinyl Collection/${folderName}/${outFileName}`, finalOutPath);
+        console.log(`[R2] Uploaded track to Cloudflare R2: ${outFileName}`);
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 single track notice:", r2Err?.message);
+      }
+    }
   }
 
   // Cleanup temp files
@@ -326,11 +421,20 @@ export async function handleSingleAlbumUpload(body: any, files: Express.Multer.F
   const newOrder = await getNextPrependOrder();
   const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 
+  let singleAlbumFolder = `Vinyl Collection/${folderName}`;
+  if (isR2Configured()) {
+    const r2Conf = getR2Config();
+    if (r2Conf.publicUrl) {
+      const base = r2Conf.publicUrl.trim().replace(/\/$/, "");
+      singleAlbumFolder = `${base}/Vinyl Collection/${folderName}`;
+    }
+  }
+
   const albumRecord: AlbumRecord = {
     id: albumDocId,
     name: albumName,
     author: artistName,
-    folder: `Vinyl Collection/${folderName}`,
+    folder: singleAlbumFolder,
     cover: coverPath,
     tracks: trackNames,
     color: (body.color && /^#[0-9A-Fa-f]{3,6}$/.test(body.color)) ? body.color : "#1a1a1a",

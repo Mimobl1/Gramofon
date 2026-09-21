@@ -37,6 +37,11 @@ service cloud.firestore {
     match /test/{docId} {
       allow read, write: if true;
     }
+
+    // User-specific Cloudflare R2 configurations
+    match /users_r2/{userId} {
+      allow read, write: if true;
+    }
   }
 }
 
