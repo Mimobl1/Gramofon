@@ -509,7 +509,7 @@
     }
     .vinyl-label:before{content:"";position:absolute;inset:calc(4.8% - 1px);border-radius:50%;border:1.6px solid rgba(22,22,22,.88);pointer-events:none}
     .vinyl-label:after{content:"";position:absolute;inset:19%;border-radius:50%;border:1px solid rgba(22,22,22,.22);pointer-events:none}
-    .label-cover-bg{position:absolute;inset:0;border-radius:50%;background-size:cover;background-position:center;background-repeat:no-repeat;z-index:1;opacity:0;transition:opacity .35s ease;pointer-events:none;filter:saturate(1.12) brightness(1.08) contrast(1.02)}
+    .label-cover-bg{position:absolute;inset:0;border-radius:50%;background-size:cover;background-position:center;background-repeat:no-repeat;z-index:1;opacity:0;transition:opacity .35s ease;pointer-events:none;filter:saturate(1.12) brightness(1.08) contrast(1.02);box-shadow: inset 0 0 1px rgba(0,0,0,0.5);}
     .label-cover-bg.has-cover{opacity:1}
     .label-cover-bg:after{content:"";position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0.30);pointer-events:none;z-index:2}
     .label-standard{position:relative;z-index:5;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
@@ -1129,11 +1129,11 @@
         if (deckAudio) {
           applyDeckVolume(targetVolume);
           if (playing && deckAudio.paused && deckAudio.src) {
-            deckAudio.play().catch(() => {});
+            deckAudio.play().catch((e) => { console.error("[Player] deckAudio play error:", e); });
           }
         }
         if (vinylNoiseAudio && playing && vinylNoiseAudio.paused) {
-          vinylNoiseAudio.play().catch(() => {});
+          vinylNoiseAudio.play().catch((e) => { console.error("[Player] vinylNoiseAudio play error:", e); });
         }
       } catch (_) {}
     };
@@ -1158,6 +1158,28 @@
 
     function setRecordRotation(deg){
       if(record) record.style.transform = `rotate(${deg}deg)`;
+    }
+    function brightenAndDesaturate(hex, desat = 0.15, lighten = 0.15) {
+      if (typeof hex !== "string") return "#262626";
+      let v = hex.trim();
+      if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) return v;
+      if (v.length === 4) {
+        v = `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`;
+      }
+      const norm = v.toLowerCase();
+      const r = parseInt(norm.slice(1, 3), 16);
+      const g = parseInt(norm.slice(3, 5), 16);
+      const b = parseInt(norm.slice(5, 7), 16);
+      const gray = (r + g + b) / 3;
+      const d = Math.max(0, Math.min(1, desat));
+      const l = Math.max(0, Math.min(1, lighten));
+      const dr = r * (1 - d) + gray * d;
+      const dg = g * (1 - d) + gray * d;
+      const db = b * (1 - d) + gray * d;
+      const nr = Math.round(dr + (255 - dr) * l);
+      const ng = Math.round(dg + (255 - dg) * l);
+      const nb = Math.round(db + (255 - db) * l);
+      return `rgb(${nr}, ${ng}, ${nb})`;
     }
     function setTonearmAngle(deg, animated=true, durationMs=ARM_TRANSITION_MS){
       if(!tonearmRod) return;
@@ -1583,6 +1605,9 @@
       ensureTrackIndexInCurrentSide();
       await setDeckSourceByIndex(currentTrackIndex);
       try { 
+        deckAudio.muted = false;
+        applyDeckVolume(targetVolume);
+        deckAudio.volume = targetVolume;
         const p = deckAudio.play();
         if (p !== undefined) {
           await p;
@@ -1983,7 +2008,7 @@
       if (sidebarArtist) sidebarArtist.textContent = author || "Unknown Artist";
       if (sidebarMeta) sidebarMeta.textContent = duration ? `Length: ${duration}` : "";
       if (vinylLabel && isHexColor(color)) {
-        vinylLabel.style.background = color;
+        vinylLabel.style.background = brightenAndDesaturate(color);
       }
 
       // Apply album cover as texture on vinyl label
@@ -2123,7 +2148,7 @@
         const album = data.album;
         if(currentAlbumFolder === album.folder || currentAlbumName === album.name || currentAlbumFolder === album._uid){
           if(album.color && isHexColor(album.color) && vinylLabel){
-            vinylLabel.style.background = album.color;
+            vinylLabel.style.background = brightenAndDesaturate(album.color);
           }
           if(album.author && labelBrand){
             labelBrand.textContent = album.author.toUpperCase().slice(0, 24);
@@ -2252,6 +2277,7 @@
         try {
           applyDeckVolume(targetVolume);
           deckAudio.volume = targetVolume;
+          deckAudio.muted = false;
           if (deckAudio.paused) {
             const unlockPromise = deckAudio.play();
             if (unlockPromise !== undefined) {
@@ -2296,10 +2322,9 @@
               playStartMs=performance.now();
               await syncTrackFromElapsed();
               applyDeckVolume(targetVolume);
+              deckAudio.muted = false;
               deckAudio.volume = targetVolume;
-              if (deckAudio.paused) {
-                deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));
-              }
+              deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));
               syncVinylNoise();
             }, 380);
           },cueDropMs);
@@ -2317,10 +2342,9 @@
           playStartMs=performance.now();
           await syncTrackFromElapsed();
           applyDeckVolume(targetVolume);
+          deckAudio.muted = false;
           deckAudio.volume = targetVolume;
-          if (deckAudio.paused) {
-            deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));
-          }
+          deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));
           syncVinylNoise();
         }, 150);
         return;
@@ -2620,7 +2644,7 @@
           const accel = 0.035;
           speed += (target - speed) * accel;
           if(Math.abs(speed) > 0.0005){
-            rot += speed * 2.05;
+            rot += speed * 1.45;
             setRecordRotation(rot);
           }
         }

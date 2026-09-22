@@ -227,8 +227,10 @@ async function startServer() {
         stream.pipe(res);
         return;
       } catch (r2Err: any) {
-        // 2. Fallback: check if file exists on local disk in public/
-        const localPath = path.join(process.cwd(), "public", cleanKey);
+        // 2. Fallback: check if file exists on local disk in public/ (or dist/ in production)
+        const isProduction = process.env.NODE_ENV === "production";
+        const publicDir = isProduction ? path.join(process.cwd(), "dist") : path.join(process.cwd(), "public");
+        const localPath = path.join(publicDir, cleanKey);
         if (fs.existsSync(localPath)) {
           return res.sendFile(localPath, {
             acceptRanges: true,
@@ -251,7 +253,7 @@ async function startServer() {
   app.use("/Vinyl Collection", (req, res, next) => {
     res.setHeader("Accept-Ranges", "bytes");
     next();
-  }, express.static(path.join(process.cwd(), "public", "Vinyl Collection"), {
+  }, express.static(path.join(process.cwd(), process.env.NODE_ENV === "production" ? "dist" : "public", "Vinyl Collection"), {
     acceptRanges: true,
     maxAge: 0
   }), (req, res) => {

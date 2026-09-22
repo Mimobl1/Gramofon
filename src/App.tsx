@@ -3,7 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useState } from 'react';
+import { UploadModal } from './components/UploadModal';
+
 export default function App() {
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+
   return (
     <div className="w-full h-screen overflow-hidden bg-black">
       {/* Mobile view warning */}
@@ -14,13 +19,14 @@ export default function App() {
       </div>
 
       {/* Desktop / larger screen view */}
-      <div className="hidden md:block w-full h-full">
+      <div className="hidden md:block w-full h-full relative">
         <iframe
           src="/vinyl-player.html"
           className="w-full h-full border-none"
           title="Vinyl Player"
-          allow="autoplay; encrypted-media; clipboard-write"
+          allow="autoplay; encrypted-media; clipboard-write; popups"
         />
+        <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
       </div>
     </div>
   );
