@@ -1400,8 +1400,11 @@
           fullPath = trackName;
       } else if (currentAlbumFolder && (currentAlbumFolder.startsWith("http://") || currentAlbumFolder.startsWith("https://"))) {
           fullPath = currentAlbumFolder.replace(/\/$/, "") + "/" + trackName;
-      } else if (currentAlbumFolder && !trackName.startsWith(currentAlbumFolder)) {
-          fullPath = currentAlbumFolder + "/" + trackName;
+      } else if (currentAlbumFolder && !currentAlbumFolder.startsWith("LOCAL://")) {
+          const cleanFolder = currentAlbumFolder.replace(/^Vinyl Collection\//i, "").replace(/\/$/, "");
+          fullPath = `Vinyl Collection/${cleanFolder}/${trackName}`;
+      } else if (!fullPath.startsWith("Vinyl Collection/")) {
+          fullPath = `Vinyl Collection/${fullPath}`;
       }
       
       let absoluteUrl = "";

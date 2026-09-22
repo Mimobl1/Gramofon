@@ -1949,8 +1949,11 @@
                 fullPath = trackName;
             } else if (bgBridge.folder && (bgBridge.folder.startsWith("http://") || bgBridge.folder.startsWith("https://"))) {
                 fullPath = bgBridge.folder.replace(/\/$/, "") + "/" + trackName;
-            } else if (bgBridge.folder && !trackName.startsWith(bgBridge.folder)) {
-                fullPath = bgBridge.folder + "/" + trackName;
+            } else if (bgBridge.folder && !bgBridge.folder.startsWith("LOCAL://")) {
+                const cleanFolder = bgBridge.folder.replace(/^Vinyl Collection\//i, "").replace(/\/$/, "");
+                fullPath = `Vinyl Collection/${cleanFolder}/${trackName}`;
+            } else if (!fullPath.startsWith("Vinyl Collection/")) {
+                fullPath = `Vinyl Collection/${fullPath}`;
             }
 
             let absolute = "";

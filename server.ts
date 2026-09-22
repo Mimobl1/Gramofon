@@ -227,11 +227,12 @@ async function startServer() {
         stream.pipe(res);
         return;
       } catch (r2Err: any) {
-        // 2. Fallback: check if file exists on local disk in public/ (or dist/ in production)
-        const isProduction = process.env.NODE_ENV === "production";
-        const publicDir = isProduction ? path.join(process.cwd(), "dist") : path.join(process.cwd(), "public");
-        const localPath = path.join(publicDir, cleanKey);
-        if (fs.existsSync(localPath)) {
+        // 2. Fallback: check if file exists on local disk in public/ or dist/
+        const publicPath = path.join(process.cwd(), "public", cleanKey);
+        const distPath = path.join(process.cwd(), "dist", cleanKey);
+        const localPath = fs.existsSync(publicPath) ? publicPath : (fs.existsSync(distPath) ? distPath : null);
+
+        if (localPath) {
           return res.sendFile(localPath, {
             acceptRanges: true,
             headers: {
