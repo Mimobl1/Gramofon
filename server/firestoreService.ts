@@ -161,3 +161,24 @@ export async function syncAllAlbumsToFirestore(albums: any[]): Promise<void> {
     await syncAlbumToFirestore(album).catch(() => {});
   }
 }
+
+export async function getAlbumsFromFirestore(): Promise<any[]> {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const fetchPromise = getDocs(collection(db, "albums"));
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Firestore fetch timeout")), 3500)
+    );
+    const snap = await Promise.race([fetchPromise, timeoutPromise]);
+    const list: any[] = [];
+    snap.forEach((d: any) => {
+      list.push({ id: d.id, ...d.data() });
+    });
+    list.sort((a, b) => (typeof a.order === "number" ? a.order : 0) - (typeof b.order === "number" ? b.order : 0));
+    return list;
+  } catch (err: any) {
+    console.warn("[Server Firestore] Error fetching albums:", err?.message || err);
+    return [];
+  }
+}

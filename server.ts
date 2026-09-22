@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { 
   getAlbums, 
@@ -34,13 +35,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Initialize collection from public/Vinyl Collection on startup
-  try {
-    const initialAlbums = await updateCollection();
-    console.log(`[Server] Initialized collection from disk: ${initialAlbums.length} albums in Vinyl Collection folder.`);
-  } catch (err) {
-    console.warn("[Server] Initial collection scan warning:", err);
-  }
+  // Initialize collection in background without blocking server startup
+  getAlbums()
+    .then(initialAlbums => {
+      console.log(`[Server] Initialized collection: ${initialAlbums.length} albums loaded.`);
+    })
+    .catch(err => {
+      console.warn("[Server] Initial collection scan warning:", err);
+    });
 
   // CORS Middleware: ensures iframe, preview, and mobile environments have full access
   app.use((req, res, next) => {
@@ -191,27 +193,52 @@ async function startServer() {
     }
   });
 
-  // Audio Streaming Proxy for Cloudflare R2 (supports HTTP 206 Partial Content)
-  app.get("/api/r2-stream/:key(*)", async (req, res) => {
+  // Audio Streaming Proxy for Cloudflare R2 and local storage (supports HTTP 206 Partial Content & CORS)
+  app.get(["/api/r2-stream/:key(*)", "/api/stream/:key(*)"], async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Range, Origin, Content-Type, Accept");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, Content-Type");
+
     try {
       const key = req.params.key;
       if (!key) {
         return res.status(400).send("Key required");
       }
+      const cleanKey = key.replace(/^\/+/, "");
       const range = req.headers.range;
-      const { stream, contentType, contentLength, contentRange, statusCode } = await getR2ObjectStream(key, range);
-      
-      res.status(statusCode);
-      res.setHeader("Content-Type", contentType);
-      res.setHeader("Accept-Ranges", "bytes");
-      if (contentLength) res.setHeader("Content-Length", contentLength);
-      if (contentRange) res.setHeader("Content-Range", contentRange);
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
 
-      stream.pipe(res);
+      // 1. Try streaming from Cloudflare R2
+      try {
+        const { stream, contentType, contentLength, contentRange, statusCode } = await getR2ObjectStream(cleanKey, range);
+        
+        res.status(statusCode);
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Accept-Ranges", "bytes");
+        if (contentLength) res.setHeader("Content-Length", contentLength);
+        if (contentRange) res.setHeader("Content-Range", contentRange);
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+
+        stream.pipe(res);
+        return;
+      } catch (r2Err: any) {
+        // 2. Fallback: check if file exists on local disk in public/
+        const localPath = path.join(process.cwd(), "public", cleanKey);
+        if (fs.existsSync(localPath)) {
+          return res.sendFile(localPath, {
+            acceptRanges: true,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Cache-Control": "public, max-age=3600"
+            }
+          });
+        }
+        console.warn(`[Audio Stream] File "${cleanKey}" not found in R2 or local disk:`, r2Err?.message);
+        res.status(r2Err?.$metadata?.httpStatusCode || 404).send("Audio file not found in R2 or local disk");
+      }
     } catch (err: any) {
-      console.error("[R2 Stream] Error streaming object:", err?.message);
-      res.status(err?.$metadata?.httpStatusCode || 404).send("Audio file not found in R2");
+      console.error("[Audio Stream] Error streaming object:", err?.message);
+      res.status(500).send("Audio streaming error");
     }
   });
 
@@ -388,7 +415,7 @@ async function startServer() {
   // Vite development middleware vs production static fallback
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);

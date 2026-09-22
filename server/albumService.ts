@@ -6,7 +6,8 @@ import {
   syncAlbumToFirestore,
   deleteAlbumFromFirestore,
   syncAllAlbumsToFirestore,
-  clearAllAlbumsFromFirestore
+  clearAllAlbumsFromFirestore,
+  getAlbumsFromFirestore
 } from "./firestoreService.js";
 
 export interface AlbumRecord {
@@ -43,9 +44,28 @@ async function writeManifests(albums: AlbumRecord[]) {
 }
 
 /**
- * Reads local manifest from disk, or rebuilds it by scanning public/Vinyl Collection
+ * Reads albums from Firestore (cloud database), local manifest, or scans public/Vinyl Collection
  */
 export async function getAlbums(): Promise<AlbumRecord[]> {
+  // 1. Primary Source of Truth: Firestore Cloud Database
+  try {
+    const cloudAlbums = await getAlbumsFromFirestore();
+    if (Array.isArray(cloudAlbums) && cloudAlbums.length > 0) {
+      const formatted: AlbumRecord[] = cloudAlbums.map((a: any, idx: number) => ({
+        ...a,
+        id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+        _uid: a.folder || a.id || `album_${idx}`,
+        order: typeof a.order === "number" ? a.order : idx
+      }));
+      // Keep local manifests in sync as cache
+      await writeManifests(formatted);
+      return formatted;
+    }
+  } catch (err) {
+    console.warn("[AlbumService] Could not fetch from Firestore, falling back to local files:", err);
+  }
+
+  // 2. Secondary Source: Local manifest file
   try {
     if (fs.existsSync(MANIFEST_PATH)) {
       const data = await fsPromises.readFile(MANIFEST_PATH, "utf-8");
@@ -63,7 +83,7 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
     console.warn("[AlbumService] Could not read manifest, rescanning Vinyl Collection...", err);
   }
 
-  // If manifest missing or empty, scan public/Vinyl Collection folder directly
+  // 3. Fallback: scan public/Vinyl Collection folder directly
   const scanned = await updateCollection().catch(() => []);
   return scanned.map((a: any, idx: number) => ({
     ...a,

@@ -566,10 +566,6 @@
             </div>
             <div class="archive-title">Vinyl Collection</div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <button class="top-nav-btn" id="userAuthBtn" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 20px; font-size: 12px; color: #fff; cursor: pointer; transition: all 0.2s;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    <span id="userAuthLabel">Demo Nalog</span>
-                </button>
                 <a class="top-nav-btn" href="vinyl-player.html" aria-label="Open Player" id="playerNavLink">
                     Player
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -652,88 +648,82 @@
         </div>
     </div>
 
-    <!-- Auth & Account Modal (Login / Register / Demo) -->
+    <!-- Auth & Account Modal (Login / Register / Wireframe Flow) -->
     <div class="edit-modal-overlay" id="authModalOverlay" style="z-index: 4000;" onclick="event.stopPropagation()">
-        <div class="edit-modal" style="max-width: 440px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto;" onclick="event.stopPropagation()">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h2 style="margin: 0; font-size: 20px; font-weight: 600;" id="authModalTitle">Prijava / Registracija</h2>
-                <button id="authModalCloseBtn" type="button" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px;">&times;</button>
+        <div class="edit-modal" style="max-width: 420px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto; padding: 24px 26px; border-radius: 14px; background: #121214; border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 24px 50px rgba(0, 0, 0, 0.85);" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;" id="authModalTitle">Login to make changes</h2>
+                <button id="authModalCloseBtn" type="button" style="background: transparent; border: none; color: #888; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px; transition: color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">&times;</button>
             </div>
 
-            <!-- Explanatory Copy as requested by user -->
-            <div style="background: rgba(79, 70, 229, 0.12); border: 1px solid rgba(79, 70, 229, 0.35); border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5; color: #e0e7ff; margin-bottom: 16px;">
-                <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: #a5b4fc;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    Tvoja lična vinil arhiva i besplatan Cloudflare R2
-                </div>
-                Ova aplikacija ti daje mogućnost da sam otpremaš sopstvene muzičke albume, kreiraš virtuelnu vinil kolekciju i slušaš ih bilo gde uz realističan 3D gramofon. 
-                <div style="margin-top: 6px; font-size: 12px; color: #c7d2fe;">
-                    Za čuvanje pesama koristi se <strong>besplatan Cloudflare R2 nalog</strong> (10 GB besplatnog prostora bez troškova). Ako se registruješ sa novim mejlom, krećeš od nule i unosiš svoje R2 podatke, a sistem automatski povezuje repozitorijum.
-                </div>
-            </div>
-
-            <!-- Current User State Info Box -->
-            <div id="authCurrentStateBox" style="background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 13px;">
-                <div style="color: #a1a1aa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">Trenutno aktivan nalog:</div>
-                <div id="authCurrentStatusText" style="font-weight: 600; color: #fff; margin-top: 3px; display: flex; align-items: center; justify-content: space-between;">
-                    <span>Demo nalog (zajednička kolekcija)</span>
-                    <span id="authCurrentR2Badge" style="font-size: 10px; background: #065f46; color: #a7f3d0; padding: 2px 6px; border-radius: 4px;">R2 aktivan</span>
-                </div>
-            </div>
-
-            <!-- Tabs: Prijava / Registracija -->
-            <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid #333; padding-bottom: 8px;">
-                <button type="button" id="tabAuthLogin" style="background: none; border: none; font-weight: 600; color: #818cf8; font-size: 14px; cursor: pointer; padding: 4px 8px; border-bottom: 2px solid #818cf8;">Prijava</button>
-                <button type="button" id="tabAuthRegister" style="background: none; border: none; font-weight: 500; color: #888; font-size: 14px; cursor: pointer; padding: 4px 8px;">Novi Nalog (Registracija)</button>
-                <button type="button" id="tabAuthR2Settings" style="margin-left: auto; background: none; border: none; font-weight: 500; color: #888; font-size: 13px; cursor: pointer; padding: 4px 8px;">⚙️ R2 Podešavanja</button>
-            </div>
+            <!-- Subtitle from wireframe -->
+            <p id="authModalSubtitle" style="color: rgba(255, 255, 255, 0.65); font-size: 13.5px; line-height: 1.45; margin: 4px 0 16px 0;">
+                This is demo vinyl archive, login to make changes or create a new account.
+            </p>
 
             <!-- Form: Login / Register -->
-            <form id="authLoginForm" onsubmit="event.preventDefault();" style="display: flex; flex-direction: column; gap: 12px;">
+            <form id="authLoginForm" onsubmit="event.preventDefault();" style="display: flex; flex-direction: column; gap: 13px;">
                 <!-- One-click Google Authentication button -->
-                <button type="button" id="authGoogleBtn" style="width: 100%; padding: 11px; background: #ffffff; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: transform 0.15s, background 0.15s;">
+                <button type="button" id="authGoogleBtn" style="width: 100%; padding: 11px 16px; background: rgba(255, 255, 255, 0.06); color: #f4f4f5; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px; font-weight: 500; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255, 255, 255, 0.11)'; this.style.borderColor='rgba(255, 255, 255, 0.28)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.06)'; this.style.borderColor='rgba(255, 255, 255, 0.16)';">
                     <svg width="18" height="18" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                     </svg>
-                    <span>Prijavi se putem Google naloga</span>
+                    <span id="authGoogleBtnText">Login with Google</span>
                 </button>
 
-                <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
-                    <div style="flex: 1; height: 1px; background: #333;"></div>
-                    <span style="color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">ili unosom emaila</span>
-                    <div style="flex: 1; height: 1px; background: #333;"></div>
+                <div style="display: flex; align-items: center; gap: 10px; margin: 2px 0;">
+                    <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12);"></div>
+                    <span style="color: rgba(255, 255, 255, 0.4); font-size: 12px; font-weight: 500;">Or</span>
+                    <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12);"></div>
                 </div>
 
                 <div>
-                    <label style="display: block; font-size: 12px; color: #aaa; margin-bottom: 4px;">Email adresa</label>
-                    <input type="email" id="authEmailInput" placeholder="tvoj.mejl@primer.com" required style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 13px; box-sizing: border-box;">
+                    <label style="display: block; font-size: 13px; font-weight: 500; color: #a1a1aa; margin-bottom: 5px;">Email</label>
+                    <input type="email" id="authEmailInput" placeholder="name@example.com" required style="width: 100%; padding: 11px 13px; background: #1a1a1d; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 13.5px; box-sizing: border-box; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#333'">
                 </div>
                 <div>
-                    <label style="display: block; font-size: 12px; color: #aaa; margin-bottom: 4px;">Lozinka</label>
-                    <input type="password" id="authPasswordInput" placeholder="••••••••" required style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 13px; box-sizing: border-box;">
+                    <label style="display: block; font-size: 13px; font-weight: 500; color: #a1a1aa; margin-bottom: 5px;">Password</label>
+                    <input type="password" id="authPasswordInput" placeholder="••••••••" required style="width: 100%; padding: 11px 13px; background: #1a1a1d; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 13.5px; box-sizing: border-box; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#333'">
                 </div>
                 
-                <div id="authErrorMessage" style="display: none; color: #f87171; font-size: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px; border-radius: 6px;"></div>
+                <div id="authErrorMessage" style="display: none; color: #f87171; font-size: 12px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.28); padding: 9px 12px; border-radius: 6px; line-height: 1.4;"></div>
 
-                <div style="display: flex; gap: 8px; margin-top: 6px;">
-                    <button type="button" id="authSubmitBtn" style="flex: 1; padding: 11px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Prijavi se</button>
-                    <button type="button" id="authUseDemoBtn" style="padding: 11px 14px; background: #27272a; color: #d4d4d8; border: 1px solid #3f3f46; border-radius: 6px; font-size: 13px; cursor: pointer;">Nastavi kao Demo</button>
+                <!-- Primary Action Button (Login / Register) -->
+                <button type="button" id="authSubmitBtn" style="width: 100%; padding: 12px; margin-top: 2px; background: #222226; color: #ffffff; border: 1px solid #3f3f46; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.18s; box-shadow: 0 2px 5px rgba(0,0,0,0.35);" onmouseover="this.style.background='#2d2d32'; this.style.borderColor='#52525b';" onmouseout="this.style.background='#222226'; this.style.borderColor='#3f3f46';">Login</button>
+
+                <div style="display: flex; align-items: center; gap: 10px; margin: 2px 0;">
+                    <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12);"></div>
+                    <span style="color: rgba(255, 255, 255, 0.4); font-size: 12px; font-weight: 500;">Or</span>
+                    <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12);"></div>
                 </div>
-                <div id="authSignOutBox" style="display: none; margin-top: 4px;">
-                    <button type="button" id="authSignOutBtn" style="width: 100%; padding: 9px; background: transparent; border: 1px solid #dc2626; color: #ef4444; border-radius: 6px; font-size: 12px; cursor: pointer;">Odjavi se (Vrati na Demo)</button>
+
+                <!-- Secondary Switch Button (Create account / Login) -->
+                <button type="button" id="authSwitchModeBtn" style="width: 100%; padding: 11px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.22); color: #e4e4e7; border-radius: 8px; font-weight: 500; font-size: 14px; cursor: pointer; transition: all 0.18s;" onmouseover="this.style.background='rgba(255, 255, 255, 0.06)'; this.style.borderColor='rgba(255, 255, 255, 0.35)';" onmouseout="this.style.background='transparent'; this.style.borderColor='rgba(255, 255, 255, 0.22)';">Create account</button>
+
+                <!-- Current User Active State Box (shown when signed in) -->
+                <div id="authCurrentStateBox" style="display: none; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 7px 10px; margin-top: 4px; font-size: 12px;">
+                    <span id="authCurrentStatusText" style="color: #a1a1aa; font-weight: 500;"></span>
+                    <button type="button" id="authSignOutBtn" style="background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline;">Odjavi se</button>
+                </div>
+
+                <!-- Discrete R2 Settings Link -->
+                <div style="text-align: center; margin-top: 4px;">
+                    <button type="button" id="tabAuthR2Settings" style="background: none; border: none; color: rgba(255, 255, 255, 0.35); font-size: 11px; cursor: pointer; text-decoration: underline; padding: 2px 4px; transition: color 0.15s;" onmouseover="this.style.color='rgba(255, 255, 255, 0.7)'" onmouseout="this.style.color='rgba(255, 255, 255, 0.35)'">⚙️ Skladište i Cloudflare R2 podešavanja</button>
                 </div>
             </form>
 
             <!-- R2 Settings View (Inside Auth Modal / Sub-tab) -->
             <div id="authR2SettingsSection" style="display: none; flex-direction: column; gap: 12px; margin-top: 4px;">
-                <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5; background: #111; padding: 10px; border-radius: 6px; border: 1px solid #222;">
-                    <strong>Kako dobiti Cloudflare R2 besplatno:</strong><br>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                    <button type="button" id="btnBackToAuth" style="background: none; border: none; color: #818cf8; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0;">&larr; Nazad na prijavu</button>
+                </div>
+                <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5; background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #27272a;">
+                    <strong>Cloudflare R2 besplatno skladište:</strong><br>
                     1. Otvori besplatan nalog na <em>dash.cloudflare.com</em> &rarr; <strong>R2 Object Storage</strong><br>
-                    2. Kreiraj bucket (npr. <code>vinyl-collection</code>) i omogući "Public URL" (r2.dev)<br>
-                    3. Idi na "Manage R2 API Tokens" &rarr; "Create API token" (Edit permissions) i kopiraj podatke dole:
+                    2. Kreiraj bucket i kreiraj API token (Edit permissions):
                 </div>
                 <div>
                     <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Account ID</label>
@@ -1979,16 +1969,42 @@
         }
 
         function setBridgeSourceByIndex(idx){
-            const src = bgBridge.tracks[idx];
-            if(!src) return;
-            const encoded = encodeURI(src);
-            const absolute = new URL(encoded, window.location.href).href;
-            if(archiveDeck.src !== absolute){
-                archiveDeck.src = encoded;
+            const trackName = bgBridge.tracks[idx];
+            if(!trackName) return;
+            
+            let fullPath = trackName;
+            if (trackName.startsWith("http://") || trackName.startsWith("https://")) {
+                fullPath = trackName;
+            } else if (bgBridge.folder && (bgBridge.folder.startsWith("http://") || bgBridge.folder.startsWith("https://"))) {
+                fullPath = bgBridge.folder.replace(/\/$/, "") + "/" + trackName;
+            } else if (bgBridge.folder && !trackName.startsWith(bgBridge.folder)) {
+                fullPath = bgBridge.folder + "/" + trackName;
+            }
+
+            let absolute = "";
+            const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i);
+            if (vinylMatch) {
+                const r2Key = `Vinyl Collection/${vinylMatch[1]}`;
+                absolute = `/api/r2-stream/${encodeURIComponent(r2Key)}`;
+            } else if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
+                try {
+                    absolute = encodeURI(fullPath);
+                } catch(_) {
+                    absolute = fullPath;
+                }
+            } else {
+                const clean = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
+                absolute = new URL(encodeURI(clean), window.location.origin).href;
+            }
+
+            const resolvedAbsolute = new URL(absolute, window.location.origin).href;
+            if(archiveDeck.src !== resolvedAbsolute){
+                archiveDeck.src = resolvedAbsolute;
             }
         }
 
         function startArchiveBridgeFromState(){
+            if(EMBEDDED) return;
             let state = null;
             try { state = JSON.parse(localStorage.getItem(PLAYBACK_STATE_KEY) || "null"); } catch(_) { state = null; }
             if(!state || !state.playing) return;
@@ -2001,6 +2017,7 @@
             if(String(state.albumName || "") !== albumName) return;
             bgBridge.active = true;
             bgBridge.albumName = albumName;
+            bgBridge.folder = selected.folder || "";
             bgBridge.tracks = selected.tracks.slice();
             bgBridge.sideSplit = Math.ceil(bgBridge.tracks.length / 2);
             bgBridge.currentSide = state.currentSide === "B" ? "B" : "A";
@@ -2015,6 +2032,7 @@
         }
 
         function ensureArchiveBridgePlayback(){
+            if(EMBEDDED) return;
             if(!bgBridge.active) return;
             if(!archiveDeck.paused) return;
             archiveDeck.play().catch(()=>{});
@@ -3186,7 +3204,6 @@
                 }
 
                 disk.visible = isLaunching || openVal > 0.005;
-                if (!isLaunching && openStates[i]) disk.rotation.y -= 0.008;
 
                 let opacity = 1;
                 if (dist < -0.42) {
@@ -3453,21 +3470,27 @@
         const userAuthLabel = document.getElementById('userAuthLabel');
         const authModalOverlay = document.getElementById('authModalOverlay');
         const authModalCloseBtn = document.getElementById('authModalCloseBtn');
-        const tabAuthLogin = document.getElementById('tabAuthLogin');
-        const tabAuthRegister = document.getElementById('tabAuthRegister');
-        const tabAuthR2Settings = document.getElementById('tabAuthR2Settings');
-        const authLoginForm = document.getElementById('authLoginForm');
-        const authR2SettingsSection = document.getElementById('authR2SettingsSection');
+        const authModalTitle = document.getElementById('authModalTitle');
+        const authModalSubtitle = document.getElementById('authModalSubtitle');
         const authGoogleBtn = document.getElementById('authGoogleBtn');
+        const authGoogleBtnText = document.getElementById('authGoogleBtnText');
         const authSubmitBtn = document.getElementById('authSubmitBtn');
-        const authUseDemoBtn = document.getElementById('authUseDemoBtn');
-        const authSignOutBox = document.getElementById('authSignOutBox');
-        const authSignOutBtn = document.getElementById('authSignOutBtn');
+        const authSwitchModeBtn = document.getElementById('authSwitchModeBtn');
+        const authLoginForm = document.getElementById('authLoginForm');
         const authEmailInput = document.getElementById('authEmailInput');
         const authPasswordInput = document.getElementById('authPasswordInput');
         const authErrorMessage = document.getElementById('authErrorMessage');
+        const authCurrentStateBox = document.getElementById('authCurrentStateBox');
         const authCurrentStatusText = document.getElementById('authCurrentStatusText');
-        const authCurrentR2Badge = document.getElementById('authCurrentR2Badge');
+        const authSignOutBox = document.getElementById('authSignOutBox');
+        const authSignOutBtn = document.getElementById('authSignOutBtn');
+        const authUseDemoBtn = document.getElementById('authUseDemoBtn');
+
+        const tabAuthLogin = document.getElementById('tabAuthLogin');
+        const tabAuthRegister = document.getElementById('tabAuthRegister');
+        const tabAuthR2Settings = document.getElementById('tabAuthR2Settings');
+        const authR2SettingsSection = document.getElementById('authR2SettingsSection');
+        const btnBackToAuth = document.getElementById('btnBackToAuth');
 
         const r2AccountIdInput = document.getElementById('r2AccountIdInput');
         const r2AccessKeyIdInput = document.getElementById('r2AccessKeyIdInput');
@@ -3509,20 +3532,20 @@
         function updateAuthUI() {
             if (currentUser && currentUser.email) {
                 if (isAdmin()) {
-                    userAuthLabel.innerHTML = `<span style="color: #fbbf24; font-weight: bold;">👑 Admin</span>`;
-                    authCurrentStatusText.innerHTML = `<span>👑 <strong>Administrator</strong> (${currentUser.email})</span><span id="authCurrentR2Badge" style="font-size: 10px; background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Demo & Personal Admin</span>`;
+                    if (userAuthLabel) userAuthLabel.innerHTML = `<span style="color: #fbbf24; font-weight: bold;">👑 Admin</span>`;
+                    if (authCurrentStatusText) authCurrentStatusText.innerHTML = `<span>👑 <strong>Administrator</strong> (${currentUser.email})</span>`;
                 } else {
-                    userAuthLabel.textContent = currentUser.email.split('@')[0];
-                    authCurrentStatusText.innerHTML = `<span>👤 <strong>${currentUser.email}</strong></span><span id="authCurrentR2Badge" style="font-size: 10px; background: #065f46; color: #a7f3d0; padding: 2px 6px; border-radius: 4px;">Ulogovan</span>`;
+                    if (userAuthLabel) userAuthLabel.textContent = currentUser.email.split('@')[0];
+                    if (authCurrentStatusText) authCurrentStatusText.innerHTML = `<span>👤 <strong>${currentUser.email}</strong></span>`;
                 }
-                authSignOutBox.style.display = "block";
-                authUseDemoBtn.style.display = "none";
-                tabAuthR2Settings.style.display = "inline-block";
+                if (authCurrentStateBox) authCurrentStateBox.style.display = "flex";
+                if (authSignOutBox) authSignOutBox.style.display = "block";
+                if (authUseDemoBtn) authUseDemoBtn.style.display = "none";
             } else {
-                userAuthLabel.textContent = "Demo Nalog";
-                authCurrentStatusText.innerHTML = `<span>⚡ <strong>Demo Nalog</strong> (javna kolekcija - pregled)</span><span id="authCurrentR2Badge" style="font-size: 10px; background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px;">Demo R2</span>`;
-                authSignOutBox.style.display = "none";
-                authUseDemoBtn.style.display = "inline-block";
+                if (userAuthLabel) userAuthLabel.textContent = "Demo Nalog";
+                if (authCurrentStateBox) authCurrentStateBox.style.display = "none";
+                if (authSignOutBox) authSignOutBox.style.display = "none";
+                if (authUseDemoBtn) authUseDemoBtn.style.display = "none";
             }
             updateUploadStorageBadge();
         }
@@ -3544,35 +3567,27 @@
             showAuthError("");
             if (tab === "login") {
                 authMode = "login";
-                tabAuthLogin.style.color = "#818cf8";
-                tabAuthLogin.style.borderBottom = "2px solid #818cf8";
-                tabAuthRegister.style.color = "#888";
-                tabAuthRegister.style.borderBottom = "none";
-                tabAuthR2Settings.style.color = "#888";
-                tabAuthR2Settings.style.borderBottom = "none";
-                authLoginForm.style.display = "flex";
-                authR2SettingsSection.style.display = "none";
-                authSubmitBtn.innerText = "Prijavi se";
+                if (authModalTitle) authModalTitle.innerText = "Login to make changes";
+                if (authModalSubtitle) authModalSubtitle.innerText = "This is demo vinyl archive, login to make changes or create a new account.";
+                if (authGoogleBtnText) authGoogleBtnText.innerText = "Login with Google";
+                if (authSubmitBtn) authSubmitBtn.innerText = "Login";
+                if (authSwitchModeBtn) authSwitchModeBtn.innerText = "Create account";
+                if (authLoginForm) authLoginForm.style.display = "flex";
+                if (authR2SettingsSection) authR2SettingsSection.style.display = "none";
             } else if (tab === "register") {
                 authMode = "register";
-                tabAuthRegister.style.color = "#818cf8";
-                tabAuthRegister.style.borderBottom = "2px solid #818cf8";
-                tabAuthLogin.style.color = "#888";
-                tabAuthLogin.style.borderBottom = "none";
-                tabAuthR2Settings.style.color = "#888";
-                tabAuthR2Settings.style.borderBottom = "none";
-                authLoginForm.style.display = "flex";
-                authR2SettingsSection.style.display = "none";
-                authSubmitBtn.innerText = "Registruj nalog";
+                if (authModalTitle) authModalTitle.innerText = "Create account";
+                if (authModalSubtitle) authModalSubtitle.innerText = "Register to upload music and listen to your own vinyl collection";
+                if (authGoogleBtnText) authGoogleBtnText.innerText = "Sign up with Google";
+                if (authSubmitBtn) authSubmitBtn.innerText = "Register";
+                if (authSwitchModeBtn) authSwitchModeBtn.innerText = "Login";
+                if (authLoginForm) authLoginForm.style.display = "flex";
+                if (authR2SettingsSection) authR2SettingsSection.style.display = "none";
             } else if (tab === "r2") {
-                tabAuthR2Settings.style.color = "#818cf8";
-                tabAuthR2Settings.style.borderBottom = "2px solid #818cf8";
-                tabAuthLogin.style.color = "#888";
-                tabAuthLogin.style.borderBottom = "none";
-                tabAuthRegister.style.color = "#888";
-                tabAuthRegister.style.borderBottom = "none";
-                authLoginForm.style.display = "none";
-                authR2SettingsSection.style.display = "flex";
+                if (authModalTitle) authModalTitle.innerText = "Cloudflare R2 Podešavanja";
+                if (authModalSubtitle) authModalSubtitle.innerText = "Povežite sopstveni Cloudflare R2 bucket za čuvanje pesama i albuma";
+                if (authLoginForm) authLoginForm.style.display = "none";
+                if (authR2SettingsSection) authR2SettingsSection.style.display = "flex";
                 loadUserR2Settings();
             }
         }
@@ -3639,6 +3654,18 @@
         authModalCloseBtn?.addEventListener('click', () => {
             pendingActionAfterAuth = null;
             authModalOverlay?.classList.remove('active');
+        });
+
+        authSwitchModeBtn?.addEventListener('click', () => {
+            if (authMode === "login") {
+                switchAuthTab("register");
+            } else {
+                switchAuthTab("login");
+            }
+        });
+
+        btnBackToAuth?.addEventListener('click', () => {
+            switchAuthTab("login");
         });
 
         tabAuthLogin?.addEventListener('click', () => switchAuthTab('login'));
@@ -3720,7 +3747,7 @@
             }
 
             authSubmitBtn.disabled = true;
-            authSubmitBtn.innerText = "Molimo sačekajte...";
+            authSubmitBtn.innerText = authMode === "register" ? "Registering..." : "Logging in...";
             showAuthError("");
 
             try {
@@ -3786,18 +3813,18 @@
             } catch (err) {
                 let msg = err?.message || "Greška pri prijavi.";
                 if (msg.includes("auth/operation-not-allowed")) {
-                    msg = "Email/Password provajder nije uključen u Firebase konzoli. Molimo iskoristite dugme 'Prijavi se putem Google naloga' iznad (ili uključite Email/Password u Firebase Console > Authentication > Sign-in method).";
+                    msg = "Email/Password provajder nije uključen u Firebase konzoli. Molimo iskoristite dugme 'Login with Google' iznad (ili uključite Email/Password u Firebase Console > Authentication > Sign-in method).";
                 } else if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password")) {
                     msg = "Pogrešan email ili lozinka.";
                 } else if (msg.includes("auth/email-already-in-use")) {
-                    msg = "Nalog sa ovim emailom već postoji. Izaberite 'Prijava'.";
+                    msg = "Nalog sa ovim emailom već postoji. Izaberite 'Login'.";
                 } else if (msg.includes("auth/user-not-found")) {
-                    msg = "Nalog sa ovom email adresom ne postoji. Izaberite 'Novi Nalog (Registracija)'.";
+                    msg = "Nalog sa ovom email adresom ne postoji. Izaberite 'Create account'.";
                 }
                 showAuthError(msg);
             } finally {
                 authSubmitBtn.disabled = false;
-                authSubmitBtn.innerText = authMode === "register" ? "Registruj nalog" : "Prijavi se";
+                authSubmitBtn.innerText = authMode === "register" ? "Register" : "Login";
             }
         });
 
@@ -4723,7 +4750,6 @@
                 pendingActionAfterAuth = "edit";
                 updateAuthUI();
                 switchAuthTab("login");
-                showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste menjali albume na demo nalogu.");
                 authModalOverlay?.classList.add("active");
                 return;
             }
@@ -5264,9 +5290,14 @@
                     const clampedIdx = Math.max(0, Math.min(collection.length - 1, currentIdx));
                     if (!isPlayingLockedIndex(clampedIdx) && clampedIdx >= 0 && clampedIdx < collection.length) {
                         const selected = collection[clampedIdx];
-                        if (selected && selected.files && selected.files.length > 0) {
+                        const tracks = (selected?.tracks && selected.tracks.length > 0) ? selected.tracks : (selected?.files || []);
+                        if (selected && tracks && tracks.length > 0) {
                             bgBridge.active = true;
                             bgBridge.currentAlbum = selected;
+                            bgBridge.folder = selected.folder || "";
+                            bgBridge.tracks = tracks.slice();
+                            bgBridge.sideSplit = Math.ceil(bgBridge.tracks.length / 2);
+                            bgBridge.currentSide = "A";
                             bgBridge.currentTrackIndex = 0;
                             setBridgeSourceByIndex(0);
                             archiveDeck.play().catch(()=>{});
