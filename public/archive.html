@@ -564,18 +564,18 @@
     <div id="now-playing-badge">Now Playing</div>
 
     <!-- Empty State Card when archive has 0 albums -->
-    <div id="emptyStateCard" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; text-align: center; color: #fff; pointer-events: auto; background: rgba(18, 18, 22, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 38px 40px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.12); max-width: 440px; width: 90%; box-shadow: 0 24px 60px rgba(0,0,0,0.7); flex-direction: column; align-items: center;">
+    <div id="emptyStateCard" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; text-align: center; color: #fff; pointer-events: auto; max-width: 440px; width: 90%; flex-direction: column; align-items: center;">
         <div style="width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <circle cx="12" cy="12" r="3"></circle>
             </svg>
         </div>
-        <div style="font-size: 19px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px;">Arhiva je prazna</div>
-        <p style="color: #999; font-size: 14px; line-height: 1.55; margin: 0 0 24px 0;">Trenutno nema sačuvanih albuma. Ubacite vinil album sa pesmama i omotom kroz aplikaciju.</p>
+        <div style="font-size: 19px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px;">Archive is empty</div>
+        <p style="color: #999; font-size: 14px; line-height: 1.55; margin: 0 0 24px 0;">No saved albums currently. Upload albums with songs and cover image, they will show up here in your collection.</p>
         <button id="emptyUploadBtn" style="background: #ffffff; color: #000; border: none; padding: 12px 26px; border-radius: 24px; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.15s, opacity 0.15s; box-shadow: 0 4px 14px rgba(255,255,255,0.2);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Dodaj Album
+            Add Album
         </button>
     </div>
 
@@ -726,124 +726,63 @@
                 <!-- Current User Active State Box (shown when signed in) -->
                 <div id="authCurrentStateBox" style="display: none; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 7px 10px; margin-top: 4px; font-size: 12px;">
                     <span id="authCurrentStatusText" style="color: #a1a1aa; font-weight: 500;"></span>
-                    <button type="button" id="authSignOutBtn" style="background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline;">Odjavi se</button>
-                </div>
-
-                <!-- Discrete R2 Settings Link -->
-                <div style="text-align: center; margin-top: 4px;">
-                    <button type="button" id="tabAuthR2Settings" style="background: none; border: none; color: rgba(255, 255, 255, 0.35); font-size: 11px; cursor: pointer; text-decoration: underline; padding: 2px 4px; transition: color 0.15s;" onmouseover="this.style.color='rgba(255, 255, 255, 0.7)'" onmouseout="this.style.color='rgba(255, 255, 255, 0.35)'">⚙️ Skladište i Cloudflare R2 podešavanja</button>
+                    <button type="button" id="authSignOutBtn" style="background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline;">Sign out</button>
                 </div>
             </form>
-
-            <!-- R2 Settings View (Inside Auth Modal / Sub-tab) -->
-            <div id="authR2SettingsSection" style="display: none; flex-direction: column; gap: 12px; margin-top: 4px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                    <button type="button" id="btnBackToAuth" style="background: none; border: none; color: #818cf8; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0;">&larr; Nazad na prijavu</button>
-                </div>
-                <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5; background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #27272a;">
-                    <strong>Cloudflare R2 besplatno skladište:</strong><br>
-                    1. Otvori besplatan nalog na <em>dash.cloudflare.com</em> &rarr; <strong>R2 Object Storage</strong><br>
-                    2. Kreiraj bucket i kreiraj API token (Edit permissions):
-                </div>
-                <div>
-                    <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Account ID</label>
-                    <input type="text" id="r2AccountIdInput" placeholder="npr. 024cdf19996bc443a2051518c2bdfb26" style="width: 100%; padding: 8px 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box;">
-                </div>
-                <div>
-                    <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Access Key ID</label>
-                    <input type="text" id="r2AccessKeyIdInput" placeholder="npr. bc1e0964d5a52ed92c7ece6e2a3910f4" style="width: 100%; padding: 8px 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box;">
-                </div>
-                <div>
-                    <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Secret Access Key</label>
-                    <input type="password" id="r2SecretKeyInput" placeholder="52a0eac3f4ecb676d9b10e9a4cbda8c4..." style="width: 100%; padding: 8px 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box;">
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <div style="flex: 1;">
-                        <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Bucket Name</label>
-                        <input type="text" id="r2BucketNameInput" placeholder="vinyl-archive" value="vinyl-archive" style="width: 100%; padding: 8px 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="display: block; font-size: 11px; color: #aaa; margin-bottom: 3px;">Public R2 URL (opciono)</label>
-                        <input type="text" id="r2PublicUrlInput" placeholder="https://pub-....r2.dev" style="width: 100%; padding: 8px 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box;">
-                    </div>
-                </div>
-
-                <div id="r2StatusMessage" style="display: none; font-size: 12px; padding: 8px; border-radius: 6px;"></div>
-
-                <div style="display: flex; gap: 8px; margin-top: 4px;">
-                    <button type="button" id="btnTestR2" style="flex: 1; padding: 9px; background: #27272a; color: #fff; border: 1px solid #555; border-radius: 6px; font-size: 12px; cursor: pointer;">Testiraj konekciju</button>
-                    <button type="button" id="btnSaveR2" style="flex: 1; padding: 9px; background: #059669; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Sačuvaj R2 Podešavanja</button>
-                </div>
-            </div>
         </div>
     </div>
     <!-- Upload Album Modal -->
     <div class="edit-modal-overlay" id="uploadModalOverlay" style="z-index: 3500;" onclick="event.stopPropagation()">
         <div class="edit-modal" style="max-width: 440px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto;" onclick="event.stopPropagation()">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Dodaj novi album</h2>
+                <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Add New Album</h2>
                 <button id="uploadModalCloseBtn" type="button" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px;">&times;</button>
             </div>
 
-            <!-- Active storage badge / BYO notice -->
-            <div id="uploadStorageBadge" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; font-size: 12px;">
-                <span id="uploadStorageAccountName" style="color: #cbd5e1;">Skladište: <strong>Demo Cloudflare R2</strong></span>
-                <button type="button" id="uploadSwitchAccountBtn" style="background: none; border: none; color: #818cf8; text-decoration: underline; cursor: pointer; font-size: 11px; padding: 0;">Promeni nalog / R2</button>
-            </div>
-            
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 0; margin-bottom: 16px;">
-                Izaberite folder albuma ili selektujte pesme sa računara ili telefona:
-            </p>
-
             <!-- File Selection Pickers -->
             <input type="file" id="uploadFolderInput" webkitdirectory directory multiple style="display: none;">
-            <input type="file" id="uploadFilesInput" multiple accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.aac" style="display: none;">
             <input type="file" id="uploadCoverInput" accept="image/*,.jpg,.jpeg,.png,.webp" style="display: none;">
 
             <div style="display: flex; gap: 10px; margin-bottom: 14px;">
-                <button type="button" id="btnPickFolder" style="flex: 1; background: #222; border: 1px dashed #555; padding: 12px 8px; border-radius: 8px; cursor: pointer; color: #fff; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                <button type="button" id="btnPickFolder" style="width: 100%; background: #222; border: 1px dashed #555; padding: 12px 8px; border-radius: 8px; cursor: pointer; color: #fff; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    <span>Izaberi ceo folder</span>
-                </button>
-                <button type="button" id="btnPickFiles" style="flex: 1; background: #222; border: 1px dashed #555; padding: 12px 8px; border-radius: 8px; cursor: pointer; color: #fff; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
-                    <span>Izaberi audio pesme</span>
+                    <span>Select Folder</span>
                 </button>
             </div>
 
             <!-- Summary of Selected Files -->
             <div id="uploadFilesSummary" style="display: none; background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(79, 70, 229, 0.4); border-radius: 6px; padding: 10px; font-size: 12px; margin-bottom: 14px; color: #c7d2fe;">
-                <div id="uploadTrackCount" style="font-weight: bold; margin-bottom: 4px;">0 pesama izabrano</div>
+                <div id="uploadTrackCount" style="font-weight: bold; margin-bottom: 4px;">0 tracks selected</div>
                 <div id="uploadFileListPreview" style="max-height: 80px; overflow-y: auto; color: rgba(255,255,255,0.7); font-size: 11px;"></div>
             </div>
 
             <!-- Metadata Inputs (Inline Artist & Album Name) -->
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Izvođač / Artist
-                    <input type="text" id="uploadArtistInput" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Artist
+                    <input type="text" id="uploadArtistInput" placeholder="e.g. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Naziv albuma / Album Title
-                    <input type="text" id="uploadAlbumInputNew" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Album Title
+                    <input type="text" id="uploadAlbumInputNew" placeholder="e.g. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
             </div>
 
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Žanr
+                    Genre
                     <select id="uploadGenreSelect" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                         <option value="ROCK">ROCK</option>
                         <option value="BLUES">BLUES</option>
                         <option value="JAZZ">JAZZ</option>
                         <option value="POP">POP</option>
                         <option value="CLASSICAL">CLASSICAL</option>
-                        <option value="OSTALO">OSTALO</option>
+                        <option value="OTHER">OTHER</option>
                     </select>
                 </label>
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Godina (opciono)
-                    <input type="text" id="uploadYearInput" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Year (optional)
+                    <input type="text" id="uploadYearInput" placeholder="e.g. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
             </div>
 
@@ -852,28 +791,28 @@
             <div style="display: flex; gap: 10px; margin-bottom: 16px;">
                 <!-- Boja vinila -->
                 <div style="flex: 1; display: flex; flex-direction: column;">
-                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Boja vinila</span>
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Vinyl Color</span>
                     <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
-                        <div id="uploadAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Klikni za izbor boje"></div>
+                        <div id="uploadAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Click to choose color"></div>
                         <span id="uploadAlbumColorHex" style="font-size: 12px; color: #eee; font-family: monospace;">#1a1a1a</span>
                         <button type="button" id="uploadAlbumColorBtn" style="margin-left: auto; background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Izaberi
+                            Select
                         </button>
                     </div>
                 </div>
 
                 <!-- Omot albuma -->
                 <div style="flex: 1; display: flex; flex-direction: column;">
-                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma</span>
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Album Cover</span>
                     <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
-                        <div id="uploadCoverThumb" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0; overflow: hidden;">
-                            Omot
+                        <div id="uploadCoverThumb" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #888; flex-shrink: 0; overflow: hidden;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                         </div>
                         <button type="button" id="btnPickCover" style="background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Izaberi
+                            Select
                         </button>
                         <button type="button" id="btnRemoveCover" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 5px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Ukloni
+                            Remove
                         </button>
                     </div>
                 </div>
@@ -884,13 +823,12 @@
                 <div style="background: #222; border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 6px;">
                     <div id="uploadModalProgressBar" style="background: #4f46e5; width: 0%; height: 100%; transition: width 0.15s ease;"></div>
                 </div>
-                <div id="uploadModalProgressStatus" style="font-size: 12px; color: #c7d2fe; text-align: center; font-weight: 500;">Slanje pesama... 0%</div>
+                <div id="uploadModalProgressStatus" style="font-size: 12px; color: #c7d2fe; text-align: center; font-weight: 500;">Uploading tracks... 0%</div>
             </div>
 
             <!-- Action Buttons -->
             <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px;">
-                <button type="button" class="edit-modal-btn cancel" id="uploadModalCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Odustani</button>
-                <button type="button" class="edit-modal-btn save" id="uploadModalSubmitBtn" style="padding: 10px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Otpremi album</button>
+                <button type="button" class="edit-modal-btn save" id="uploadModalSubmitBtn" style="width: 100%; padding: 12px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Upload Album</button>
             </div>
         </div>
     </div>
@@ -899,45 +837,45 @@
         <div class="edit-modal" style="max-width: 440px; max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto;" onclick="event.stopPropagation()">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Izmeni album</h2>
-                    <button class="edit-modal-btn" id="openReorderBtn" type="button" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 11px; padding: 4px 10px; border-radius: 12px; color: #ccc; cursor: pointer;">Redosled</button>
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Edit Album</h2>
+                    <button class="edit-modal-btn" id="openReorderBtn" type="button" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 11px; padding: 4px 10px; border-radius: 12px; color: #ccc; cursor: pointer;">Reorder</button>
                 </div>
                 <button id="editModalCloseBtn" type="button" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px;">&times;</button>
             </div>
 
             <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 0; margin-bottom: 16px;">
-                Uredite metapodatke, omot i boju vinila za izabrani album:
+                Edit metadata, cover and vinyl color for selected album:
             </p>
 
             <!-- Metadata Inputs (Inline Artist & Album Name) -->
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Izvođač / Artist
-                    <input type="text" id="editAlbumAuthor" placeholder="npr. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Artist
+                    <input type="text" id="editAlbumAuthor" placeholder="e.g. THE BEATLES" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Naziv albuma / Album Title
-                    <input type="text" id="editAlbumName" placeholder="npr. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Album Title
+                    <input type="text" id="editAlbumName" placeholder="e.g. ABBEY ROAD" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
             </div>
 
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Žanr
+                    Genre
                     <select id="editAlbumGenre" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
-                        <option value="">- Bez žanra -</option>
+                        <option value="">- No Genre -</option>
                         <option value="ROCK">ROCK</option>
                         <option value="BLUES">BLUES</option>
                         <option value="JAZZ">JAZZ</option>
                         <option value="POP">POP</option>
                         <option value="SOUL">SOUL</option>
                         <option value="CLASSICAL">CLASSICAL</option>
-                        <option value="OSTALO">OSTALO</option>
+                        <option value="OTHER">OTHER</option>
                     </select>
                 </label>
                 <label style="flex: 1; font-size: 13px; color: #aaa;">
-                    Godina (opciono)
-                    <input type="text" id="editAlbumYear" placeholder="npr. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
+                    Year (optional)
+                    <input type="text" id="editAlbumYear" placeholder="e.g. 1969" style="width: 100%; padding: 10px; margin-top: 4px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; box-sizing: border-box; font-size: 13px;">
                 </label>
             </div>
 
@@ -947,38 +885,39 @@
             <div style="display: flex; gap: 10px; margin-bottom: 16px;">
                 <!-- Boja vinila -->
                 <div style="flex: 1; display: flex; flex-direction: column;">
-                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Boja vinila</span>
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Vinyl Color</span>
                     <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
-                        <div id="editAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Klikni za izbor boje"></div>
+                        <div id="editAlbumColorSwatch" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #666; cursor: pointer; transition: transform 0.2s; box-sizing: border-box; flex-shrink: 0; background: #1a1a1a;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Click to choose color"></div>
                         <span id="editAlbumColorHex" style="font-size: 12px; color: #eee; font-family: monospace;">#1a1a1a</span>
                         <button type="button" id="editAlbumColorBtn" style="margin-left: auto; background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Izaberi
+                            Select
                         </button>
                     </div>
                 </div>
 
                 <!-- Omot albuma -->
                 <div style="flex: 1; display: flex; flex-direction: column;">
-                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Omot albuma</span>
+                    <span style="display: block; font-size: 13px; color: #aaa; margin-bottom: 6px;">Album Cover</span>
                     <div style="display: flex; align-items: center; gap: 8px; background: #1a1a1a; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; flex: 1; min-height: 48px; box-sizing: border-box;">
-                        <div id="editAlbumCustomCoverPreviewContainer" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #666; font-size: 10px; flex-shrink: 0; overflow: hidden;">
+                        <div id="editAlbumCustomCoverPreviewContainer" style="width: 32px; height: 32px; border-radius: 6px; background: #222; border: 1px solid #444; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: #888; flex-shrink: 0; overflow: hidden;">
                             <img id="editAlbumCustomCoverPreview" style="width: 100%; height: 100%; object-fit: cover; display: none;">
-                            <span id="editAlbumCoverPlaceholder" style="color: #666; font-size: 10px;">Omot</span>
+                            <span id="editAlbumCoverPlaceholder" style="display: flex; align-items: center; justify-content: center; color: #888;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </span>
                         </div>
                         <button type="button" id="editAlbumCustomCoverBtn" style="background: transparent; border: 1px solid #555; padding: 5px 8px; border-radius: 6px; color: #ddd; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Izaberi
+                            Select
                         </button>
                         <button type="button" id="editAlbumCustomCoverRemoveBtn" style="display: none; background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff6b6b; padding: 5px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap;">
-                            Ukloni
+                            Remove
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Action Buttons (Matching Upload Modal) -->
+            <!-- Action Buttons -->
             <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; border-top: 1px solid #262626; padding-top: 14px;">
-                <button type="button" class="edit-modal-btn cancel" id="editModalCancelBtn" style="padding: 10px 18px; background: transparent; border: 1px solid #555; color: #fff; border-radius: 6px; cursor: pointer;">Zatvori</button>
-                <button type="button" class="edit-modal-btn save" id="editCloseBtn" style="padding: 10px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Sačuvaj</button>
+                <button type="button" class="edit-modal-btn save" id="editCloseBtn" style="width: 100%; padding: 12px 22px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save</button>
             </div>
         </div>
     </div>
@@ -1057,6 +996,12 @@
         const routeFade = document.getElementById('route-fade');
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
         const API_BASE = "";
+        try {
+            localStorage.removeItem("vinyl_archive_albums_v1");
+            localStorage.removeItem("vinyl_selected_album_v1");
+            localStorage.removeItem("archive_playing_uid_v1");
+            localStorage.removeItem("vinyl_player_playback_state_v1");
+        } catch(_) {}
 
         // Helpers for modular Firestore cloud database persistence
         async function saveAlbumToCloud(docId, payload) {
@@ -3569,7 +3514,7 @@
                 if (authSignOutBox) authSignOutBox.style.display = "block";
                 if (authUseDemoBtn) authUseDemoBtn.style.display = "none";
             } else {
-                if (userAuthLabel) userAuthLabel.textContent = "Demo Nalog";
+                if (userAuthLabel) userAuthLabel.textContent = "Demo Account";
                 if (authCurrentStateBox) authCurrentStateBox.style.display = "none";
                 if (authSignOutBox) authSignOutBox.style.display = "none";
                 if (authUseDemoBtn) authUseDemoBtn.style.display = "none";
@@ -3581,41 +3526,77 @@
             const uploadStorageAccountName = document.getElementById("uploadStorageAccountName");
             if (uploadStorageAccountName) {
                 if (isAdmin()) {
-                    uploadStorageAccountName.innerHTML = `Skladište: <strong style="color: #fbbf24;">Demo Kolekcija (Admin režim)</strong>`;
+                    uploadStorageAccountName.innerHTML = `Storage: <strong style="color: #fbbf24;">Demo Collection (Admin mode)</strong>`;
                 } else if (currentUser && currentUser.email) {
-                    uploadStorageAccountName.innerHTML = `Skladište: <strong>Lični nalog (R2)</strong>`;
+                    uploadStorageAccountName.innerHTML = `Storage: <strong>Personal Account (R2)</strong>`;
                 } else {
-                    uploadStorageAccountName.innerHTML = `Skladište: <strong>Demo Cloudflare R2</strong>`;
+                    uploadStorageAccountName.innerHTML = `Storage: <strong>Demo Cloudflare R2</strong>`;
                 }
             }
         }
 
         function switchAuthTab(tab) {
             showAuthError("");
+            const authEmailInput = document.getElementById('authEmailInput');
+            const authPasswordInput = document.getElementById('authPasswordInput');
+            const authGoogleBtn = document.getElementById('authGoogleBtn');
+            const authSubmitBtn = document.getElementById('authSubmitBtn');
+            const authSwitchModeBtn = document.getElementById('authSwitchModeBtn');
+            const authGoogleBtnText = document.getElementById('authGoogleBtnText');
+            const authModalTitle = document.getElementById('authModalTitle');
+            const authModalSubtitle = document.getElementById('authModalSubtitle');
+            const authLoginForm = document.getElementById('authLoginForm');
+
             if (tab === "login") {
                 authMode = "login";
                 if (authModalTitle) authModalTitle.innerText = "Login to make changes";
-                if (authModalSubtitle) authModalSubtitle.innerText = "This is demo vinyl archive, login to make changes or create a new account.";
+                if (authModalSubtitle) authModalSubtitle.innerText = "This is demo vinyl archive, login to make changes.";
                 if (authGoogleBtnText) authGoogleBtnText.innerText = "Login with Google";
-                if (authSubmitBtn) authSubmitBtn.innerText = "Login";
-                if (authSwitchModeBtn) authSwitchModeBtn.innerText = "Create account";
+                if (authSubmitBtn) {
+                    authSubmitBtn.innerText = "Login";
+                    authSubmitBtn.disabled = false;
+                    authSubmitBtn.style.opacity = "1";
+                    authSubmitBtn.style.cursor = "pointer";
+                }
+                if (authSwitchModeBtn) {
+                    authSwitchModeBtn.innerText = "Create account";
+                    authSwitchModeBtn.disabled = false;
+                    authSwitchModeBtn.style.opacity = "1";
+                    authSwitchModeBtn.style.cursor = "pointer";
+                }
+                if (authEmailInput) authEmailInput.disabled = false;
+                if (authPasswordInput) authPasswordInput.disabled = false;
+                if (authGoogleBtn) {
+                    authGoogleBtn.disabled = false;
+                    authGoogleBtn.style.opacity = "1";
+                    authGoogleBtn.style.cursor = "pointer";
+                }
                 if (authLoginForm) authLoginForm.style.display = "flex";
-                if (authR2SettingsSection) authR2SettingsSection.style.display = "none";
             } else if (tab === "register") {
                 authMode = "register";
                 if (authModalTitle) authModalTitle.innerText = "Create account";
-                if (authModalSubtitle) authModalSubtitle.innerText = "Register to upload music and listen to your own vinyl collection";
+                if (authModalSubtitle) authModalSubtitle.innerText = "Not available on this version";
                 if (authGoogleBtnText) authGoogleBtnText.innerText = "Sign up with Google";
-                if (authSubmitBtn) authSubmitBtn.innerText = "Register";
-                if (authSwitchModeBtn) authSwitchModeBtn.innerText = "Login";
+                if (authSubmitBtn) {
+                    authSubmitBtn.innerText = "Register";
+                    authSubmitBtn.disabled = true;
+                    authSubmitBtn.style.opacity = "0.4";
+                    authSubmitBtn.style.cursor = "not-allowed";
+                }
+                if (authSwitchModeBtn) {
+                    authSwitchModeBtn.innerText = "Switch to Login";
+                    authSwitchModeBtn.disabled = false;
+                    authSwitchModeBtn.style.opacity = "1";
+                    authSwitchModeBtn.style.cursor = "pointer";
+                }
+                if (authEmailInput) authEmailInput.disabled = true;
+                if (authPasswordInput) authPasswordInput.disabled = true;
+                if (authGoogleBtn) {
+                    authGoogleBtn.disabled = true;
+                    authGoogleBtn.style.opacity = "0.4";
+                    authGoogleBtn.style.cursor = "not-allowed";
+                }
                 if (authLoginForm) authLoginForm.style.display = "flex";
-                if (authR2SettingsSection) authR2SettingsSection.style.display = "none";
-            } else if (tab === "r2") {
-                if (authModalTitle) authModalTitle.innerText = "Cloudflare R2 Podešavanja";
-                if (authModalSubtitle) authModalSubtitle.innerText = "Povežite sopstveni Cloudflare R2 bucket za čuvanje pesama i albuma";
-                if (authLoginForm) authLoginForm.style.display = "none";
-                if (authR2SettingsSection) authR2SettingsSection.style.display = "flex";
-                loadUserR2Settings();
             }
         }
 
@@ -3697,7 +3678,6 @@
 
         tabAuthLogin?.addEventListener('click', () => switchAuthTab('login'));
         tabAuthRegister?.addEventListener('click', () => switchAuthTab('register'));
-        tabAuthR2Settings?.addEventListener('click', () => switchAuthTab('r2'));
 
         authUseDemoBtn?.addEventListener('click', () => {
             currentUser = null;
@@ -3751,13 +3731,13 @@
                 }
             } catch (err) {
                 console.error("Google sign-in error:", err);
-                let msg = err?.message || "Greška pri Google prijavi.";
+                let msg = err?.message || "Google sign-in error.";
                 if (msg.includes("auth/popup-closed-by-user")) {
-                    msg = "Prozor za prijavu je zatvoren.";
+                    msg = "Sign-in popup closed.";
                 } else if (msg.includes("auth/cancelled-popup-request")) {
-                    msg = "Zahtev za Google prijavu je otkazan.";
+                    msg = "Google sign-in request cancelled.";
                 } else if (msg.includes("auth/operation-not-allowed")) {
-                    msg = "Google prijava nije uključena u Firebase konzoli. Molimo omogućite Google provider u Firebase Console > Authentication.";
+                    msg = "Google sign-in is not enabled in Firebase Console.";
                 }
                 showAuthError(msg);
             } finally {
@@ -3769,7 +3749,7 @@
             const email = authEmailInput.value.trim();
             const password = authPasswordInput.value;
             if (!email || !password) {
-                showAuthError("Molimo unesite email i lozinku.");
+                showAuthError("Please enter email and password.");
                 return;
             }
 
@@ -3780,7 +3760,7 @@
             try {
                 if (authMode === "register") {
                     if (password.length < 6) {
-                        throw new Error("Lozinka mora imati najmanje 6 karaktera.");
+                        throw new Error("Password must be at least 6 characters.");
                     }
                     if (window.__authManager && window.__authManager.signUp) {
                         const res = await window.__authManager.signUp(email, password);
@@ -3794,7 +3774,7 @@
                     updateAuthUI();
                     // Prompt user immediately to provide BYO R2 credentials
                     switchAuthTab("r2");
-                    showR2Status("Nalog je kreiran! Unesi svoje Cloudflare R2 podatke da povežeš skladište za svoje albume.", true);
+                    showR2Status("Account created! Enter your Cloudflare R2 credentials to connect storage for your albums.", true);
                 } else {
                     let loginSuccess = false;
                     try {
@@ -3840,15 +3820,15 @@
                     }
                 }
             } catch (err) {
-                let msg = err?.message || "Greška pri prijavi.";
+                let msg = err?.message || "Login error.";
                 if (msg.includes("auth/operation-not-allowed")) {
-                    msg = "Email/Password provajder nije uključen u Firebase konzoli. Molimo iskoristite dugme 'Login with Google' iznad (ili uključite Email/Password u Firebase Console > Authentication > Sign-in method).";
+                    msg = "Email/Password provider not enabled in Firebase Console.";
                 } else if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password")) {
-                    msg = "Pogrešan email ili lozinka.";
+                    msg = "Incorrect email or password.";
                 } else if (msg.includes("auth/email-already-in-use")) {
-                    msg = "Nalog sa ovim emailom već postoji. Izaberite 'Login'.";
+                    msg = "Account with this email already exists. Choose 'Login'.";
                 } else if (msg.includes("auth/user-not-found")) {
-                    msg = "Nalog sa ovom email adresom ne postoji. Izaberite 'Create account'.";
+                    msg = "Account with this email does not exist. Choose 'Create account'.";
                 }
                 showAuthError(msg);
             } finally {
@@ -3860,8 +3840,8 @@
         // Test Cloudflare R2 credentials
         btnTestR2?.addEventListener('click', async () => {
             btnTestR2.disabled = true;
-            btnTestR2.innerText = "Testiram...";
-            showR2Status("Povezujem se na Cloudflare R2...", true);
+            btnTestR2.innerText = "Testing...";
+            showR2Status("Connecting to Cloudflare R2...", true);
             try {
                 const res = await fetch("/api/r2/test", {
                     method: "POST",
@@ -3877,15 +3857,15 @@
                 });
                 const data = await res.json();
                 if (data && data.success) {
-                    showR2Status("Konekcija sa Cloudflare R2 je uspešna! Bucket je spreman.", true);
+                    showR2Status("Cloudflare R2 connection successful! Bucket is ready.", true);
                 } else {
-                    showR2Status(`Neuspešna konekcija: ${data.message || "Proverite unete ključeve."}`, false);
+                    showR2Status(`Connection failed: ${data.message || "Check provided keys."}`, false);
                 }
             } catch (err) {
-                showR2Status(`Greška pri testiranju: ${err.message}`, false);
+                showR2Status(`Testing error: ${err.message}`, false);
             } finally {
                 btnTestR2.disabled = false;
-                btnTestR2.innerText = "Testiraj konekciju";
+                btnTestR2.innerText = "Test Connection";
             }
         });
 
@@ -3899,12 +3879,12 @@
             const publicUrl = r2PublicUrlInput.value.trim();
 
             if (!accountId || !accessKeyId || !secretAccessKey) {
-                showR2Status("Molimo unesite Account ID, Access Key ID i Secret Access Key.", false);
+                showR2Status("Please enter Account ID, Access Key ID and Secret Access Key.", false);
                 return;
             }
 
             btnSaveR2.disabled = true;
-            btnSaveR2.innerText = "Čuvam...";
+            btnSaveR2.innerText = "Saving...";
 
             try {
                 // Save to backend
@@ -3922,7 +3902,7 @@
                 });
                 const data = await res.json();
                 if (data && data.status === "ok") {
-                    showR2Status("Cloudflare R2 repozitorijum je uspešno sačuvan i povezan za tvoj nalog!", true);
+                    showR2Status("Cloudflare R2 repository successfully saved and linked to your account!", true);
                     setTimeout(() => {
                         authModalOverlay?.classList.remove('active');
                         if (pendingActionAfterAuth === 'upload') {
@@ -3932,13 +3912,13 @@
                         }
                     }, 1200);
                 } else {
-                    showR2Status(data.error || "Greška pri čuvanju podešavanja.", false);
+                    showR2Status(data.error || "Error saving settings.", false);
                 }
             } catch (err) {
-                showR2Status(`Greška: ${err.message}`, false);
+                showR2Status(`Error: ${err.message}`, false);
             } finally {
                 btnSaveR2.disabled = false;
-                btnSaveR2.innerText = "Sačuvaj R2 Podešavanja";
+                btnSaveR2.innerText = "Save R2 Settings";
             }
         });
 
@@ -4040,7 +4020,7 @@
 
             if (uploadCoverThumb) {
                 uploadCoverThumb.style.backgroundImage = "";
-                uploadCoverThumb.innerText = "Omot";
+                uploadCoverThumb.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>';
             }
             if (btnRemoveCover) btnRemoveCover.style.display = "none";
 
@@ -4107,10 +4087,6 @@
                 uploadFolderInput?.click();
             });
 
-            btnPickFiles?.addEventListener('click', () => {
-                uploadFilesInput?.click();
-            });
-
             btnPickCover?.addEventListener('click', () => {
                 uploadCoverInput?.click();
             });
@@ -4122,7 +4098,7 @@
                     coverObjectUrl = null;
                 }
                 uploadCoverThumb.style.backgroundImage = "";
-                uploadCoverThumb.innerText = "Omot";
+                uploadCoverThumb.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>';
                 btnRemoveCover.style.display = "none";
                 if (uploadCoverInput) uploadCoverInput.value = "";
             });
@@ -4150,7 +4126,7 @@
                     selectedAudioFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
                     const totalBytes = selectedAudioFiles.reduce((acc, f) => acc + (f.size || 0), 0);
-                    uploadTrackCount.innerText = `Pronađeno: ${selectedAudioFiles.length} pesama (${formatBytes(totalBytes)})`;
+                    uploadTrackCount.innerText = `Found: ${selectedAudioFiles.length} tracks (${formatBytes(totalBytes)})`;
                     uploadFileListPreview.innerHTML = selectedAudioFiles.map((f, i) => `<div style="padding: 2px 0;">${i + 1}. ${f.name}</div>`).join('');
                     uploadFilesSummary.style.display = "block";
 
@@ -4190,16 +4166,12 @@
                     }
                     coverObjectUrl = URL.createObjectURL(image);
                     uploadCoverThumb.style.backgroundImage = `url("${coverObjectUrl}")`;
-                    uploadCoverThumb.innerText = "";
+                    uploadCoverThumb.innerHTML = "";
                     btnRemoveCover.style.display = "inline-block";
                 }
             }
 
             uploadFolderInput?.addEventListener('change', (e) => {
-                processIncomingFiles(e.target.files);
-            });
-
-            uploadFilesInput?.addEventListener('change', (e) => {
                 processIncomingFiles(e.target.files);
             });
 
@@ -4212,14 +4184,14 @@
                     }
                     coverObjectUrl = URL.createObjectURL(f);
                     uploadCoverThumb.style.backgroundImage = `url("${coverObjectUrl}")`;
-                    uploadCoverThumb.innerText = "";
+                    uploadCoverThumb.innerHTML = "";
                     btnRemoveCover.style.display = "inline-block";
                 }
             });
 
             uploadModalSubmitBtn?.addEventListener('click', async () => {
                 if (!selectedAudioFiles.length) {
-                    alert("Molimo izaberite folder sa albumom ili selektujte pesme.");
+                    alert("Please select an album folder.");
                     return;
                 }
 

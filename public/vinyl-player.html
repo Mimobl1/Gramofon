@@ -894,6 +894,10 @@
     function restoreSidebarState(){
       let saved = null;
       try { saved = localStorage.getItem(SIDEBAR_STATE_KEY); } catch(_) { saved = null; }
+      if (saved === null) {
+        saved = "0";
+        try { localStorage.setItem(SIDEBAR_STATE_KEY, "0"); } catch(_) {}
+      }
       applySidebarState(saved === "1");
     }
 

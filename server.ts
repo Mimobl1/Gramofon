@@ -35,13 +35,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Initialize collection in background without blocking server startup
-  getAlbums()
-    .then(initialAlbums => {
-      console.log(`[Server] Initialized collection: ${initialAlbums.length} albums loaded.`);
+  // Clear all albums on startup for production empty state
+  clearAllAlbums()
+    .then(() => {
+      console.log(`[Server] Cleared all albums for production empty state.`);
     })
     .catch(err => {
-      console.warn("[Server] Initial collection scan warning:", err);
+      console.warn("[Server] Clear albums warning:", err);
     });
 
   // CORS Middleware: ensures iframe, preview, and mobile environments have full access
