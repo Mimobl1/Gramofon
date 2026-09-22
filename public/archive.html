@@ -90,6 +90,26 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap');
 
+        /* Pale, faint placeholder styling so it does not look like typed input */
+        ::placeholder {
+            color: rgba(255, 255, 255, 0.28) !important;
+            opacity: 1 !important;
+            font-weight: 400 !important;
+        }
+        ::-webkit-input-placeholder {
+            color: rgba(255, 255, 255, 0.28) !important;
+            font-weight: 400 !important;
+        }
+        ::-moz-placeholder {
+            color: rgba(255, 255, 255, 0.28) !important;
+            opacity: 1 !important;
+            font-weight: 400 !important;
+        }
+        :-ms-input-placeholder {
+            color: rgba(255, 255, 255, 0.28) !important;
+            font-weight: 400 !important;
+        }
+
         ::-webkit-scrollbar {
             display: none;
         }
@@ -692,7 +712,7 @@
                 <div id="authErrorMessage" style="display: none; color: #f87171; font-size: 12px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.28); padding: 9px 12px; border-radius: 6px; line-height: 1.4;"></div>
 
                 <!-- Primary Action Button (Login / Register) -->
-                <button type="button" id="authSubmitBtn" style="width: 100%; padding: 12px; margin-top: 2px; background: #222226; color: #ffffff; border: 1px solid #3f3f46; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.18s; box-shadow: 0 2px 5px rgba(0,0,0,0.35);" onmouseover="this.style.background='#2d2d32'; this.style.borderColor='#52525b';" onmouseout="this.style.background='#222226'; this.style.borderColor='#3f3f46';">Login</button>
+                <button type="button" id="authSubmitBtn" style="width: 100%; padding: 12px; margin-top: 2px; background: #4f46e5; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.18s; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);" onmouseover="this.style.background='#4338ca'; this.style.boxShadow='0 6px 18px rgba(79, 70, 229, 0.55)';" onmouseout="this.style.background='#4f46e5'; this.style.boxShadow='0 4px 14px rgba(79, 70, 229, 0.4)';">Login</button>
 
                 <div style="display: flex; align-items: center; gap: 10px; margin: 2px 0;">
                     <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12);"></div>
@@ -3533,7 +3553,7 @@
             if (currentUser && currentUser.email) {
                 if (isAdmin()) {
                     if (userAuthLabel) userAuthLabel.innerHTML = `<span style="color: #fbbf24; font-weight: bold;">👑 Admin</span>`;
-                    if (authCurrentStatusText) authCurrentStatusText.innerHTML = `<span>👑 <strong>Administrator</strong> (${currentUser.email})</span>`;
+                    if (authCurrentStatusText) authCurrentStatusText.innerHTML = `<span>👑 <strong>Administrator</strong></span>`;
                 } else {
                     if (userAuthLabel) userAuthLabel.textContent = currentUser.email.split('@')[0];
                     if (authCurrentStatusText) authCurrentStatusText.innerHTML = `<span>👤 <strong>${currentUser.email}</strong></span>`;
@@ -3554,9 +3574,9 @@
             const uploadStorageAccountName = document.getElementById("uploadStorageAccountName");
             if (uploadStorageAccountName) {
                 if (isAdmin()) {
-                    uploadStorageAccountName.innerHTML = `Skladište: <strong style="color: #fbbf24;">Demo Kolekcija (Admin režim - ${currentUser.email})</strong>`;
+                    uploadStorageAccountName.innerHTML = `Skladište: <strong style="color: #fbbf24;">Demo Kolekcija (Admin režim)</strong>`;
                 } else if (currentUser && currentUser.email) {
-                    uploadStorageAccountName.innerHTML = `Skladište: <strong>${currentUser.email} (Lični R2)</strong>`;
+                    uploadStorageAccountName.innerHTML = `Skladište: <strong>Lični nalog (R2)</strong>`;
                 } else {
                     uploadStorageAccountName.innerHTML = `Skladište: <strong>Demo Cloudflare R2</strong>`;
                 }
@@ -3929,7 +3949,7 @@
                     pendingActionAfterAuth = "delete";
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste upravljali i brisali albume sa demo naloga.");
+                    showAuthError("Prijavite se kao administrator kako biste upravljali i brisali albume sa demo naloga.");
                     authModalOverlay?.classList.add("active");
                     return;
                 }
@@ -4051,7 +4071,7 @@
                     pendingActionAfterAuth = "upload";
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) za upravljanje demo kolekcijom, ili se registrujte za lični nalog.");
+                    showAuthError("Prijavite se kao administrator za upravljanje demo kolekcijom, ili se registrujte za lični nalog.");
                     authModalOverlay?.classList.add('active');
                     return;
                 }
@@ -5111,7 +5131,7 @@
                     editModalOverlay?.classList.remove("active");
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator (mimasplash@gmail.com) kako biste brisali albume sa demo naloga.");
+                    showAuthError("Prijavite se kao administrator kako biste brisali albume sa demo naloga.");
                     authModalOverlay?.classList.add("active");
                     return;
                 }

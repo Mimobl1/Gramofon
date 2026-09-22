@@ -501,18 +501,18 @@
     .vinyl-label:active{cursor:grabbing}
     body[data-theme="dark"] .vinyl-label {
       opacity: 1 !important;
-      filter: brightness(1.06) saturate(1.0) !important;
+      filter: brightness(0.84) saturate(1.0) !important;
     }
     body[data-theme="light"] .vinyl-label {
       opacity: 1 !important;
-      filter: brightness(1.08) saturate(1.0) !important;
+      filter: brightness(1.05) saturate(1.0) !important;
     }
     .vinyl-label:before{content:"";position:absolute;inset:calc(4.8% - 1px);border-radius:50%;border:1.6px solid rgba(22,22,22,.88);pointer-events:none}
     .vinyl-label:after{content:"";position:absolute;inset:19%;border-radius:50%;border:1px solid rgba(22,22,22,.22);pointer-events:none}
     .label-cover-bg{position:absolute;inset:0;border-radius:50%;background-size:cover;background-position:center;background-repeat:no-repeat;z-index:1;opacity:0;transition:opacity .35s ease;pointer-events:none;filter:saturate(1.12) brightness(1.08) contrast(1.02)}
     .label-cover-bg.has-cover{opacity:1}
-    .label-cover-bg:after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at center,rgba(0,0,0,0.01) 0%,rgba(0,0,0,0.08) 65%,rgba(0,0,0,0.22) 100%);pointer-events:none}
-    .label-standard{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+    .label-cover-bg:after{content:"";position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0.30);pointer-events:none;z-index:2}
+    .label-standard{position:relative;z-index:5;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
     .label-header{position:absolute;top:24%;left:12%;right:12%;display:flex;flex-direction:column;align-items:center;gap:2px}
     #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:2.8px;font-weight:400;letter-spacing:.3px;line-height:1.1;color:#ececec;text-align:center;text-transform:uppercase;opacity:1}
     #labelTitle,.label-title{font-family:Inter,system-ui,sans-serif;font-size:4.2px;font-weight:900;letter-spacing:.3px;color:#f3f3f3;text-align:center;line-height:1;text-transform:uppercase}
@@ -1124,19 +1124,22 @@
     // Global user-gesture audio unlocker
     let hasAudioBeenUnlocked = false;
     const unlockUserAudioGesture = () => {
-      if (hasAudioBeenUnlocked) return;
       hasAudioBeenUnlocked = true;
       try {
-        if (deckAudio && deckAudio.paused && !playing) {
-          deckAudio.load();
+        if (deckAudio) {
+          applyDeckVolume(targetVolume);
+          if (playing && deckAudio.paused && deckAudio.src) {
+            deckAudio.play().catch(() => {});
+          }
         }
-        if (startCueAudio) startCueAudio.load();
-        if (vinylNoiseAudio) vinylNoiseAudio.load();
+        if (vinylNoiseAudio && playing && vinylNoiseAudio.paused) {
+          vinylNoiseAudio.play().catch(() => {});
+        }
       } catch (_) {}
     };
-    document.addEventListener("pointerdown", unlockUserAudioGesture, { once: true, passive: true });
-    document.addEventListener("click", unlockUserAudioGesture, { once: true, passive: true });
-    document.addEventListener("touchstart", unlockUserAudioGesture, { once: true, passive: true });
+    document.addEventListener("pointerdown", unlockUserAudioGesture, { passive: true });
+    document.addEventListener("click", unlockUserAudioGesture, { passive: true });
+    document.addEventListener("touchstart", unlockUserAudioGesture, { passive: true });
 
     const record=$("vinylRecord"),platter=$("platter"),timer=$("timer"),sideDisplay=$("sideDisplay"),sideStamp=$("sideStamp"),labelSideText=$("labelSideText"),nowPlayingLabel=$("nowPlayingLabel");
     const tonearmRod=$("tonearmRod");
@@ -1412,9 +1415,13 @@
       if (!absoluteUrl) {
           // If the audio belongs to Vinyl Collection, route via server streaming proxy
           // which provides HTTP 206 Partial Content, CORS headers, and direct S3/local streaming
-          const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i);
+          const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i) || fullPath.match(/Vinyl%20Collection\/(.+)$/i);
           if (vinylMatch) {
-              const r2Key = `Vinyl Collection/${vinylMatch[1]}`;
+              let subKey = vinylMatch[1];
+              try {
+                if (subKey.includes("%")) subKey = decodeURIComponent(subKey);
+              } catch (_) {}
+              const r2Key = `Vinyl Collection/${subKey}`;
               absoluteUrl = `/api/r2-stream/${encodeURIComponent(r2Key)}`;
           } else if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
               try {
@@ -1754,7 +1761,7 @@
     deckAudio.addEventListener("error", ()=>{
       const err = deckAudio.error;
       console.warn("[Player] deckAudio error:", err?.code, err?.message, deckAudio.src);
-      // If direct CDN/R2 URL failed, fallback to /api/r2-stream proxy
+      // 1. If direct CDN/R2 URL failed, fallback to /api/r2-stream proxy
       if (deckAudio.src && !deckAudio.src.includes("/api/r2-stream/")) {
         const match = deckAudio.src.match(/Vinyl%20Collection\/(.+)$/i) || deckAudio.src.match(/Vinyl Collection\/(.+)$/i);
         if (match) {
@@ -1769,6 +1776,23 @@
             }
           } catch(e) {
             console.warn("[Player] Fallback error:", e);
+          }
+        }
+      } else if (deckAudio.src && deckAudio.src.includes("/api/r2-stream/")) {
+        // 2. If server stream proxy failed, fallback to direct public Cloudflare R2 URL
+        const match = deckAudio.src.match(/r2-stream\/(.+)$/i);
+        if (match) {
+          try {
+            const rawKey = decodeURIComponent(match[1]);
+            const directFallback = `https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev/${encodeURI(rawKey)}`;
+            console.log("[Player] Stream proxy failed, retrying via direct public CDN:", directFallback);
+            deckAudio.src = directFallback;
+            deckAudio.load();
+            if (playing) {
+              deckAudio.play().catch(()=>{});
+            }
+          } catch(e) {
+            console.warn("[Player] Direct fallback error:", e);
           }
         }
       }
@@ -2224,14 +2248,20 @@
         await syncTrackFromElapsed();
         playing=false;
 
-        // USER GESTURE AUDIO UNLOCK:
-        // Prime deckAudio synchronously inside user gesture at volume 0 without pausing
-        // so browser autoplay policy keeps the media pipeline open when needle drops.
+        // Synchronously prime/unlock deckAudio in user gesture
         try {
-          deckAudio.volume = 0;
-          const unlockPromise = deckAudio.play();
-          if (unlockPromise !== undefined) {
-            unlockPromise.catch(() => {});
+          applyDeckVolume(targetVolume);
+          deckAudio.volume = targetVolume;
+          if (deckAudio.paused) {
+            const unlockPromise = deckAudio.play();
+            if (unlockPromise !== undefined) {
+              unlockPromise.then(() => {
+                if (isAtRest) {
+                  deckAudio.pause();
+                  deckAudio.currentTime = 0;
+                }
+              }).catch(() => {});
+            }
           }
         } catch (_) {}
 
@@ -2244,10 +2274,6 @@
         const curAngle = getCurrentTonearmAngle();
         const isAtRest = Math.abs(curAngle - ARM_REST_ANGLE) <= 2.5 || curAngle < (ARM_EDGE_ANGLE - 1.5) || elapsedMs <= 120;
         if(isAtRest){
-          // 1) Needle drops from cradle to record edge
-          // 2) Platter does NOT spin while needle is moving to the record
-          // 3) Platter starts spinning and lead-in noise starts ONLY AFTER needle lands
-          // 4) First track starts shortly after landing
           const cueDropMs = 1600;
           setTonearmAngle(ARM_EDGE_ANGLE, true, cueDropMs);
           target=0;
@@ -2260,7 +2286,7 @@
             leadInNoiseActive = true;
             syncVinylNoise();
 
-            playT=setTimeout(()=>{
+            playT=setTimeout(async ()=>{
               playT=null;
               if(!powered) return;
               leadInNoiseActive = false;
@@ -2268,9 +2294,8 @@
               target=base;
               speed=base;
               playStartMs=performance.now();
-              try {
-                deckAudio.currentTime = Math.max(0, elapsedMs / 1000);
-              } catch (_) {}
+              await syncTrackFromElapsed();
+              applyDeckVolume(targetVolume);
               deckAudio.volume = targetVolume;
               if (deckAudio.paused) {
                 deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));
@@ -2283,16 +2308,15 @@
 
         // Needle was already resting on the record (e.g. unpausing)
         setTonearmFromElapsed(true);
-        playT=setTimeout(()=>{
+        playT=setTimeout(async ()=>{
           playT=null;
           if(!powered) return;
           playing=true;
           target=base;
           speed=base;
           playStartMs=performance.now();
-          try {
-            deckAudio.currentTime = Math.max(0, elapsedMs / 1000);
-          } catch (_) {}
+          await syncTrackFromElapsed();
+          applyDeckVolume(targetVolume);
           deckAudio.volume = targetVolume;
           if (deckAudio.paused) {
             deckAudio.play().catch(e => console.warn("[Player] deckAudio play:", e));

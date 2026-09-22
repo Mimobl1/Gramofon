@@ -205,7 +205,12 @@ async function startServer() {
       if (!key) {
         return res.status(400).send("Key required");
       }
-      const cleanKey = key.replace(/^\/+/, "");
+      let cleanKey = key.replace(/^\/+/, "");
+      try {
+        if (cleanKey.includes("%")) {
+          cleanKey = decodeURIComponent(cleanKey);
+        }
+      } catch (_) {}
       const range = req.headers.range;
 
       // 1. Try streaming from Cloudflare R2
