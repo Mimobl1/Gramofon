@@ -1104,7 +1104,7 @@
     const vinylNoiseAudio = new Audio("/sfx/Vinyl noise.mp3");
     vinylNoiseAudio.preload = "auto";
     vinylNoiseAudio.loop = true;
-    vinylNoiseAudio.volume = 0.22;
+    vinylNoiseAudio.volume = 0.176;
     vinylNoiseAudio.load();
     const endSound = new Audio("/sfx/Playing end.mp3");
     endSound.preload = "auto";
@@ -1285,7 +1285,7 @@
       targetVolume = v;
       deckAudio.volume = v;
       startCueAudio.volume = Math.max(0.25, Math.min(1, v));
-      vinylNoiseAudio.volume = Math.max(0, Math.min(1, v * 0.7));
+      vinylNoiseAudio.volume = Math.max(0, Math.min(1, v * 0.56));
     };
     const syncVinylNoise=()=>{
       const shouldPlay = powered && hasLoadedVinyl() && (playing || leadInNoiseActive) && !dragRec && !dragArm;

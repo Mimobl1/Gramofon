@@ -2453,11 +2453,11 @@
             return texture;
         }
 
-        function generateCoverTexture(item, size = 2048) {
-            const canvas = document.createElement("canvas");
+        function generateCoverTexture(item, size = 2048, targetCanvas = null) {
+            const canvas = targetCanvas || document.createElement("canvas");
             const ctx = canvas.getContext("2d", { alpha: false });
-            canvas.width = size;
-            canvas.height = size;
+            if (canvas.width !== size) canvas.width = size;
+            if (canvas.height !== size) canvas.height = size;
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = "high";
 
@@ -2602,7 +2602,8 @@
             const seed = hash(item.name || "");
             ctx.save();
             ctx.globalAlpha = 0.16;
-            for (let i = 0; i < 7600; i += 1) {
+            const grainCount = (size <= 1024) ? 800 : 4500;
+            for (let i = 0; i < grainCount; i += 1) {
                 const x = (seed * (i + 31) * 1103515245 + 12345) % size;
                 const y = (seed * (i + 67) * 214013 + 2531011) % size;
                 ctx.fillStyle = (i % 2 === 0) ? "rgba(255,255,255,1)" : "rgba(0,0,0,1)";
@@ -2671,6 +2672,9 @@
             ctx.textAlign = "right";
             ctx.fillText("VINYL RECORD", size - margin, size * 0.92);
 
+            if (targetCanvas) {
+                return null;
+            }
 
             const texture = new THREE.CanvasTexture(canvas);
             texture.generateMipmaps = true;
@@ -2709,7 +2713,7 @@
             return texture;
         }
 
-        function generateArchiveLabelTexture(item, side = "A", size = 1024) {
+        function generateArchiveLabelTexture(item, side = "A", size = 1024, targetCanvas = null) {
             const toHex = (value) => {
                 if (typeof value !== "string") return null;
                 const v = value.trim();
@@ -2745,9 +2749,9 @@
                 const nb = Math.round(b + (255 - b) * p);
                 return `rgb(${nr}, ${ng}, ${nb})`;
             };
-            const canvas = document.createElement("canvas");
-            canvas.width = size;
-            canvas.height = size;
+            const canvas = targetCanvas || document.createElement("canvas");
+            if (canvas.width !== size) canvas.width = size;
+            if (canvas.height !== size) canvas.height = size;
             const ctx = canvas.getContext("2d");
             const c = size / 2;
             const r = size * 0.49;
@@ -2820,22 +2824,26 @@
                 targetCtx.fill();
             };
 
-            // Initial render with fallback color
+            // Initial render with theme color
             ctx.clearRect(0, 0, size, size);
             ctx.beginPath();
             ctx.arc(c, c, r, 0, Math.PI * 2);
             ctx.closePath();
-            ctx.fillStyle = desaturateAndDarken(item.color || "", 0.0, 0.45);
+            ctx.fillStyle = toHex(item.color) || "#1f1f1f";
             ctx.fill();
 
             drawLabelOverlayElements(ctx, false);
+
+            if (targetCanvas) {
+                return null;
+            }
 
             const texture = new THREE.CanvasTexture(canvas);
             texture.needsUpdate = true;
 
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
-                : getSafeCoverUrl(item.cover);
+                : null;
 
             if (coverSrc) {
                 let img = inMemoryImageCache.get(coverSrc);
@@ -5227,7 +5235,6 @@
             openEditModal();
         });
 
-        let labelUpdateTimer = null;
         let autoSaveDebounceTimer = null;
         const debouncedAutoSaveEdits = (delay = 450) => {
             clearTimeout(autoSaveDebounceTimer);
@@ -5264,54 +5271,78 @@
                     const cover = group.children.find(c => c.name === "cover");
                     if (cover && Array.isArray(cover.material)) {
                         const threeColor = new THREE.Color(newColor);
-                        // Update the 4 edge materials smoothly without recreating materials or recompiling shaders
+                        // Update the 4 edge materials of the sleeve
                         for (let m = 0; m < 4; m++) {
                             if (cover.material[m] && cover.material[m].color) {
                                 cover.material[m].color.copy(threeColor);
                             }
                         }
-                        // Only procedural covers need their front/back texture regenerated on color change
-                        const hasCoverImage = (item.customCover && item.useCustomCover !== false) || (item.cover && item.cover.trim() !== "");
-                        if (!hasCoverImage) {
-                            const newTex = generateCoverTexture(item, 1024);
-                            if (cover.material[4]) {
-                                if (cover.material[4].map) cover.material[4].map.dispose();
-                                cover.material[4].map = newTex;
-                                cover.material[4].needsUpdate = true;
+                        // Update front and back cover faces for procedural sleeves in real time
+                        const hasCustomCover = !!(item.customCover && item.useCustomCover !== false);
+                        if (!hasCustomCover) {
+                            if (cover.material[4] && cover.material[4].map && (cover.material[4].map.image instanceof HTMLCanvasElement)) {
+                                generateCoverTexture(item, 1024, cover.material[4].map.image);
+                                cover.material[4].map.needsUpdate = true;
+                            } else {
+                                const newTex = generateCoverTexture(item, 1024);
+                                if (cover.material[4]) {
+                                    if (cover.material[4].map) cover.material[4].map.dispose();
+                                    cover.material[4].map = newTex;
+                                    cover.material[4].needsUpdate = true;
+                                }
                             }
-                            if (cover.material[5]) {
-                                cover.material[5].map = newTex;
-                                cover.material[5].needsUpdate = true;
+                            if (cover.material[5] && cover.material[5] !== cover.material[4]) {
+                                if (cover.material[5].map && (cover.material[5].map.image instanceof HTMLCanvasElement)) {
+                                    generateCoverTexture(item, 1024, cover.material[5].map.image);
+                                    cover.material[5].map.needsUpdate = true;
+                                } else {
+                                    const newTex = generateCoverTexture(item, 1024);
+                                    if (cover.material[5]) {
+                                        if (cover.material[5].map) cover.material[5].map.dispose();
+                                        cover.material[5].map = newTex;
+                                        cover.material[5].needsUpdate = true;
+                                    }
+                                }
                             }
                         }
                     }
 
                     const disk = group.children.find(c => c.name === "disk");
                     if (disk) {
+                        // The vinyl disc body itself MUST ALWAYS stay authentic pitch-black vinyl (never change color!)
                         if (disk.material && disk.material.color) {
-                            const diskColor = (newColor && newColor !== "#1a1a1a" && newColor !== "#000000")
-                                ? new THREE.Color(newColor)
-                                : new THREE.Color(0x050505);
-                            disk.material.color.copy(diskColor);
+                            disk.material.color.setHex(0x050505);
                         }
-                        clearTimeout(labelUpdateTimer);
-                        labelUpdateTimer = setTimeout(() => {
-                            if (!disk) return;
-                            const labelMesh = disk.children.find(c => c.name === "diskLabel");
-                            if (labelMesh && labelMesh.material) {
-                                const oldMap = labelMesh.material.map;
-                                labelMesh.material.map = generateArchiveLabelTexture(item, "A", 512);
-                                labelMesh.material.needsUpdate = true;
+
+                        // Update Side A label synchronously in the EXACT SAME FRAME (zero latency)
+                        const labelMeshA = disk.children.find(c => c.name === "diskLabel");
+                        if (labelMeshA && labelMeshA.material && labelMeshA.material.map) {
+                            const mapA = labelMeshA.material.map;
+                            if (mapA.image instanceof HTMLCanvasElement) {
+                                generateArchiveLabelTexture(item, "A", 512, mapA.image);
+                                mapA.needsUpdate = true;
+                            } else {
+                                const oldMap = mapA;
+                                labelMeshA.material.map = generateArchiveLabelTexture(item, "A", 512);
+                                labelMeshA.material.needsUpdate = true;
                                 if (oldMap) oldMap.dispose();
                             }
-                            const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
-                            if (labelMeshB && labelMeshB.material) {
-                                const oldMapB = labelMeshB.material.map;
+                        }
+
+                        // Update Side B label synchronously in the EXACT SAME FRAME (zero latency)
+                        const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
+                        if (labelMeshB && labelMeshB.material && labelMeshB.material.map) {
+                            const mapB = labelMeshB.material.map;
+                            if (mapB.image instanceof HTMLCanvasElement) {
+                                generateArchiveLabelTexture(item, "B", 512, mapB.image);
+                                mapB.needsUpdate = true;
+                            } else {
+                                const oldMapB = mapB;
                                 labelMeshB.material.map = generateArchiveLabelTexture(item, "B", 512);
                                 labelMeshB.material.needsUpdate = true;
                                 if (oldMapB) oldMapB.dispose();
                             }
-                        }, 120);
+                        }
                     }
                 }
             }
