@@ -2,6 +2,8 @@ import path from "path";
 import fs from "fs";
 import fsPromises from "fs/promises";
 import { updateCollection } from "../update-collection.js";
+import { getR2Client, getR2Config, isR2Configured } from "./r2Service.js";
+import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
   syncAlbumToFirestore,
   deleteAlbumFromFirestore,
@@ -32,6 +34,128 @@ const JS_MANIFEST_PATH = path.join(process.cwd(), "public", "collection-data.js"
 const COLLECTION_DIR = path.join(process.cwd(), "public", "Vinyl Collection");
 
 /**
+ * Helper to deduplicate track lists case-insensitively (.mp3 vs .MP3), prioritizing lowercase extensions
+ */
+function deduplicateTracks(tracks: string[]): string[] {
+  if (!Array.isArray(tracks)) return [];
+  const trackMap = new Map<string, string>();
+  for (const t of tracks) {
+    if (!t) continue;
+    const baseKey = t.replace(/\.[^/.]+$/, "").toLowerCase().trim();
+    const existing = trackMap.get(baseKey);
+    if (!existing || (!existing.endsWith(".mp3") && t.endsWith(".mp3"))) {
+      trackMap.set(baseKey, t);
+    }
+  }
+  return Array.from(trackMap.values()).sort();
+}
+
+/**
+ * Syncs albums directly by scanning Cloudflare R2 bucket contents
+ */
+export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
+  if (!isR2Configured()) {
+    return [];
+  }
+  try {
+    const client = getR2Client();
+    const conf = getR2Config();
+    const bucket = conf.bucketName;
+    const publicBase = (conf.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
+
+    const res = await client.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: "Vinyl Collection/"
+    }));
+
+    if (!res.Contents || res.Contents.length === 0) {
+      return [];
+    }
+
+    const folderMap = new Map<string, { tracks: string[]; cover?: string }>();
+
+    for (const obj of res.Contents) {
+      const key = obj.Key;
+      if (!key) continue;
+      const rel = key.replace(/^Vinyl Collection\//i, "");
+      const parts = rel.split("/");
+      if (parts.length < 2) continue;
+
+      const albumFolder = parts[0];
+      const fileName = parts.slice(1).join("/");
+      if (!fileName) continue;
+
+      if (!folderMap.has(albumFolder)) {
+        folderMap.set(albumFolder, { tracks: [] });
+      }
+
+      const alb = folderMap.get(albumFolder)!;
+      const lower = fileName.toLowerCase();
+      if (lower.endsWith(".mp3") || lower.endsWith(".flac") || lower.endsWith(".wav") || lower.endsWith(".m4a") || lower.endsWith(".ogg")) {
+        if (!alb.tracks.includes(fileName)) {
+          alb.tracks.push(fileName);
+        }
+      } else if (lower.includes("folder.jpg") || lower.includes("cover.jpg") || lower.includes("cover.png")) {
+        alb.cover = `${publicBase}/Vinyl Collection/${encodeURIComponent(albumFolder)}/${encodeURIComponent(fileName)}`;
+      }
+    }
+
+    const discoveredAlbums: AlbumRecord[] = [];
+    let idx = 0;
+
+    for (const [folderName, data] of folderMap.entries()) {
+      if (data.tracks.length === 0) continue;
+      const cleanTracks = deduplicateTracks(data.tracks);
+
+      let author = "Nepoznati izvođač";
+      let name = folderName;
+      const dashIdx = folderName.indexOf(" - ");
+      if (dashIdx !== -1) {
+        author = folderName.slice(0, dashIdx).trim();
+        name = folderName.slice(dashIdx + 3).trim();
+      }
+
+      const albumId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const cover = data.cover || `${publicBase}/Vinyl Collection/${encodeURIComponent(folderName)}/folder.jpg`;
+
+      discoveredAlbums.push({
+        id: albumId,
+        name: name || folderName,
+        author: author || "Nepoznati izvođač",
+        folder: folderName,
+        cover,
+        tracks: cleanTracks,
+        genre: "Rock / Vinyl",
+        year: "2024",
+        order: idx++
+      });
+    }
+
+    if (discoveredAlbums.length > 0) {
+      console.log(`[R2 Sync] Discovered ${discoveredAlbums.length} albums directly from R2 bucket.`);
+      const existing = await getAlbumsFromFirestore().catch(() => []);
+      const existingMap = new Map(existing.map((a: any) => [a.folder || a.id, a]));
+      const finalAlbums = [...existing];
+
+      for (const disc of discoveredAlbums) {
+        if (!existingMap.has(disc.folder) && !existingMap.has(disc.id)) {
+          finalAlbums.push(disc);
+        }
+      }
+
+      await writeManifests(finalAlbums);
+      await syncAllAlbumsToFirestore(finalAlbums).catch(() => {});
+      return finalAlbums;
+    }
+
+    return [];
+  } catch (err: any) {
+    console.warn("[R2 Sync] Notice scanning R2 bucket:", err?.message);
+    return [];
+  }
+}
+
+/**
  * Writes the collection array to both json and js files
  */
 async function writeManifests(albums: AlbumRecord[]) {
@@ -47,18 +171,36 @@ async function writeManifests(albums: AlbumRecord[]) {
  * Reads albums from Firestore (cloud database), local manifest, or scans public/Vinyl Collection
  */
 export async function getAlbums(): Promise<AlbumRecord[]> {
+  // 0. Automatically discover & sync albums from Cloudflare R2 bucket first
+  try {
+    const r2Synced = await syncAlbumsFromR2();
+    if (Array.isArray(r2Synced) && r2Synced.length > 0) {
+      const formatted: AlbumRecord[] = r2Synced.map((a: any, idx: number) => ({
+        ...a,
+        id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+        _uid: a.folder || a.id || `album_${idx}`,
+        order: typeof a.order === "number" ? a.order : idx
+      }));
+      return formatted;
+    }
+  } catch (e) {
+    console.warn("[AlbumService] R2 auto-discovery notice:", e);
+  }
+
   // 1. Primary Source of Truth: Firestore Cloud Database
   try {
     const cloudAlbums = await getAlbumsFromFirestore();
     if (Array.isArray(cloudAlbums) && cloudAlbums.length > 0) {
       const formatted: AlbumRecord[] = cloudAlbums.map((a: any, idx: number) => ({
         ...a,
+        tracks: deduplicateTracks(a.tracks),
         id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
         _uid: a.folder || a.id || `album_${idx}`,
         order: typeof a.order === "number" ? a.order : idx
       }));
-      // Keep local manifests in sync as cache
+      // Keep local manifests and Firestore in sync as cache/source
       await writeManifests(formatted);
+      await syncAllAlbumsToFirestore(formatted).catch(() => {});
       return formatted;
     }
   } catch (err) {
@@ -73,6 +215,7 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
       if (Array.isArray(list) && list.length > 0) {
         return list.map((a: any, idx: number) => ({
           ...a,
+          tracks: deduplicateTracks(a.tracks),
           id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
           _uid: a.folder || a.id || `album_${idx}`,
           order: typeof a.order === "number" ? a.order : idx
@@ -87,6 +230,7 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
   const scanned = await updateCollection().catch(() => []);
   return scanned.map((a: any, idx: number) => ({
     ...a,
+    tracks: deduplicateTracks(a.tracks),
     id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
     _uid: a.folder || a.id || `album_${idx}`,
     order: typeof a.order === "number" ? a.order : idx

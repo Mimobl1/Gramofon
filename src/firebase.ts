@@ -3,7 +3,7 @@ import { getFirestore, doc, getDoc, enableIndexedDbPersistence } from "firebase/
 import firebaseConfig from "../firebase-applet-config.json";
 
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || "ai-studio-vinylplayer-41dff54a-1e17-46b0-a919-76d4e69fdca8");
 
 // Attempt to enable persistence to handle offline/connectivity issues better
 try {

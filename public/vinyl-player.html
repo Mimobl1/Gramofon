@@ -1408,39 +1408,71 @@
       }
       
       let absoluteUrl = "";
-      if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
-          try {
-              const albumId = currentAlbumFolder.replace("LOCAL://", "");
-              const db = await new Promise((resolve, reject) => {
-                  const req = indexedDB.open("VinylCollectionDB", 1);
-                  req.onupgradeneeded = (e) => {
-                      const db = e.target.result;
-                      if (!db.objectStoreNames.contains("albums")) {
-                          db.createObjectStore("albums", { keyPath: "id" });
-                      }
-                  };
-                  req.onsuccess = () => resolve(req.result);
-                  req.onerror = () => reject(req.error);
-              });
+      
+      // 1. First check IndexedDB for local audio files (instant offline & cached playback)
+      try {
+          const db = await new Promise((resolve) => {
+              const req = indexedDB.open("VinylCollectionDB", 1);
+              req.onupgradeneeded = (e) => {
+                  const db = e.target.result;
+                  if (!db.objectStoreNames.contains("albums")) db.createObjectStore("albums", { keyPath: "id" });
+                  if (!db.objectStoreNames.contains("covers")) db.createObjectStore("covers", { keyPath: "id" });
+              };
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => resolve(null);
+          });
+          
+          if (db && db.objectStoreNames.contains("albums")) {
               const tx = db.transaction("albums", "readonly");
               const store = tx.objectStore("albums");
-              const album = await new Promise((resolve) => {
-                  const req = store.get(albumId);
-                  req.onsuccess = () => resolve(req.result);
-                  req.onerror = () => resolve(null);
-              });
-              if (album && album.files) { console.log("Found album in DB:", albumId);
-                  const file = album.files.find(f => f.name === trackName);
-                  if (file) {
-                      const blob = new Blob([file.data], { type: file.type || "audio/mpeg" });
+              
+              // Determine possible album keys
+              const possibleKeys = [];
+              if (currentAlbumFolder && currentAlbumFolder.startsWith("LOCAL://")) {
+                  possibleKeys.push(currentAlbumFolder.replace("LOCAL://", ""));
+              }
+              if (currentAlbumFolder) {
+                  const folderClean = currentAlbumFolder.replace(/^https?:\/\/[^\/]+\/Vinyl%20Collection\//i, "")
+                                                        .replace(/^Vinyl Collection\//i, "")
+                                                        .replace(/\/$/, "");
+                  possibleKeys.push(`Vinyl_Collection_${folderClean}`.replace(/[^a-zA-Z0-9_-]/g, "_"));
+                  possibleKeys.push(folderClean);
+              }
+              if (currentAlbum && currentAlbum._uid) {
+                  possibleKeys.push(currentAlbum._uid);
+                  possibleKeys.push(`Vinyl_Collection_${currentAlbum._uid}`.replace(/[^a-zA-Z0-9_-]/g, "_"));
+              }
+
+              let foundAlbum = null;
+              for (const k of possibleKeys) {
+                  if (!k) continue;
+                  foundAlbum = await new Promise((resolve) => {
+                      const req = store.get(k);
+                      req.onsuccess = () => resolve(req.result);
+                      req.onerror = () => resolve(null);
+                  });
+                  if (foundAlbum && foundAlbum.files && foundAlbum.files.length) break;
+              }
+
+              if (foundAlbum && foundAlbum.files) {
+                  const cleanTarget = (trackName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const file = foundAlbum.files.find(f => {
+                      const cf = (f.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                      return cf === cleanTarget || cf.includes(cleanTarget) || cleanTarget.includes(cf);
+                  }) || foundAlbum.files.find(f => f.name === trackName);
+
+                  if (file && file.data) {
+                      console.log("[Player] Using instant IndexedDB audio for track:", file.name);
+                      const blob = new Blob([file.data], { type: "audio/mpeg" });
                       absoluteUrl = URL.createObjectURL(blob);
                   }
               }
-          } catch(err) {
-              console.error("IndexedDB error:", err);
           }
+      } catch (err) {
+          console.warn("[Player] IndexedDB check notice:", err);
       }
       
+      // 2. If not found in IndexedDB, stream from Cloudflare R2 / Server CDN
       if (!absoluteUrl) {
           if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
               absoluteUrl = encodeURI(fullPath);
@@ -1788,7 +1820,7 @@
       }
     });
     const retryAttemptForSrc = {};
-    deckAudio.addEventListener("error", ()=>{
+    deckAudio.addEventListener("error", async ()=>{
       const err = deckAudio.error;
       const currentSrc = deckAudio.src || "";
       console.warn("[Player] deckAudio error:", err?.code, err?.message, currentSrc);
@@ -1800,7 +1832,47 @@
       }
       retryAttemptForSrc[currentSrc] = attempts + 1;
 
-      // Smart check 1: Case-sensitive extensions on Cloudflare R2 (.mp3 vs .MP3)
+      // Smart check 1: IndexedDB fallback for locally added audio
+      try {
+        const db = await new Promise(r => {
+          const req = indexedDB.open("VinylCollectionDB", 1);
+          req.onsuccess = () => r(req.result);
+          req.onerror = () => r(null);
+        });
+        if (db && db.objectStoreNames.contains("albums")) {
+          const tx = db.transaction("albums", "readonly");
+          const store = tx.objectStore("albums");
+          const allAlbums = await new Promise(r => {
+            const req = store.getAll();
+            req.onsuccess = () => r(req.result || []);
+            req.onerror = () => r([]);
+          });
+          const trackFileName = decodeURIComponent(currentSrc.split("/").pop() || "").replace(/[?#].*$/, "");
+          const cleanTarget = trackFileName.toLowerCase().replace(/[^a-z0-9]/g, "");
+          for (const alb of allAlbums) {
+            if (alb && alb.files) {
+              const f = alb.files.find(file => {
+                const cf = (file.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                return cf === cleanTarget || (cleanTarget && cf.includes(cleanTarget));
+              });
+              if (f && f.data) {
+                console.log("[Player] Recovered playback from IndexedDB cache:", f.name);
+                const blob = new Blob([f.data], { type: "audio/mpeg" });
+                const blobUrl = URL.createObjectURL(blob);
+                retryAttemptForSrc[blobUrl] = 1;
+                deckAudio.src = blobUrl;
+                deckAudio.load();
+                if (playing) deckAudio.play().catch(()=>{});
+                return;
+              }
+            }
+          }
+        }
+      } catch (idbErr) {
+        console.warn("[Player] IndexedDB error recovery notice:", idbErr);
+      }
+
+      // Smart check 2: Case-sensitive extensions on Cloudflare R2 (.mp3 vs .MP3)
       if (currentSrc.includes(".mp3")) {
         const altSrc = currentSrc.replace(/\.mp3(\?|$)/i, ".MP3$1");
         console.log("[Player] Retrying track with alternative uppercase extension:", altSrc);

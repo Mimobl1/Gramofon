@@ -7,7 +7,8 @@ import {
   updateAlbumMetadata, 
   reorderAlbums, 
   deleteAlbum, 
-  clearAllAlbums 
+  clearAllAlbums,
+  syncAlbumsFromR2
 } from "./server/albumService.js";
 import { 
   multerUpload, 
@@ -36,13 +37,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Clear all albums on startup for production empty state
-  clearAllAlbums()
-    .then(() => {
-      console.log(`[Server] Cleared all albums for production empty state.`);
+  // Sync albums from Cloudflare R2 on startup
+  syncAlbumsFromR2()
+    .then((albums) => {
+      console.log(`[Server] Synced ${albums.length} albums from R2 bucket on startup.`);
     })
     .catch(err => {
-      console.warn("[Server] Clear albums warning:", err);
+      console.warn("[Server] R2 sync on startup warning:", err);
     });
 
   // CORS Middleware: ensures iframe, preview, and mobile environments have full access

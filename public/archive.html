@@ -97,7 +97,10 @@
                 const creds = (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) ? userCreds : DEFAULT_R2_CONFIG;
                 const host = `${creds.accountId}.r2.cloudflarestorage.com`;
                 const cleanKey = key.replace(/^\/+/, "");
-                const encodedKey = cleanKey.split("/").map(encodeURIComponent).join("/");
+                function rfc3986(str) {
+                    return encodeURIComponent(str).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+                }
+                const encodedKey = cleanKey.split("/").map(rfc3986).join("/");
                 const canonicalUri = `/${creds.bucketName}/${encodedKey}`;
                 
                 const now = new Date();
@@ -4472,6 +4475,12 @@
                     let coverPath = `Vinyl Collection/${folderName}/folder.jpg`;
                     let customCoverDataUrl = clientCoverDataUrl;
                     const defaultPublicR2 = (window.__r2PublicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
+                    const userR2Creds = (function() {
+                        try {
+                            const stored = localStorage.getItem("user_r2_credentials");
+                            return stored ? JSON.parse(stored) : null;
+                        } catch (_) { return null; }
+                    })();
 
                     // Direct Cloudflare R2 cover image upload
                     if (selectedCoverFile && window.__r2DirectUpload) {
@@ -4525,10 +4534,17 @@
                         if (window.__r2DirectUpload) {
                             try {
                                 const r2TrackKey = `Vinyl Collection/${folderName}/${file.name}`;
+                                const lowerName = file.name.toLowerCase();
+                                const forcedContentType = lowerName.endsWith(".mp3") ? "audio/mpeg" :
+                                                          lowerName.endsWith(".wav") ? "audio/wav" :
+                                                          lowerName.endsWith(".flac") ? "audio/flac" :
+                                                          lowerName.endsWith(".m4a") ? "audio/mp4" :
+                                                          (file.type || "audio/mpeg");
+
                                 await window.__r2DirectUpload(
                                     r2TrackKey,
                                     file,
-                                    file.type || "audio/mpeg",
+                                    forcedContentType,
                                     (e) => {
                                         if (e.lengthComputable) {
                                             const totalLoaded = uploadedBytesPreviousTracks + e.loaded;
@@ -5695,7 +5711,7 @@
 
         // Continuous live synchronization across tabs, browsers, and deployed environments
         setInterval(() => {
-            if (!isMouseDown && !isLaunching && !isModalActive()) {
+            if (!isMouseDown && launchIndex === -1 && !isModalActive()) {
                 loadCollectionManifest();
             }
         }, 5000);
