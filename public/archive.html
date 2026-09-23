@@ -1130,8 +1130,8 @@
             }
         }
 
-        // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG under 100KB
-        async function compressImageToDataUrl(fileOrBlob, maxDim = 800, quality = 0.84) {
+        // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG
+        async function compressImageToDataUrl(fileOrBlob, maxDim = 1400, quality = 0.95) {
             return new Promise((resolve) => {
                 if (!fileOrBlob) return resolve("");
                 try {
@@ -1455,7 +1455,7 @@
             for (let i = 0; i < totalMeshes; i++) {
                 const group = new THREE.Group();
                 const item = collection[i];
-                const texture = generateCoverTexture(item, 1024);
+                const texture = generateCoverTexture(item, 2048);
                 
                 const isCustom = item.customCover && item.useCustomCover !== false;
                 const material = new THREE.MeshStandardMaterial({ 
@@ -2165,11 +2165,13 @@
             return texture;
         }
 
-        function generateCoverTexture(item, size = 1024) {
+        function generateCoverTexture(item, size = 2048) {
             const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
+            const ctx = canvas.getContext("2d", { alpha: false });
             canvas.width = size;
             canvas.height = size;
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
 
             const hexNorm = (v) => {
                 const s = String(v || "").trim();
@@ -2383,6 +2385,10 @@
 
 
             const texture = new THREE.CanvasTexture(canvas);
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.anisotropy = 16;
             
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
@@ -2851,7 +2857,7 @@
             for (let i = 0; i < totalMeshes; i++) {
                 const group = new THREE.Group();
                 const item = collection[i];
-                const texture = generateCoverTexture(item, 1024);
+                const texture = generateCoverTexture(item, 2048);
                 
                 const isCustom = item.customCover && item.useCustomCover !== false;
                 const material = new THREE.MeshStandardMaterial({ 
@@ -4448,7 +4454,7 @@
                     if (selectedCoverFile) {
                         uploadModalProgressStatus.innerText = "Optimizacija slike omota...";
                         uploadModalProgressBar.style.width = "4%";
-                        clientCoverDataUrl = await compressImageToDataUrl(selectedCoverFile, 600, 0.82);
+                        clientCoverDataUrl = await compressImageToDataUrl(selectedCoverFile, 1400, 0.95);
                     }
 
                     // 1. Initialize album and upload cover
@@ -4962,7 +4968,7 @@
                             transparent: true 
                          });
                         const item = collection[lastIndex];
-                        const texture = generateCoverTexture(item, 1024);
+                        const texture = generateCoverTexture(item, 2048);
                         const isCustom = item.customCover && item.useCustomCover !== false;
                 const material = new THREE.MeshStandardMaterial({ 
                     map: texture, 
@@ -5258,12 +5264,12 @@
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement("canvas");
-                    canvas.width = 512;
-                    canvas.height = 512;
+                    canvas.width = 1200;
+                    canvas.height = 1200;
                     const ctx = canvas.getContext("2d");
-                    ctx.drawImage(img, 0, 0, 512, 512);
+                    ctx.drawImage(img, 0, 0, 1200, 1200);
                     
-                    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
                     if (customCoverPreview) {
                         customCoverPreview.src = dataUrl;
                         customCoverPreview.style.display = "block";
