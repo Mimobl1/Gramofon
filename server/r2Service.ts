@@ -208,23 +208,38 @@ export async function deleteR2ObjectsByPrefix(
     const client = getR2Client(overrideCreds);
     const bucket = conf.bucketName;
     const cleanPrefix = prefix.replace(/^\/+/, "");
-    console.log(`[R2Service] Listing objects in R2 bucket "${bucket}" with prefix "${cleanPrefix}" for deletion...`);
+    const parts = cleanPrefix.split('/');
+    const keyword = (parts.length > 1 ? parts[parts.length - 1] : cleanPrefix).trim().toLowerCase();
+
+    console.log(`[R2Service] Listing all objects in R2 bucket "${bucket}" to match prefix/keyword "${cleanPrefix}" / "${keyword}" for deletion...`);
+    
     const listRes = await client.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: cleanPrefix
+      Bucket: bucket
     }));
+
     if (listRes.Contents && listRes.Contents.length > 0) {
-      const keysToDelete = listRes.Contents.map(obj => ({ Key: obj.Key }));
-      console.log(`[R2Service] Found ${keysToDelete.length} objects to delete in R2 for prefix "${cleanPrefix}":`, keysToDelete.map(k => k.Key));
-      await client.send(new DeleteObjectsCommand({
-        Bucket: bucket,
-        Delete: {
-          Objects: keysToDelete
-        }
-      }));
-      console.log(`[R2Service] Successfully deleted ${keysToDelete.length} objects with prefix "${cleanPrefix}" from R2 bucket.`);
+      const keysToDelete = listRes.Contents
+        .filter(obj => {
+          if (!obj.Key) return false;
+          const k = obj.Key.toLowerCase();
+          return k.includes(cleanPrefix.toLowerCase()) || (keyword.length > 2 && k.includes(keyword));
+        })
+        .map(obj => ({ Key: obj.Key }));
+
+      if (keysToDelete.length > 0) {
+        console.log(`[R2Service] Found ${keysToDelete.length} matching objects to delete in R2:`, keysToDelete.map(k => k.Key));
+        await client.send(new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: {
+            Objects: keysToDelete
+          }
+        }));
+        console.log(`[R2Service] Successfully deleted ${keysToDelete.length} objects matching "${cleanPrefix}" / "${keyword}" from R2 bucket.`);
+      } else {
+        console.log(`[R2Service] No R2 objects found matching prefix "${cleanPrefix}" or keyword "${keyword}". All R2 keys:`, listRes.Contents.map(o => o.Key));
+      }
     } else {
-      console.log(`[R2Service] No objects found in R2 matching prefix "${cleanPrefix}".`);
+      console.log(`[R2Service] R2 bucket "${bucket}" is empty.`);
     }
   } catch (err: any) {
     console.error(`[R2Service] Error deleting prefix "${prefix}" from R2:`, err?.message || err);
