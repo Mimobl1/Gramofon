@@ -1721,38 +1721,54 @@
             const baseList = Array.isArray(baseRepoAlbums) && baseRepoAlbums.length ? baseRepoAlbums : (Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length ? window.VINYL_COLLECTION : []);
             if (!baseList.length && !firestoreAlbumsMap.size) return;
 
-            const merged = [];
-            const matchedFirestoreDocIds = new Set();
+            const masterMap = new Map();
 
-            // 1. Merge base repository albums with Firestore overrides
+            const getAlbumKey = (a) => {
+                const folderClean = (a.folder || "").trim().toLowerCase();
+                const idClean = (a.id || "").trim().toLowerCase();
+                const nameClean = `${a.author || ""}-${a.name || ""}`.trim().toLowerCase();
+                return folderClean || idClean || nameClean;
+            };
+
+            // 1. Process Firestore overrides first
+            if (firestoreAlbumsMap && firestoreAlbumsMap.size > 0) {
+                firestoreAlbumsMap.forEach((fsDoc, key) => {
+                    const docId = (fsDoc.id || fsDoc.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                    const folderKey = (fsDoc.folder || "").toLowerCase();
+                    if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
+
+                    const uKey = getAlbumKey(fsDoc);
+                    if (uKey) {
+                        masterMap.set(uKey, {
+                            ...fsDoc,
+                            _uid: fsDoc.folder || fsDoc.id,
+                            order: typeof fsDoc.order === "number" ? fsDoc.order : 999
+                        });
+                    }
+                });
+            }
+
+            // 2. Process base repo / R2 list
             baseList.forEach(album => {
                 const docId = (album.id || album.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                 const folderKey = (album.folder || "").toLowerCase();
+                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
 
-                // If marked as deleted in Firestore, hide it
-                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) {
-                    return;
-                }
+                const uKey = getAlbumKey(album);
+                if (!uKey) return;
 
-                const fsDoc = firestoreAlbumsMap.get(docId) || firestoreAlbumsMap.get(folderKey);
-                if (fsDoc) {
-                    matchedFirestoreDocIds.add((fsDoc.id || docId).replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase());
-                    merged.push({
+                if (masterMap.has(uKey)) {
+                    const existing = masterMap.get(uKey);
+                    masterMap.set(uKey, {
                         ...album,
-                        name: fsDoc.name || album.name,
-                        author: fsDoc.author || album.author,
-                        genre: fsDoc.genre !== undefined ? fsDoc.genre : album.genre,
-                        year: fsDoc.year !== undefined ? fsDoc.year : album.year,
-                        color: fsDoc.color || album.color,
-                        cover: fsDoc.cover || album.cover,
-                        customCover: fsDoc.customCover !== undefined ? fsDoc.customCover : album.customCover,
-                        useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : album.useCustomCover,
-                        order: typeof fsDoc.order === "number" ? fsDoc.order : (album.order ?? 999),
-                        tracks: Array.isArray(fsDoc.tracks) && fsDoc.tracks.length ? fsDoc.tracks : album.tracks,
-                        _uid: album.folder || album.id
+                        ...existing,
+                        tracks: (existing.tracks && existing.tracks.length > 0) ? existing.tracks : album.tracks,
+                        cover: existing.cover || album.cover,
+                        color: existing.color || album.color,
+                        order: typeof existing.order === "number" ? existing.order : (album.order ?? 999)
                     });
                 } else {
-                    merged.push({
+                    masterMap.set(uKey, {
                         ...album,
                         _uid: album.folder || album.id,
                         order: typeof album.order === "number" ? album.order : 999
@@ -1760,35 +1776,7 @@
                 }
             });
 
-            // 2. Any additional album docs created directly in Firestore
-            firestoreAlbumsMap.forEach((fsDoc, key) => {
-                const docId = (fsDoc.id || fsDoc.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-                const folderKey = (fsDoc.folder || "").toLowerCase();
-                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
-                if (!matchedFirestoreDocIds.has(docId) && !matchedFirestoreDocIds.has(folderKey)) {
-                    matchedFirestoreDocIds.add(docId);
-                    merged.push({
-                        ...fsDoc,
-                        _uid: fsDoc.folder || fsDoc.id,
-                        order: typeof fsDoc.order === "number" ? fsDoc.order : 999
-                    });
-                }
-            });
-
-            // Strict deduplication by folder, ID or normalized name
-            const uniqueMap = new Map();
-            merged.forEach(album => {
-                const uniqueKey = (album.folder || album.id || `${album.author || ""}-${album.name || ""}`).trim().toLowerCase();
-                if (!uniqueMap.has(uniqueKey)) {
-                    uniqueMap.set(uniqueKey, album);
-                } else {
-                    const existing = uniqueMap.get(uniqueKey);
-                    if ((album.tracks || []).length > (existing.tracks || []).length) {
-                        uniqueMap.set(uniqueKey, album);
-                    }
-                }
-            });
-            const dedupedMerged = Array.from(uniqueMap.values());
+            const dedupedMerged = Array.from(masterMap.values());
 
             // 3. Sort by custom order
             dedupedMerged.sort((a, b) => {
