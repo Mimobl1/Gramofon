@@ -3,7 +3,7 @@ window.VINYL_COLLECTION = [
     "id": "Vinyl_Collection_1969_-_THE_SOFT_PARADE",
     "name": "THE SOFT PARADE",
     "author": "1969",
-    "color": "#613847",
+    "color": "#27492d",
     "duration": "",
     "folder": "Vinyl Collection/1969 - THE SOFT PARADE",
     "cover": "",

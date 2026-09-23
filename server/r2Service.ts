@@ -200,27 +200,34 @@ export async function deleteR2ObjectsByPrefix(
   overrideCreds?: Partial<R2Credentials> | null
 ): Promise<void> {
   const conf = getR2Config(overrideCreds);
-  if (!conf.accountId || !conf.accessKeyId || !conf.secretAccessKey) return;
+  if (!conf.accountId || !conf.accessKeyId || !conf.secretAccessKey) {
+    console.warn(`[R2Service] Skipping deleteR2ObjectsByPrefix for "${prefix}": R2 credentials not configured.`);
+    return;
+  }
   try {
     const client = getR2Client(overrideCreds);
     const bucket = conf.bucketName;
     const cleanPrefix = prefix.replace(/^\/+/, "");
+    console.log(`[R2Service] Listing objects in R2 bucket "${bucket}" with prefix "${cleanPrefix}" for deletion...`);
     const listRes = await client.send(new ListObjectsV2Command({
       Bucket: bucket,
       Prefix: cleanPrefix
     }));
     if (listRes.Contents && listRes.Contents.length > 0) {
       const keysToDelete = listRes.Contents.map(obj => ({ Key: obj.Key }));
+      console.log(`[R2Service] Found ${keysToDelete.length} objects to delete in R2 for prefix "${cleanPrefix}":`, keysToDelete.map(k => k.Key));
       await client.send(new DeleteObjectsCommand({
         Bucket: bucket,
         Delete: {
           Objects: keysToDelete
         }
       }));
-      console.log(`[R2Service] Deleted ${keysToDelete.length} objects with prefix "${cleanPrefix}"`);
+      console.log(`[R2Service] Successfully deleted ${keysToDelete.length} objects with prefix "${cleanPrefix}" from R2 bucket.`);
+    } else {
+      console.log(`[R2Service] No objects found in R2 matching prefix "${cleanPrefix}".`);
     }
   } catch (err: any) {
-    console.warn(`[R2Service] Notice deleting prefix "${prefix}":`, err?.message);
+    console.error(`[R2Service] Error deleting prefix "${prefix}" from R2:`, err?.message || err);
   }
 }
 

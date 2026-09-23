@@ -393,12 +393,25 @@ async function startServer() {
       if (!target) {
         return res.status(400).json({ error: "folder or id required" });
       }
+      console.log(`[API] DELETE album requested for target: "${target}", userEmail: "${userEmail}"`);
+
       await deleteAlbum(target);
 
-      // Clean R2 objects if custom or user R2 bucket
       const userSettings = userEmail ? await getUserR2Settings(userEmail) : null;
-      const folderBase = path.basename(target);
-      await deleteR2ObjectsByPrefix(`Vinyl Collection/${folderBase}`, userSettings);
+      const cleanTarget = decodeURIComponent(target);
+      const folderBase = path.basename(cleanTarget);
+      const prefixesToTry = [
+        `Vinyl Collection/${cleanTarget}`,
+        `Vinyl Collection/${folderBase}`,
+        `Vinyl Collection/${cleanTarget.replace(/^Vinyl_Collection_/, "").replace(/___/g, " - ").replace(/_/g, " ")}`
+      ];
+
+      for (const pfx of prefixesToTry) {
+        if (pfx && pfx.length > "Vinyl Collection/".length) {
+          await deleteR2ObjectsByPrefix(pfx, userSettings);
+          await deleteR2ObjectsByPrefix(pfx, null);
+        }
+      }
 
       res.json({ status: "ok" });
     } catch (err: any) {
