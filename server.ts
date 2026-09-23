@@ -217,8 +217,21 @@ async function startServer() {
       try {
         const { stream, contentType, contentLength, contentRange, statusCode } = await getR2ObjectStream(cleanKey, range);
         
+        let finalContentType = contentType;
+        const lowerKey = cleanKey.toLowerCase();
+        if (lowerKey.endsWith(".mp3")) finalContentType = "audio/mpeg";
+        else if (lowerKey.endsWith(".wav")) finalContentType = "audio/wav";
+        else if (lowerKey.endsWith(".flac")) finalContentType = "audio/flac";
+        else if (lowerKey.endsWith(".m4a") || lowerKey.endsWith(".mp4")) finalContentType = "audio/mp4";
+        else if (lowerKey.endsWith(".ogg")) finalContentType = "audio/ogg";
+        else if (lowerKey.endsWith(".aac")) finalContentType = "audio/aac";
+        else if (!finalContentType || finalContentType === "application/octet-stream" || finalContentType === "binary/octet-stream") {
+            finalContentType = "audio/mpeg";
+        }
+
         res.status(statusCode);
-        res.setHeader("Content-Type", contentType);
+        res.setHeader("Content-Type", finalContentType);
+        res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Accept-Ranges", "bytes");
         if (contentLength) res.setHeader("Content-Length", contentLength);
         if (contentRange) res.setHeader("Content-Range", contentRange);
@@ -233,10 +246,19 @@ async function startServer() {
         const localPath = fs.existsSync(publicPath) ? publicPath : (fs.existsSync(distPath) ? distPath : null);
 
         if (localPath) {
+          let mimeType = "audio/mpeg";
+          const lk = cleanKey.toLowerCase();
+          if (lk.endsWith(".wav")) mimeType = "audio/wav";
+          else if (lk.endsWith(".flac")) mimeType = "audio/flac";
+          else if (lk.endsWith(".m4a") || lk.endsWith(".mp4")) mimeType = "audio/mp4";
+          else if (lk.endsWith(".ogg")) mimeType = "audio/ogg";
+
           return res.sendFile(localPath, {
             acceptRanges: true,
             headers: {
               "Access-Control-Allow-Origin": "*",
+              "Content-Type": mimeType,
+              "X-Content-Type-Options": "nosniff",
               "Cache-Control": "public, max-age=3600"
             }
           });

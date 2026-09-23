@@ -1465,6 +1465,27 @@
       }
       
       const resolvedDeckUrl = new URL(absoluteUrl, window.location.origin).href;
+      if (!resolvedDeckUrl.startsWith("blob:")) {
+          try {
+              console.log("[Player] Fetching audio blob for:", resolvedDeckUrl);
+              const resp = await fetch(resolvedDeckUrl);
+              if (resp.ok) {
+                  const blob = await resp.blob();
+                  const blobUrl = URL.createObjectURL(blob);
+                  if (deckAudio.src && deckAudio.src.startsWith("blob:")) {
+                      try { URL.revokeObjectURL(deckAudio.src); } catch(_) {}
+                  }
+                  if (deckAudio.src !== blobUrl) {
+                      deckAudio.src = blobUrl;
+                      deckAudio.load();
+                  }
+                  return;
+              }
+          } catch(e) {
+              console.warn("[Player] Blob fetch fallback warning:", e);
+          }
+      }
+
       if(deckAudio.src !== resolvedDeckUrl){
         console.log("[Player] Setting deck source to:", resolvedDeckUrl);
         deckAudio.src = resolvedDeckUrl;
