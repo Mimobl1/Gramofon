@@ -366,11 +366,35 @@ export async function reorderAlbums(orderList: string[]): Promise<void> {
 export async function deleteAlbum(target: string): Promise<void> {
   const decodedTarget = decodeURIComponent(target);
   const safeFolder = path.basename(decodedTarget).replace(/^Vinyl_Collection_/, "").replace(/___/g, " - ");
-  const targetDir = path.join(COLLECTION_DIR, safeFolder);
   const targetDirDirect = path.join(COLLECTION_DIR, decodedTarget);
+  const targetDir = path.join(COLLECTION_DIR, safeFolder);
 
-  console.log(`[AlbumService] Deleting album target: "${target}" (folder: "${safeFolder}")`);
+  console.log(`[AlbumService] Attempting to delete album: "${target}"`);
 
+  // 1. Delete from R2 bucket strictly first, and verify success
+  const prefixesToTry = [
+    `Vinyl Collection/${safeFolder}`,
+    `Vinyl Collection/${decodedTarget}`,
+    `Vinyl Collection/${target}`
+  ];
+
+  let deletionFailed = false;
+  for (const pfx of prefixesToTry) {
+    if (pfx && pfx.length > "Vinyl Collection/".length) {
+      try {
+        await deleteR2ObjectsByPrefix(pfx, null);
+      } catch (err) {
+        console.error(`[AlbumService] R2 deletion failed for ${pfx}:`, err);
+        deletionFailed = true;
+      }
+    }
+  }
+
+  if (deletionFailed) {
+    throw new Error("Brisanje sa R2 nije uspelo, album nije obrisan iz aplikacije.");
+  }
+
+  // 2. Only if R2 deletion succeeded, clean up local/Firestore/manifest
   if (fs.existsSync(targetDirDirect)) {
     await fsPromises.rm(targetDirDirect, { recursive: true, force: true }).catch(() => {});
   }
@@ -378,20 +402,6 @@ export async function deleteAlbum(target: string): Promise<void> {
     await fsPromises.rm(targetDir, { recursive: true, force: true }).catch(() => {});
   }
 
-  // Delete from R2 bucket strictly
-  const prefixesToTry = [
-    `Vinyl Collection/${safeFolder}`,
-    `Vinyl Collection/${decodedTarget}`,
-    `Vinyl Collection/${target}`
-  ];
-
-  for (const pfx of prefixesToTry) {
-    if (pfx && pfx.length > "Vinyl Collection/".length) {
-      await deleteR2ObjectsByPrefix(pfx, null);
-    }
-  }
-
-  // Mark as deleted in Firestore
   await deleteAlbumFromFirestore(target).catch(() => {});
   await deleteAlbumFromFirestore(safeFolder).catch(() => {});
   await deleteAlbumFromFirestore(decodedTarget).catch(() => {});
@@ -399,16 +409,9 @@ export async function deleteAlbum(target: string): Promise<void> {
   // Force strict re-scan of R2 bucket as the Single Source of Truth
   try {
     const refreshedAlbums = await syncAlbumsFromR2();
-    const strictlyFiltered = refreshedAlbums.filter(a => {
-      const f = (a.folder || "").toLowerCase();
-      const id = (a.id || "").toLowerCase();
-      const tgt = target.toLowerCase();
-      const sf = safeFolder.toLowerCase();
-      return !f.includes(tgt) && !f.includes(sf) && !id.includes(tgt) && !id.includes(sf);
-    });
-    await writeManifests(strictlyFiltered);
-    await syncAllAlbumsToFirestore(strictlyFiltered).catch(() => {});
-    console.log(`[AlbumService] Album successfully deleted. R2 now has ${strictlyFiltered.length} albums.`);
+    await writeManifests(refreshedAlbums);
+    await syncAllAlbumsToFirestore(refreshedAlbums).catch(() => {});
+    console.log(`[AlbumService] Album successfully deleted. R2 now has ${refreshedAlbums.length} albums.`);
   } catch (rescanErr) {
     console.warn("[AlbumService] Error rescanning R2 after delete:", rescanErr);
   }

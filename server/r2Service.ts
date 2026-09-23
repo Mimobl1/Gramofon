@@ -236,13 +236,20 @@ export async function deleteR2ObjectsByPrefix(
 
       if (keysToDelete.length > 0) {
         console.log(`[R2Service] Found ${keysToDelete.length} matching objects to delete in R2:`, keysToDelete.map(k => k.Key));
-        await client.send(new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: {
-            Objects: keysToDelete
+        
+        for (const keyObj of keysToDelete) {
+          try {
+            await client.send(new DeleteObjectCommand({
+              Bucket: bucket,
+              Key: keyObj.Key
+            }));
+            console.log(`[R2Service] Successfully deleted: ${keyObj.Key}`);
+          } catch (err) {
+            console.error(`[R2Service] Failed to delete: ${keyObj.Key}`, err);
           }
-        }));
-        console.log(`[R2Service] Successfully deleted ${keysToDelete.length} objects matching "${cleanPrefix}" from R2 bucket.`);
+        }
+        
+        console.log(`[R2Service] Finished R2 deletion process.`);
       } else {
         console.log(`[R2Service] No R2 objects found matching prefix "${cleanPrefix}". All R2 keys:`, listRes.Contents.map(o => o.Key));
       }
