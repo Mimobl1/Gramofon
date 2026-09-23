@@ -1,0 +1,23 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/player", "destination": "/vinyl-player.html" },
+    { "source": "/archive", "destination": "/archive.html" },
+    { "source": "/admin-milan", "destination": "/admin-milan/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/vinyl-collection.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    }
+  ]
+}

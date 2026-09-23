@@ -69,11 +69,28 @@ async function updateCollection() {
 
     const dirItems = items.filter(item => item.isDirectory());
 
-    // If there are no album directories on disk, preserve existing collection
-    if (dirItems.length === 0 && existingCollection.length > 0) {
-      console.log(`[update-collection] No album directories found on disk. Preserving existing manifest with ${existingCollection.length} album(s).`);
-      await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(existingCollection, null, 2)};\n`, 'utf-8');
-      return existingCollection;
+    // If there are no album directories on disk, sync directly from Cloudflare R2
+    if (dirItems.length === 0) {
+      console.log(`[update-collection] No local directories in ${COLLECTION_DIR}. Syncing from Cloudflare R2...`);
+      try {
+        const { syncAlbumsFromR2 } = await import('./server/albumService.js');
+        const r2Albums = await syncAlbumsFromR2();
+        if (r2Albums && r2Albums.length > 0) {
+          console.log(`[update-collection] Discovered ${r2Albums.length} albums directly in Cloudflare R2!`);
+          await fs.writeFile(MANIFEST_PATH, JSON.stringify(r2Albums, null, 2), 'utf-8');
+          await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(r2Albums, null, 2)};\n`, 'utf-8');
+          return r2Albums;
+        }
+      } catch (r2Err) {
+        console.warn(`[update-collection] R2 sync warning:`, r2Err?.message);
+      }
+
+      if (existingCollection.length > 0) {
+        console.log(`[update-collection] Preserving existing manifest with ${existingCollection.length} album(s).`);
+        await fs.writeFile(MANIFEST_PATH, JSON.stringify(existingCollection, null, 2), 'utf-8');
+        await fs.writeFile(JS_MANIFEST_PATH, `window.VINYL_COLLECTION = ${JSON.stringify(existingCollection, null, 2)};\n`, 'utf-8');
+        return existingCollection;
+      }
     }
     
     for (const item of dirItems) {
@@ -211,6 +228,8 @@ async function run() {
         }
       });
     });
+  } else {
+    process.exit(0);
   }
 }
 

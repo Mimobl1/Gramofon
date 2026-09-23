@@ -84,7 +84,7 @@
             window.dispatchEvent(new CustomEvent("cloudDbReady"));
             console.log("[Firestore & Auth] Modular client cloud database & auth active:", firebaseConfig.firestoreDatabaseId);
 
-            // Cloudflare R2 Direct Client-Side S3 Uploader (zero-dependency Web Crypto SigV4)
+            // Cloudflare R2 Direct Client-Side S3 SDK (zero-dependency Web Crypto SigV4)
             const DEFAULT_R2_CONFIG = {
                 accountId: "024cdf19996bc443a2051518c2bdfb26",
                 accessKeyId: "bc1e0964d5a52ed92c7ece6e2a3910f4",
@@ -93,8 +93,209 @@
                 publicUrl: "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev"
             };
 
+            function getActiveR2Creds(userCreds) {
+                if (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) return userCreds;
+                try {
+                    const stored = localStorage.getItem("user_r2_credentials");
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        if (parsed && parsed.accountId && parsed.accessKeyId && parsed.secretAccessKey) return parsed;
+                    }
+                } catch(_) {}
+                return DEFAULT_R2_CONFIG;
+            }
+
+            async function r2SignAndFetch(method, canonicalPath, queryString = "", body = "", headers = {}, userCreds = null) {
+                const creds = getActiveR2Creds(userCreds);
+                const host = `${creds.accountId}.r2.cloudflarestorage.com`;
+                const cleanKey = canonicalPath.replace(/^\/+/, "");
+                function rfc3986(str) {
+                    return encodeURIComponent(str).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+                }
+                const encodedKey = cleanKey ? cleanKey.split("/").map(rfc3986).join("/") : "";
+                const uri = `/${creds.bucketName}${encodedKey ? "/" + encodedKey : ""}`;
+                
+                const now = new Date();
+                const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+                const dateStamp = amzDate.slice(0, 8);
+                const region = "auto";
+                const service = "s3";
+                
+                const encoder = new TextEncoder();
+                async function sha256Hex(data) {
+                    const buf = typeof data === "string" ? encoder.encode(data) : data;
+                    const hash = await crypto.subtle.digest("SHA-256", buf);
+                    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+                }
+                async function hmac(keyBuf, data) {
+                    const k = await crypto.subtle.importKey("raw", keyBuf, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+                    const sig = await crypto.subtle.sign("HMAC", k, typeof data === "string" ? encoder.encode(data) : data);
+                    return new Uint8Array(sig);
+                }
+
+                const payloadHash = body ? await sha256Hex(body) : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+                const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+                const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+                const canonicalRequest = `${method}\n${uri}\n${queryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+                const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${dateStamp}/${region}/${service}/aws4_request\n${await sha256Hex(canonicalRequest)}`;
+
+                const kDate = await hmac(encoder.encode("AWS4" + creds.secretAccessKey), dateStamp);
+                const kRegion = await hmac(kDate, region);
+                const kService = await hmac(kRegion, service);
+                const kSigning = await hmac(kService, "aws4_request");
+                const signatureBytes = await hmac(kSigning, stringToSign);
+                const signature = Array.from(signatureBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+
+                const authHeader = `AWS4-HMAC-SHA256 Credential=${creds.accessKeyId}/${dateStamp}/${region}/${service}/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+                const targetUrl = `https://${host}${uri}${queryString ? "?" + queryString : ""}`;
+
+                return await fetch(targetUrl, {
+                    method,
+                    headers: {
+                        'Host': host,
+                        'x-amz-date': amzDate,
+                        'x-amz-content-sha256': payloadHash,
+                        'Authorization': authHeader,
+                        ...headers
+                    },
+                    body: body ? body : undefined
+                });
+            }
+
+            async function r2DirectListKeys(prefix = "Vinyl Collection/", userCreds = null) {
+                const creds = getActiveR2Creds(userCreds);
+                const q = 'list-type=2&prefix=' + encodeURIComponent(prefix);
+                const res = await r2SignAndFetch('GET', '', q, '', {}, creds);
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => "");
+                    throw new Error(`R2 list failed (HTTP ${res.status}): ${txt}`);
+                }
+                const xml = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(xml, "application/xml");
+                const keyNodes = doc.querySelectorAll("Key");
+                const keys = [];
+                keyNodes.forEach(n => {
+                    const k = n.textContent;
+                    if (k) keys.push(k);
+                });
+                return keys;
+            }
+
+            async function r2DirectDeleteFolder(folderName, userCreds = null) {
+                const creds = getActiveR2Creds(userCreds);
+                const cleanFolder = folderName.replace(/^\/+/, "").replace(/^Vinyl Collection\//i, "").trim();
+                const allKeys = await r2DirectListKeys("Vinyl Collection/", creds);
+                
+                const folderLower = cleanFolder.toLowerCase();
+                const keysToDelete = allKeys.filter(k => {
+                    const kLower = k.toLowerCase();
+                    return kLower.startsWith(`vinyl collection/${folderLower}/`) ||
+                           kLower.includes(`/${folderLower}/`) ||
+                           kLower.startsWith(`${folderLower}/`);
+                });
+
+                console.log(`[R2 Direct Delete] Found ${keysToDelete.length} objects in R2 for "${cleanFolder}":`, keysToDelete);
+
+                if (keysToDelete.length === 0) {
+                    return { success: true, count: 0 };
+                }
+
+                let deletedCount = 0;
+                for (const key of keysToDelete) {
+                    const delRes = await r2SignAndFetch('DELETE', key, '', '', {}, creds);
+                    if (delRes.status >= 200 && delRes.status < 300) {
+                        deletedCount++;
+                        console.log(`[R2 Direct Delete] Deleted: ${key}`);
+                    } else {
+                        throw new Error(`Greška pri brisanju sa R2 za "${key}" (HTTP ${delRes.status})`);
+                    }
+                }
+
+                return { success: true, count: deletedCount };
+            }
+
+            async function r2DirectScanAlbums(userCreds = null) {
+                const creds = getActiveR2Creds(userCreds);
+                const allKeys = await r2DirectListKeys("Vinyl Collection/", creds);
+                const publicBase = (creds.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
+
+                const folderMap = new Map();
+
+                allKeys.forEach(k => {
+                    const relative = k.replace(/^Vinyl Collection\//i, "");
+                    const slashIdx = relative.indexOf("/");
+                    if (slashIdx === -1) return;
+                    const folder = relative.substring(0, slashIdx).trim();
+                    const fileName = relative.substring(slashIdx + 1).trim();
+                    if (!folder || !fileName) return;
+
+                    if (!folderMap.has(folder)) {
+                        folderMap.set(folder, {
+                            tracks: [],
+                            cover: "",
+                            color: "#1a1a1a"
+                        });
+                    }
+                    const albumEntry = folderMap.get(folder);
+                    const lowerFile = fileName.toLowerCase();
+
+                    if (lowerFile.endsWith(".mp3") || lowerFile.endsWith(".wav") || lowerFile.endsWith(".flac") || lowerFile.endsWith(".m4a") || lowerFile.endsWith(".ogg")) {
+                        if (!albumEntry.tracks.includes(fileName)) {
+                            albumEntry.tracks.push(fileName);
+                        }
+                    } else if (lowerFile.includes("folder.jpg") || lowerFile.includes("cover.jpg") || lowerFile.includes("cover.png") || lowerFile.endsWith(".jpg") || lowerFile.endsWith(".png")) {
+                        const encodedK = k.split("/").map(encodeURIComponent).join("/");
+                        albumEntry.cover = `${publicBase}/${encodedK}`;
+                    }
+                });
+
+                const albums = [];
+                let orderIdx = 0;
+                folderMap.forEach((entry, folder) => {
+                    if (entry.tracks.length === 0) return;
+                    entry.tracks.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                    
+                    let author = "NEPOZNATI IZVOĐAČ";
+                    let name = folder;
+                    if (folder.includes(" - ")) {
+                        const parts = folder.split(" - ");
+                        author = parts[0].trim();
+                        name = parts.slice(1).join(" - ").trim();
+                    }
+
+                    const cleanId = `Vinyl_Collection_${folder}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+                    const coverUrl = entry.cover || `${publicBase}/Vinyl%20Collection/${encodeURIComponent(folder)}/folder.jpg`;
+
+                    albums.push({
+                        id: cleanId,
+                        name: name,
+                        author: author,
+                        folder: folder,
+                        cover: coverUrl,
+                        customCover: "",
+                        useCustomCover: false,
+                        color: entry.color || "#1a1a1a",
+                        duration: "",
+                        genre: "Rock / Vinyl",
+                        year: "2024",
+                        order: orderIdx++,
+                        tracks: entry.tracks,
+                        _uid: folder
+                    });
+                });
+
+                console.log(`[R2 Direct Scan] Discovered ${albums.length} albums in R2:`, albums.map(a => a.name));
+                return albums;
+            }
+
+            window.__r2DirectListKeys = r2DirectListKeys;
+            window.__r2DirectDeleteFolder = r2DirectDeleteFolder;
+            window.__r2DirectScanAlbums = r2DirectScanAlbums;
+
             window.__r2DirectUpload = async (key, fileOrBlob, contentType, onProgress, userCreds) => {
-                const creds = (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) ? userCreds : DEFAULT_R2_CONFIG;
+                const creds = getActiveR2Creds(userCreds);
                 const host = `${creds.accountId}.r2.cloudflarestorage.com`;
                 const cleanKey = key.replace(/^\/+/, "");
                 function rfc3986(str) {
@@ -167,7 +368,7 @@
                 });
             };
             window.__r2PublicUrl = DEFAULT_R2_CONFIG.publicUrl;
-            console.log("[R2 Direct] Bulletproof WebCrypto SigV4 uploader initialized.");
+            console.log("[R2 Direct] Bulletproof WebCrypto SigV4 SDK initialized (Upload, Delete, List, Scan).");
         } catch (err) {
             console.warn("[Firestore] Modular client init notice:", err);
         }
@@ -1084,14 +1285,10 @@
         try {
             Object.keys(localStorage).forEach(key => {
                 const val = localStorage.getItem(key);
-                if (val && (val.includes("") || val.includes("vercel.app"))) {
+                if (val && val.includes("gramofon-26.vercel.app")) {
                     localStorage.removeItem(key);
                 }
             });
-            localStorage.removeItem("vinyl_archive_albums_v1");
-            localStorage.removeItem("vinyl_selected_album_v1");
-            localStorage.removeItem("archive_playing_uid_v1");
-            localStorage.removeItem("vinyl_player_playback_state_v1");
         } catch(_) {}
 
         // Helpers for modular Firestore cloud database persistence
@@ -1739,10 +1936,6 @@
             // 1. Process Firestore overrides first
             if (firestoreAlbumsMap && firestoreAlbumsMap.size > 0) {
                 firestoreAlbumsMap.forEach((fsDoc, key) => {
-                    const docId = (fsDoc.id || fsDoc.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-                    const folderKey = (fsDoc.folder || "").toLowerCase();
-                    if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
-
                     const uKey = getAlbumKey(fsDoc);
                     if (uKey) {
                         masterMap.set(uKey, {
@@ -1758,7 +1951,10 @@
             baseList.forEach(album => {
                 const docId = (album.id || album.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                 const folderKey = (album.folder || "").toLowerCase();
-                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
+                // If it is in Firestore, it is active and not deleted
+                if (!firestoreAlbumsMap.has(docId) && !firestoreAlbumsMap.has(folderKey)) {
+                    if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
+                }
 
                 const uKey = getAlbumKey(album);
                 if (!uKey) return;
@@ -1867,18 +2063,41 @@
                     if (res && res.ok) {
                         const data = await res.json();
                         const parsed = Array.isArray(data) ? data : [];
-                        baseRepoAlbums = parsed;
-                        mergeAndApplyCollection();
-                        if (parsed.length) {
+                        if (parsed.length > 0) {
+                            baseRepoAlbums = parsed;
+                            mergeAndApplyCollection();
                             enrichAlbumDurations(parsed).catch(() => {});
+                            return;
                         }
-                        return;
                     }
                 } catch (e) {
                     console.warn(`Live collection fetch error (attempt ${attempt}):`, e);
                 }
                 if (attempt === 1) {
                     await new Promise(r => setTimeout(r, 200));
+                }
+            }
+
+            // Fallback: If live server fetch returned nothing, or on Vercel where /api/albums returns 404,
+            // scan Cloudflare R2 bucket directly using client-side SigV4!
+            if ((!baseRepoAlbums.length || !collection.length) && window.__r2DirectScanAlbums) {
+                try {
+                    console.log("[R2 Direct] Scanning R2 bucket directly for albums...");
+                    const r2Discovered = await window.__r2DirectScanAlbums();
+                    if (Array.isArray(r2Discovered) && r2Discovered.length > 0) {
+                        baseRepoAlbums = r2Discovered;
+                        mergeAndApplyCollection();
+                        if (window.__cloudDb) {
+                            for (const a of r2Discovered) {
+                                const docId = (a.id || a.folder).replace(/[^a-zA-Z0-9_-]/g, "_");
+                                window.__cloudDb.saveAlbum(docId, a).catch(() => {});
+                            }
+                        }
+                        enrichAlbumDurations(r2Discovered).catch(() => {});
+                        return;
+                    }
+                } catch (r2Err) {
+                    console.warn("[R2 Direct] Direct scan notice:", r2Err);
                 }
             }
 
@@ -5338,31 +5557,61 @@
             confirmCancelBtn.addEventListener("click", () => {
                 customConfirmOverlay.classList.remove("active");
             });
-            confirmOkBtn.addEventListener("click", () => {
+            confirmOkBtn.addEventListener("click", async () => {
                 customConfirmOverlay.classList.remove("active");
                 if (lastIndex >= 0 && lastIndex < collection.length) {
                     const item = collection[lastIndex];
-                    const folderKey = item._uid;
-                    
-                    // Delete from server and Firestore
-                    const activeUserEmail = currentUser?.email || "demo";
-                    fetch(`${API_BASE}/api/albums`, {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            userEmail: activeUserEmail,
-                            folder: folderKey, 
-                            id: item.id || folderKey 
-                        })
-                    }).then(() => {
-                        loadCollectionManifest();
-                    }).catch(()=>{});
+                    const folderKey = item._uid || item.folder || item.id;
+                    const folderName = item.folder || folderKey;
+                    const isLocal = folderKey.startsWith("LOCAL://");
+
+                    let r2Deleted = false;
+                    let r2ErrorMsg = "";
+
+                    // If not local IndexedDB, delete from Cloudflare R2
+                    if (!isLocal) {
+                        // 1. Direct client-side deletion from R2 via SigV4
+                        if (window.__r2DirectDeleteFolder) {
+                            try {
+                                const delResult = await window.__r2DirectDeleteFolder(folderName);
+                                if (delResult && delResult.success) {
+                                    r2Deleted = true;
+                                }
+                            } catch (err) {
+                                console.warn("[Archive Delete] R2 direct delete warning:", err);
+                                r2ErrorMsg = err?.message || String(err);
+                            }
+                        }
+
+                        // 2. Server-side deletion endpoint (if server is running)
+                        try {
+                            const activeUserEmail = currentUser?.email || "demo";
+                            const srvRes = await fetch(`${API_BASE}/api/albums`, {
+                                method: 'DELETE',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    userEmail: activeUserEmail,
+                                    folder: folderKey, 
+                                    id: item.id || folderKey 
+                                })
+                            });
+                            if (srvRes.ok) {
+                                r2Deleted = true;
+                            }
+                        } catch (_) {}
+
+                        // CRITICAL USER GUARANTEE: If deletion from R2 fails, DO NOT delete from app or Firestore!
+                        if (!r2Deleted) {
+                            showCustomAlert("Brisanje sa Cloudflare R2 skladišta nije uspelo:\n" + (r2ErrorMsg || "R2 nije potvrdio brisanje fajlova.") + "\n\nAlbum NIJE obrisan iz aplikacije kako ne bi ostao u R2 a nestao iz aplikacije.");
+                            return;
+                        }
+                    }
 
                     // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel
                     const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
                     deleteAlbumFromCloud(docId, item.folder || folderKey);
 
-                    if (folderKey.startsWith("LOCAL://")) {
+                    if (isLocal) {
                          const albumId = folderKey.replace("LOCAL://", "");
                          dbPromise.then(db => {
                              const tx = db.transaction("albums", "readwrite");
@@ -5372,7 +5621,7 @@
                     
                     // Remove from collections
                     collection.splice(lastIndex, 1);
-                    const origIndex = originalCollection.findIndex(x => x._uid === folderKey);
+                    const origIndex = originalCollection.findIndex(x => (x._uid === folderKey || x.folder === folderName || x.id === item.id));
                     if(origIndex !== -1) originalCollection.splice(origIndex, 1);
 
                     try {

@@ -2059,6 +2059,12 @@
         let coll = (window.VINYL_COLLECTION && Array.isArray(window.VINYL_COLLECTION)) ? window.VINYL_COLLECTION : [];
         if (!coll.length) {
           try {
+            const cached = JSON.parse(localStorage.getItem("vinyl_archive_albums_v1") || "[]");
+            if (Array.isArray(cached) && cached.length) coll = cached;
+          } catch (_) {}
+        }
+        if (!coll.length) {
+          try {
             const res = await fetch("/api/albums");
             if (res.ok) coll = await res.json();
           } catch (_) {}
@@ -2778,7 +2784,7 @@
     try {
       Object.keys(localStorage).forEach(key => {
         const val = localStorage.getItem(key);
-        if (val && (val.includes("") || val.includes("vercel.app"))) {
+        if (val && val.includes("gramofon-26.vercel.app")) {
           localStorage.removeItem(key);
         }
       });

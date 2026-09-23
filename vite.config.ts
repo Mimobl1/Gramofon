@@ -92,13 +92,25 @@ function generateCollectionManifest(): any[] {
     });
   }
 
-  try {
-    fs.writeFileSync(manifestPath, JSON.stringify(albums, null, 2) + '\n', 'utf-8');
-  } catch (err) {
-    console.error('Failed to write vinyl-collection.json', err);
+  if (albums.length > 0) {
+    try {
+      fs.writeFileSync(manifestPath, JSON.stringify(albums, null, 2) + '\n', 'utf-8');
+    } catch (err) {
+      console.error('Failed to write vinyl-collection.json', err);
+    }
+    return albums;
   }
 
-  return albums;
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (Array.isArray(existing) && existing.length > 0) {
+        return existing;
+      }
+    } catch (_) {}
+  }
+
+  return [];
 }
 
 function vinylCollectionPlugin(): Plugin {
