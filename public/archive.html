@@ -1987,6 +1987,18 @@
             });
 
             if (dedupedMerged.length > 0 || (originalCollection.length > 0 && dedupedMerged.length === 0)) {
+                // If the edit modal or color picker is actively open, do not destroy 3D meshes with rebuildMeshes!
+                if (isModalActive()) {
+                    originalCollection = dedupedMerged;
+                    if (activeGenre === "ALL") {
+                        collection = [...originalCollection];
+                    }
+                    try {
+                        localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(dedupedMerged));
+                    } catch(_) {}
+                    return;
+                }
+
                 const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
                 const newKey = dedupedMerged.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
                 if (currentKey !== newKey || (!collection.length && dedupedMerged.length > 0)) {
@@ -5215,6 +5227,19 @@
             openEditModal();
         });
 
+        let labelUpdateTimer = null;
+        let autoSaveDebounceTimer = null;
+        const debouncedAutoSaveEdits = (delay = 450) => {
+            clearTimeout(autoSaveDebounceTimer);
+            autoSaveDebounceTimer = setTimeout(() => {
+                autoSaveEdits();
+            }, delay);
+        };
+        const flushAutoSaveEdits = () => {
+            clearTimeout(autoSaveDebounceTimer);
+            autoSaveEdits();
+        };
+
         const syncColorToPreview = () => {
             const newColor = editAlbumColor.value.trim();
             if (lastIndex >= 0 && lastIndex < collection.length && /^#[0-9A-Fa-f]{3,6}$/.test(newColor)) {
@@ -5233,46 +5258,60 @@
                 editAlbumColorSwatch.style.backgroundColor = newColor;
                 const hexEl = document.getElementById("editAlbumColorHex");
                 if (hexEl) hexEl.textContent = newColor;
+
                 if (groups[lastIndex]) {
                     const group = groups[lastIndex];
                     const cover = group.children.find(c => c.name === "cover");
-                    if (cover) {
-                        const edgeMat = new THREE.MeshStandardMaterial({ 
-                             color: new THREE.Color(newColor), 
-                             roughness: 0.5, 
-                             metalness: 0.65,
-                            transparent: true 
-                         });
-                        const texture = generateCoverTexture(item, 2048);
-                        const isCustom = item.customCover && item.useCustomCover !== false;
-                        const material = new THREE.MeshStandardMaterial({ 
-                            map: texture, 
-                            roughness: isCustom ? 0.4 : 0.5, 
-                            metalness: isCustom ? 0.6 : 0.65,
-                            transparent: true 
-                        });
-                        cover.material = [edgeMat, edgeMat, edgeMat, edgeMat, material, material];
+                    if (cover && Array.isArray(cover.material)) {
+                        const threeColor = new THREE.Color(newColor);
+                        // Update the 4 edge materials smoothly without recreating materials or recompiling shaders
+                        for (let m = 0; m < 4; m++) {
+                            if (cover.material[m] && cover.material[m].color) {
+                                cover.material[m].color.copy(threeColor);
+                            }
+                        }
+                        // Only procedural covers need their front/back texture regenerated on color change
+                        const hasCoverImage = (item.customCover && item.useCustomCover !== false) || (item.cover && item.cover.trim() !== "");
+                        if (!hasCoverImage) {
+                            const newTex = generateCoverTexture(item, 1024);
+                            if (cover.material[4]) {
+                                if (cover.material[4].map) cover.material[4].map.dispose();
+                                cover.material[4].map = newTex;
+                                cover.material[4].needsUpdate = true;
+                            }
+                            if (cover.material[5]) {
+                                cover.material[5].map = newTex;
+                                cover.material[5].needsUpdate = true;
+                            }
+                        }
                     }
+
                     const disk = group.children.find(c => c.name === "disk");
                     if (disk) {
-                        if (disk.material) {
-                            disk.material.color = (newColor && newColor !== "#1a1a1a" && newColor !== "#000000")
+                        if (disk.material && disk.material.color) {
+                            const diskColor = (newColor && newColor !== "#1a1a1a" && newColor !== "#000000")
                                 ? new THREE.Color(newColor)
                                 : new THREE.Color(0x050505);
-                            disk.material.needsUpdate = true;
+                            disk.material.color.copy(diskColor);
                         }
-                        const labelMesh = disk.children.find(c => c.name === "diskLabel");
-                        if (labelMesh) {
-                            const newLabelTexture = generateArchiveLabelTexture(item, "A", 512);
-                            labelMesh.material.map = newLabelTexture;
-                            labelMesh.material.needsUpdate = true;
-                        }
-                        const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
-                        if (labelMeshB) {
-                            const newLabelTextureB = generateArchiveLabelTexture(item, "B", 512);
-                            labelMeshB.material.map = newLabelTextureB;
-                            labelMeshB.material.needsUpdate = true;
-                        }
+                        clearTimeout(labelUpdateTimer);
+                        labelUpdateTimer = setTimeout(() => {
+                            if (!disk) return;
+                            const labelMesh = disk.children.find(c => c.name === "diskLabel");
+                            if (labelMesh && labelMesh.material) {
+                                const oldMap = labelMesh.material.map;
+                                labelMesh.material.map = generateArchiveLabelTexture(item, "A", 512);
+                                labelMesh.material.needsUpdate = true;
+                                if (oldMap) oldMap.dispose();
+                            }
+                            const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
+                            if (labelMeshB && labelMeshB.material) {
+                                const oldMapB = labelMeshB.material.map;
+                                labelMeshB.material.map = generateArchiveLabelTexture(item, "B", 512);
+                                labelMeshB.material.needsUpdate = true;
+                                if (oldMapB) oldMapB.dispose();
+                            }
+                        }, 120);
                     }
                 }
             }
@@ -5389,15 +5428,22 @@
             }
         };
 
-        // Attach auto-save to input events
-        [editAlbumName, editAlbumAuthor, editAlbumGenre, editAlbumYear, editAlbumColor].forEach(el => {
+        // Attach debounced auto-save to input events
+        [editAlbumName, editAlbumAuthor, editAlbumGenre, editAlbumYear].forEach(el => {
             el.addEventListener('input', () => {
-                autoSaveEdits();
-                if(el === editAlbumColor) syncColorToPreview();
+                debouncedAutoSaveEdits(400);
             });
             el.addEventListener('change', () => {
-                autoSaveEdits();
+                flushAutoSaveEdits();
             });
+        });
+
+        editAlbumColor.addEventListener('input', () => {
+            syncColorToPreview();
+            debouncedAutoSaveEdits(450);
+        });
+        editAlbumColor.addEventListener('change', () => {
+            flushAutoSaveEdits();
         });
 
         let activeColorContext = 'edit';
@@ -5430,6 +5476,7 @@
         document.getElementById("uploadAlbumColorBtn")?.addEventListener("click", openUploadColorPicker);
 
         const restoreModalAfterColorPicker = () => {
+            flushAutoSaveEdits();
             rightColorPickerContainer.classList.remove("active");
             if (activeColorContext === 'upload') {
                 uploadModalOverlay.classList.add("active");
@@ -5463,7 +5510,12 @@
                     const hexEl = document.getElementById("editAlbumColorHex");
                     if (hexEl) hexEl.textContent = hex;
                     syncColorToPreview();
-                    autoSaveEdits();
+                    debouncedAutoSaveEdits(450);
+                }
+            });
+            el.addEventListener('change', () => {
+                if (activeColorContext === 'edit') {
+                    flushAutoSaveEdits();
                 }
             });
         });
@@ -5485,6 +5537,7 @@
         });
 
         const closeEditModal = () => {
+            flushAutoSaveEdits();
             editModalOverlay.classList.remove("active");
             if (lastIndex >= 0 && lastIndex < collection.length) {
                 openStates[lastIndex] = false;
@@ -5503,7 +5556,7 @@
                     saveBtn.disabled = true;
                 }
 
-                autoSaveEdits();
+                flushAutoSaveEdits();
                 syncColorToPreview();
 
                 setTimeout(() => {
