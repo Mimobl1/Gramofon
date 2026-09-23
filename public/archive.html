@@ -3237,13 +3237,16 @@
                 if (isPlaying && !isLaunching) {
                     openStates[i] = false;
                 }
-                const targetOpen = isLaunching ? 1 : (isPlaying ? 0 : (openStates[i] ? 1 : 0));
-                const openLerpSpeed = 0.07;
-                group.userData.openProgress += (targetOpen - group.userData.openProgress) * openLerpSpeed;
-                group.userData.openAmount = easeInOutCubic(group.userData.openProgress);
-                if (isLaunching) {
+                const isEditOrColorPickerActive = (editModalOverlay && editModalOverlay.classList.contains("active")) || (rightColorPickerContainer && rightColorPickerContainer.classList.contains("active") && activeColorContext === 'edit');
+                const forceOpen = isEditOrColorPickerActive && i === lastIndex;
+                if (forceOpen || isLaunching) {
                     group.userData.openProgress = 1;
                     group.userData.openAmount = 1;
+                } else {
+                    const targetOpen = isPlaying ? 0 : (openStates[i] ? 1 : 0);
+                    const openLerpSpeed = 0.07;
+                    group.userData.openProgress += (targetOpen - group.userData.openProgress) * openLerpSpeed;
+                    group.userData.openAmount = easeInOutCubic(group.userData.openProgress);
                 }
 
                 group.userData.hoverVal += (((i === interactiveIndex) ? 1 : 0) - group.userData.hoverVal) * 0.1;
@@ -4914,6 +4917,7 @@
 
         function openEditModal() {
             if (lastIndex >= 0 && lastIndex < collection.length) {
+                openStates[lastIndex] = true;
                 const item = collection[lastIndex];
                 editAlbumName.value = item.name || "";
                 editAlbumAuthor.value = item.author || "";
@@ -5127,6 +5131,9 @@
             e.stopPropagation();
             activeColorContext = 'edit';
             editModalOverlay.classList.remove("active");
+            if (lastIndex >= 0 && lastIndex < collection.length) {
+                openStates[lastIndex] = true;
+            }
             updateCustomCp(editAlbumColor.value || "#1a1a1a");
             rightColorPickerContainer.classList.add("active");
         };
@@ -5204,6 +5211,9 @@
 
         const closeEditModal = () => {
             editModalOverlay.classList.remove("active");
+            if (lastIndex >= 0 && lastIndex < collection.length) {
+                openStates[lastIndex] = false;
+            }
             filterCollection();
             lastIndex = -1;
         };

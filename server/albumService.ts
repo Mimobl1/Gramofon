@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import fsPromises from "fs/promises";
 import { updateCollection } from "../update-collection.js";
-import { getR2Client, getR2Config, isR2Configured } from "./r2Service.js";
+import { getR2Client, getR2Config, isR2Configured, deleteR2ObjectsByPrefix } from "./r2Service.js";
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
   syncAlbumToFirestore,
@@ -374,6 +374,11 @@ export async function deleteAlbum(target: string): Promise<void> {
       console.warn(`[AlbumService] Could not delete directory ${targetDir}:`, err?.message);
     });
   }
+
+  // Delete from R2 bucket
+  await deleteR2ObjectsByPrefix(`Vinyl Collection/${safeFolder}`).catch((err) => {
+    console.warn(`[AlbumService] Notice deleting R2 folder "${safeFolder}":`, err?.message);
+  });
 
   // Rescan public/Vinyl Collection and regenerate manifest
   await updateCollection().catch(async (err) => {
