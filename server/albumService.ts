@@ -64,8 +64,7 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
     const publicBase = (conf.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
 
     const res = await client.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: "Vinyl Collection/"
+      Bucket: bucket
     }));
 
     if (!res.Contents || res.Contents.length === 0) {
@@ -76,7 +75,7 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
 
     for (const obj of res.Contents) {
       const key = obj.Key;
-      if (!key) continue;
+      if (!key || !key.startsWith("Vinyl Collection/")) continue;
       const rel = key.replace(/^Vinyl Collection\//i, "");
       const parts = rel.split("/");
       if (parts.length < 2) continue;
