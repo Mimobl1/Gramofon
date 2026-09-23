@@ -321,7 +321,7 @@ export async function finalizeAlbumUpload(body: any) {
     color: finalColor,
     genre: genre || "ROCK",
     year: year || "",
-    order: newOrder,
+    order: 0,
     createdAt: new Date().toISOString()
   };
 

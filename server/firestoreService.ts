@@ -81,12 +81,26 @@ export function getCleanDocId(idOrFolder: string): string {
   return (idOrFolder || "").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+export async function clearDeletedAlbumFromFirestore(target: string): Promise<void> {
+  const db = getDb();
+  if (!db || !target) return;
+  try {
+    const docId = getCleanDocId(target);
+    if (docId) {
+      await deleteDoc(doc(db, "deleted_albums", docId)).catch(() => {});
+    }
+  } catch (_) {}
+}
+
 export async function syncAlbumToFirestore(album: any): Promise<void> {
   const db = getDb();
   if (!db) return;
   try {
     const docId = getCleanDocId(album.id || album.folder);
     if (!docId) return;
+
+    // Ensure tombstone in deleted_albums is removed since album is active
+    await deleteDoc(doc(db, "deleted_albums", docId)).catch(() => {});
 
     const payload: any = {
       id: docId,
@@ -98,6 +112,7 @@ export async function syncAlbumToFirestore(album: any): Promise<void> {
       year: album.year || "",
       order: typeof album.order === "number" ? album.order : 0,
       tracks: Array.isArray(album.tracks) ? album.tracks : [],
+      createdAt: album.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
@@ -175,7 +190,14 @@ export async function getAlbumsFromFirestore(): Promise<any[]> {
     snap.forEach((d: any) => {
       list.push({ id: d.id, ...d.data() });
     });
-    list.sort((a, b) => (typeof a.order === "number" ? a.order : 0) - (typeof b.order === "number" ? b.order : 0));
+    list.sort((a, b) => {
+      const orderA = typeof a.order === "number" ? a.order : 9999;
+      const orderB = typeof b.order === "number" ? b.order : 9999;
+      if (orderA !== orderB) return orderA - orderB;
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
+      return timeB - timeA;
+    });
     return list;
   } catch (err: any) {
     console.warn("[Server Firestore] Error fetching albums:", err?.message || err);

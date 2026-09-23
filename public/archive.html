@@ -92,6 +92,22 @@
             window.dispatchEvent(new CustomEvent("cloudDbReady"));
             console.log("[Firestore & Auth] Modular client cloud database & auth active:", firebaseConfig.firestoreDatabaseId);
 
+            function cleanAlbumFolder(input) {
+                if (!input) return "";
+                let str = String(input).trim();
+                try {
+                    if (str.startsWith("http://") || str.startsWith("https://")) {
+                        const u = new URL(str);
+                        str = decodeURIComponent(u.pathname);
+                    }
+                } catch (_) {}
+                str = str.replace(/^[\\\/]+/, "");
+                str = str.replace(/^Vinyl Collection[\\\/]/i, "");
+                str = str.replace(/[\\\/]+$/, "");
+                return str.trim();
+            }
+            window.__cleanAlbumFolder = cleanAlbumFolder;
+
             // Cloudflare R2 Direct Client-Side S3 SDK (zero-dependency Web Crypto SigV4)
             const DEFAULT_R2_CONFIG = {
                 accountId: "024cdf19996bc443a2051518c2bdfb26",
@@ -171,7 +187,7 @@
                 });
             }
 
-            async function r2DirectListKeys(prefix = "Vinyl Collection/", userCreds = null) {
+            async function r2DirectListObjects(prefix = "Vinyl Collection/", userCreds = null) {
                 const creds = getActiveR2Creds(userCreds);
                 const q = 'list-type=2&prefix=' + encodeURIComponent(prefix);
                 const res = await r2SignAndFetch('GET', '', q, '', {}, creds);
@@ -182,18 +198,29 @@
                 const xml = await res.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(xml, "application/xml");
-                const keyNodes = doc.querySelectorAll("Key");
-                const keys = [];
-                keyNodes.forEach(n => {
-                    const k = n.textContent;
-                    if (k) keys.push(k);
+                const contentsNodes = doc.querySelectorAll("Contents");
+                const items = [];
+                contentsNodes.forEach(c => {
+                    const keyEl = c.querySelector("Key");
+                    const lastModEl = c.querySelector("LastModified");
+                    if (keyEl && keyEl.textContent) {
+                        items.push({
+                            key: keyEl.textContent,
+                            lastModified: lastModEl && lastModEl.textContent ? new Date(lastModEl.textContent).getTime() : 0
+                        });
+                    }
                 });
-                return keys;
+                return items;
+            }
+
+            async function r2DirectListKeys(prefix = "Vinyl Collection/", userCreds = null) {
+                const items = await r2DirectListObjects(prefix, userCreds);
+                return items.map(i => i.key);
             }
 
             async function r2DirectDeleteFolder(folderName, userCreds = null) {
                 const creds = getActiveR2Creds(userCreds);
-                const cleanFolder = folderName.replace(/^\/+/, "").replace(/^Vinyl Collection\//i, "").trim();
+                const cleanFolder = cleanAlbumFolder(folderName);
                 const allKeys = await r2DirectListKeys("Vinyl Collection/", creds);
                 
                 const folderLower = cleanFolder.toLowerCase();
@@ -226,12 +253,13 @@
 
             async function r2DirectScanAlbums(userCreds = null) {
                 const creds = getActiveR2Creds(userCreds);
-                const allKeys = await r2DirectListKeys("Vinyl Collection/", creds);
+                const allObjects = await r2DirectListObjects("Vinyl Collection/", creds);
                 const publicBase = (creds.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
 
                 const folderMap = new Map();
 
-                allKeys.forEach(k => {
+                allObjects.forEach(item => {
+                    const k = item.key;
                     const relative = k.replace(/^Vinyl Collection\//i, "");
                     const slashIdx = relative.indexOf("/");
                     if (slashIdx === -1) return;
@@ -243,10 +271,14 @@
                         folderMap.set(folder, {
                             tracks: [],
                             cover: "",
-                            color: "#1a1a1a"
+                            color: "#1a1a1a",
+                            latestTime: item.lastModified || 0
                         });
                     }
                     const albumEntry = folderMap.get(folder);
+                    if (item.lastModified && item.lastModified > (albumEntry.latestTime || 0)) {
+                        albumEntry.latestTime = item.lastModified;
+                    }
                     const lowerFile = fileName.toLowerCase();
 
                     if (lowerFile.endsWith(".mp3") || lowerFile.endsWith(".wav") || lowerFile.endsWith(".flac") || lowerFile.endsWith(".m4a") || lowerFile.endsWith(".ogg")) {
@@ -259,10 +291,14 @@
                     }
                 });
 
+                // Sort folders by latest upload timestamp descending so newest uploads appear at index 0 (top of stack)
+                const folderEntries = Array.from(folderMap.entries())
+                    .filter(([_, entry]) => entry.tracks.length > 0)
+                    .sort((a, b) => (b[1].latestTime || 0) - (a[1].latestTime || 0));
+
                 const albums = [];
                 let orderIdx = 0;
-                folderMap.forEach((entry, folder) => {
-                    if (entry.tracks.length === 0) return;
+                folderEntries.forEach(([folder, entry]) => {
                     entry.tracks.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
                     
                     let author = "NEPOZNATI IZVOĐAČ";
@@ -289,6 +325,7 @@
                         genre: "Rock / Vinyl",
                         year: "2024",
                         order: orderIdx++,
+                        createdAt: entry.latestTime ? new Date(entry.latestTime).toISOString() : new Date().toISOString(),
                         tracks: entry.tracks,
                         _uid: folder
                     });
@@ -1935,9 +1972,7 @@
             const masterMap = new Map();
 
             const getAlbumKey = (a) => {
-                let f = (a.folder || a.id || "").trim().toLowerCase();
-                f = f.replace(/^vinyl collection[\/\\]/i, "").trim();
-                return f;
+                return cleanAlbumFolder(a.folder || a.id || "").toLowerCase();
             };
 
             // R2 / baseList represents the real storage truth of what audio albums exist
@@ -1945,6 +1980,10 @@
                 const uKey = getAlbumKey(album);
                 if (!uKey) return;
                 const docId = uKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+                // If album is physically present in R2 / baseList, it CANNOT be considered deleted!
+                deletedAlbumIds.delete(docId);
+                deletedAlbumIds.delete(uKey);
 
                 if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(uKey)) return;
 
@@ -1962,6 +2001,7 @@
                         customCover: fsDoc.customCover || "",
                         useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
                         order: typeof fsDoc.order === "number" ? fsDoc.order : (typeof album.order === "number" ? album.order : 999),
+                        createdAt: fsDoc.createdAt || album.createdAt || "",
                         _uid: album.folder || docId
                     });
                 } else {
@@ -1972,6 +2012,7 @@
                         customCover: album.customCover || "",
                         useCustomCover: !!album.customCover,
                         _uid: album.folder || docId,
+                        createdAt: album.createdAt || "",
                         order: typeof album.order === "number" ? album.order : 999
                     });
                 }
@@ -1979,11 +2020,14 @@
 
             const dedupedMerged = Array.from(masterMap.values());
 
-            // Sort by custom order
+            // Sort so lowest order index (or newest createdAt/lastModified) appears first (top of stack)
             dedupedMerged.sort((a, b) => {
-                const orderA = typeof a.order === "number" ? a.order : 999;
-                const orderB = typeof b.order === "number" ? b.order : 999;
-                return orderA - orderB;
+                const orderA = typeof a.order === "number" ? a.order : 9999;
+                const orderB = typeof b.order === "number" ? b.order : 9999;
+                if (orderA !== orderB) return orderA - orderB;
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.lastModified || 0);
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.lastModified || 0);
+                return timeB - timeA;
             });
 
             if (dedupedMerged.length > 0 || (originalCollection.length > 0 && dedupedMerged.length === 0)) {
@@ -2024,10 +2068,10 @@
                             deletedAlbumIds.clear();
                             snap.forEach(dDoc => {
                                 const d = dDoc.data();
-                                const cleanId = dDoc.id.replace(/^Vinyl_Collection_/i, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                                const cleanId = cleanAlbumFolder(dDoc.id.replace(/^Vinyl_Collection_/i, "")).replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                                 deletedAlbumIds.add(cleanId);
                                 if (d && d.folder) {
-                                    const cleanF = d.folder.replace(/^Vinyl Collection[\/\\]/i, "").toLowerCase();
+                                    const cleanF = cleanAlbumFolder(d.folder).toLowerCase();
                                     deletedAlbumIds.add(cleanF);
                                 }
                             });
@@ -2040,11 +2084,11 @@
                             firestoreAlbumsMap.clear();
                             snap.forEach(dDoc => {
                                 const d = dDoc.data();
-                                const cleanId = dDoc.id.replace(/^Vinyl_Collection_/i, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                                const cleanId = cleanAlbumFolder(dDoc.id.replace(/^Vinyl_Collection_/i, "")).replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                                 const item = { ...d, id: dDoc.id };
                                 firestoreAlbumsMap.set(cleanId, item);
                                 if (d && d.folder) {
-                                    const cleanF = d.folder.replace(/^Vinyl Collection[\/\\]/i, "").toLowerCase();
+                                    const cleanF = cleanAlbumFolder(d.folder).toLowerCase();
                                     firestoreAlbumsMap.set(cleanF, item);
                                 }
                             });
@@ -2103,15 +2147,15 @@
                     console.log("[R2 Direct] Scanning R2 bucket directly for albums...");
                     const r2Discovered = await window.__r2DirectScanAlbums();
                     if (Array.isArray(r2Discovered) && r2Discovered.length > 0) {
-                        const r2FolderNames = new Set(r2Discovered.map(x => (x.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase()));
+                        const r2FolderNames = new Set(r2Discovered.map(x => cleanAlbumFolder(x.folder).toLowerCase()));
 
                         // Reconcile: Purge any Firestore docs whose folder was deleted from R2!
                         if (window.__cloudDb && firestoreAlbumsMap.size > 0) {
                             firestoreAlbumsMap.forEach((fsDoc, fsKey) => {
-                                const fsFolder = (fsDoc.folder || fsDoc.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+                                const fsFolder = cleanAlbumFolder(fsDoc.folder || fsDoc.id || "").toLowerCase();
                                 if (fsFolder && !r2FolderNames.has(fsFolder)) {
                                     console.log("[Reconcile] Purging album deleted from R2:", fsDoc.id, fsFolder);
-                                    const delDocId = (fsDoc.id || fsDoc.folder).replace(/[^a-zA-Z0-9_-]/g, "_");
+                                    const delDocId = cleanAlbumFolder(fsDoc.id || fsDoc.folder).replace(/[^a-zA-Z0-9_-]/g, "_");
                                     window.__cloudDb.deleteAlbum(delDocId, fsDoc.folder).catch(() => {});
                                     firestoreAlbumsMap.delete(fsKey);
                                 }
@@ -2120,7 +2164,7 @@
 
                         // Attach Firestore metadata to r2Discovered without overwriting user customizations!
                         const enrichedR2 = r2Discovered.map(album => {
-                            const cleanFolder = (album.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+                            const cleanFolder = cleanAlbumFolder(album.folder).toLowerCase();
                             const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                             const fsDoc = firestoreAlbumsMap.get(docId) || firestoreAlbumsMap.get(cleanFolder);
                             if (fsDoc) {
@@ -2133,7 +2177,8 @@
                                     color: fsDoc.color || album.color || "#1a1a1a",
                                     customCover: fsDoc.customCover || "",
                                     useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
-                                    order: typeof fsDoc.order === "number" ? fsDoc.order : album.order
+                                    order: typeof fsDoc.order === "number" ? fsDoc.order : album.order,
+                                    createdAt: fsDoc.createdAt || album.createdAt
                                 };
                             }
                             return album;
@@ -2834,12 +2879,7 @@
 
             drawLabelOverlayElements(ctx, false);
 
-            if (targetCanvas) {
-                return null;
-            }
-
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
+            let texture = null;
 
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
@@ -2882,8 +2922,18 @@
                     ctx.fillRect(0, 0, size, size);
                     ctx.restore();
 
+                    // Semi-transparent overlay with custom theme color
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(c, c, r, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.fillStyle = toHex(item.color) || "#1f1f1f";
+                    ctx.globalAlpha = 0.45;
+                    ctx.fill();
+                    ctx.restore();
+
                     drawLabelOverlayElements(ctx, true);
-                    texture.needsUpdate = true;
+                    if (texture) texture.needsUpdate = true;
                 };
                 if (img.complete && img.naturalWidth > 0) {
                     drawLabelCover();
@@ -2892,6 +2942,12 @@
                 }
             }
 
+            if (targetCanvas) {
+                return null;
+            }
+
+            texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
             return texture;
         }
 
@@ -5077,7 +5133,11 @@
 
                         const norm = normalizeCollectionItem(newAlbum, 0);
                         if (norm) {
-                            originalCollection = [norm, ...originalCollection.filter(a => a._uid !== norm._uid && a.folder !== norm.folder)];
+                            norm.order = 0;
+                            const rest = originalCollection
+                                .filter(a => a._uid !== norm._uid && cleanAlbumFolder(a.folder).toLowerCase() !== cleanAlbumFolder(norm.folder).toLowerCase())
+                                .map((a, idx) => ({ ...a, order: idx + 1 }));
+                            originalCollection = [norm, ...rest];
                             applyCollectionData(originalCollection);
                             targetScroll = 0;
                             currentScroll = 0;
@@ -5343,6 +5403,9 @@
                                 if (oldMapB) oldMapB.dispose();
                             }
                         }
+                    }
+                    if (renderer && scene && camera) {
+                        renderer.render(scene, camera);
                     }
                 }
             }

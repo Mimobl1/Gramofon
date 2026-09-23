@@ -9,6 +9,7 @@ import {
   deleteAlbumFromFirestore,
   syncAllAlbumsToFirestore,
   clearAllAlbumsFromFirestore,
+  clearDeletedAlbumFromFirestore,
   getAlbumsFromFirestore
 } from "./firestoreService.js";
 
@@ -32,6 +33,24 @@ export interface AlbumRecord {
 const MANIFEST_PATH = path.join(process.cwd(), "public", "vinyl-collection.json");
 const JS_MANIFEST_PATH = path.join(process.cwd(), "public", "collection-data.js");
 const COLLECTION_DIR = path.join(process.cwd(), "public", "Vinyl Collection");
+
+/**
+ * Normalizes any folder name, relative path, or full public R2 URL to the clean album subfolder name
+ */
+export function cleanAlbumFolder(input?: string | null): string {
+  if (!input) return "";
+  let str = String(input).trim();
+  try {
+    if (str.startsWith("http://") || str.startsWith("https://")) {
+      const u = new URL(str);
+      str = decodeURIComponent(u.pathname);
+    }
+  } catch (_) {}
+  str = str.replace(/^[\\\/]+/, "");
+  str = str.replace(/^Vinyl Collection[\\\/]/i, "");
+  str = str.replace(/[\\\/]+$/, "");
+  return str.trim();
+}
 
 /**
  * Helper to deduplicate track lists case-insensitively (.mp3 vs .MP3), prioritizing lowercase extensions
@@ -64,22 +83,29 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
     const publicBase = (conf.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
 
     console.log(`[R2 Sync] Scanning bucket: ${bucket}`);
-    const res = await client.send(new ListObjectsV2Command({
-      Bucket: bucket
-    }));
+    const allObjects: any[] = [];
+    let continuationToken: string | undefined = undefined;
 
-    console.log(`[R2 Sync] Found ${res.Contents?.length || 0} objects in bucket.`);
-    if (res.Contents) {
-      console.log(`[R2 Sync] First 5 keys:`, res.Contents.slice(0, 5).map(o => o.Key));
-    }
+    do {
+      const res = await client.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        ContinuationToken: continuationToken
+      }));
+      if (res.Contents && res.Contents.length > 0) {
+        allObjects.push(...res.Contents);
+      }
+      continuationToken = res.NextContinuationToken;
+    } while (continuationToken);
 
-    if (!res.Contents || res.Contents.length === 0) {
+    console.log(`[R2 Sync] Found ${allObjects.length} total objects in bucket.`);
+
+    if (allObjects.length === 0) {
       return [];
     }
 
-    const folderMap = new Map<string, { tracks: string[]; cover?: string }>();
+    const folderMap = new Map<string, { tracks: string[]; cover?: string; latestTime: number }>();
 
-    for (const obj of res.Contents) {
+    for (const obj of allObjects) {
       const key = obj.Key;
       if (!key || !key.startsWith("Vinyl Collection/")) continue;
       const rel = key.replace(/^Vinyl Collection\//i, "");
@@ -90,26 +116,35 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
       const fileName = parts.slice(1).join("/");
       if (!fileName) continue;
 
+      const objTime = obj.LastModified ? new Date(obj.LastModified).getTime() : 0;
+
       if (!folderMap.has(albumFolder)) {
-        folderMap.set(albumFolder, { tracks: [] });
+        folderMap.set(albumFolder, { tracks: [], latestTime: objTime });
       }
 
       const alb = folderMap.get(albumFolder)!;
+      if (objTime > alb.latestTime) {
+        alb.latestTime = objTime;
+      }
+
       const lower = fileName.toLowerCase();
       if (lower.endsWith(".mp3") || lower.endsWith(".flac") || lower.endsWith(".wav") || lower.endsWith(".m4a") || lower.endsWith(".ogg")) {
         if (!alb.tracks.includes(fileName)) {
           alb.tracks.push(fileName);
         }
-      } else if (lower.includes("folder.jpg") || lower.includes("cover.jpg") || lower.includes("cover.png")) {
+      } else if (lower.includes("folder.jpg") || lower.includes("cover.jpg") || lower.includes("cover.png") || lower.endsWith(".jpg") || lower.endsWith(".png")) {
         alb.cover = `${publicBase}/Vinyl Collection/${encodeURIComponent(albumFolder)}/${encodeURIComponent(fileName)}`;
       }
     }
 
-    const discoveredAlbums: AlbumRecord[] = [];
-    let idx = 0;
+    // Sort folders by latest upload timestamp descending so newest uploads are at index 0 (top of stack)
+    const folderEntries = Array.from(folderMap.entries())
+      .filter(([_, data]) => data.tracks.length > 0)
+      .sort((a, b) => b[1].latestTime - a[1].latestTime);
 
-    for (const [folderName, data] of folderMap.entries()) {
-      if (data.tracks.length === 0) continue;
+    const discoveredAlbums: AlbumRecord[] = [];
+
+    for (const [folderName, data] of folderEntries) {
       const cleanTracks = deduplicateTracks(data.tracks);
 
       let author = "Nepoznati izvođač";
@@ -132,18 +167,18 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
         tracks: cleanTracks,
         genre: "Rock / Vinyl",
         year: "2024",
-        order: idx++
+        createdAt: new Date(data.latestTime).toISOString()
       });
     }
 
     if (discoveredAlbums.length > 0) {
       console.log(`[R2 Sync] Discovered ${discoveredAlbums.length} albums directly from R2 bucket.`);
       const existing = await getAlbumsFromFirestore().catch(() => []);
-      const r2FolderSet = new Set(discoveredAlbums.map(d => (d.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase()));
+      const r2FolderSet = new Set(discoveredAlbums.map(d => cleanAlbumFolder(d.folder).toLowerCase()));
 
-      // Automatically purge Firestore docs that were deleted from R2
+      // Automatically purge Firestore docs that were truly deleted from R2
       for (const ex of existing) {
-        const cleanF = (ex.folder || ex.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        const cleanF = cleanAlbumFolder(ex.folder || ex.id).toLowerCase();
         if (cleanF && !r2FolderSet.has(cleanF)) {
           console.log(`[R2 Sync] Purging album deleted from R2: ${ex.id} (${ex.folder})`);
           await deleteAlbumFromFirestore(ex.id).catch(() => {});
@@ -152,13 +187,19 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
 
       const existingMap = new Map();
       existing.forEach((a: any) => {
-        const cleanF = (a.folder || a.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        const cleanF = cleanAlbumFolder(a.folder || a.id).toLowerCase();
         if (cleanF) existingMap.set(cleanF, a);
         if (a.id) existingMap.set(a.id, a);
       });
 
+      // Clear any deleted_albums tombstones for albums that exist in R2
+      for (const disc of discoveredAlbums) {
+        await clearDeletedAlbumFromFirestore(disc.id).catch(() => {});
+        await clearDeletedAlbumFromFirestore(disc.folder).catch(() => {});
+      }
+
       const finalAlbums = discoveredAlbums.map((disc, idx) => {
-        const cleanF = (disc.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        const cleanF = cleanAlbumFolder(disc.folder).toLowerCase();
         const found = existingMap.get(cleanF) || existingMap.get(disc.id);
         if (found) {
           return {
@@ -171,11 +212,25 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
             color: found.color || "#1a1a1a",
             customCover: found.customCover || "",
             useCustomCover: found.useCustomCover !== undefined ? found.useCustomCover : (!!found.customCover),
+            createdAt: found.createdAt || disc.createdAt,
             order: typeof found.order === "number" ? found.order : idx
           };
         }
         return { ...disc, order: idx };
       });
+
+      // Sort so lowest order index (or newest createdAt) appears first (top of stack)
+      finalAlbums.sort((a, b) => {
+        const orderA = typeof a.order === "number" ? a.order : 9999;
+        const orderB = typeof b.order === "number" ? b.order : 9999;
+        if (orderA !== orderB) return orderA - orderB;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      // Ensure clean consecutive ordering 0, 1, 2, ...
+      finalAlbums.forEach((a, i) => { a.order = i; });
 
       await writeManifests(finalAlbums);
       await syncAllAlbumsToFirestore(finalAlbums).catch(() => {});
@@ -275,17 +330,20 @@ export async function getNextPrependOrder(): Promise<number> {
  */
 export async function saveAlbum(albumData: AlbumRecord): Promise<AlbumRecord> {
   const albums = await getAlbums();
-  const safeFolder = path.basename(albumData.folder);
+  const safeFolder = cleanAlbumFolder(albumData.folder);
   const albumWithUid: AlbumRecord = {
     ...albumData,
     id: albumData.id || `Vinyl_Collection_${safeFolder}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    _uid: albumData.folder || albumData.id
+    _uid: albumData.folder || albumData.id,
+    createdAt: albumData.createdAt || new Date().toISOString()
   };
 
+  const cleanTarget = safeFolder.toLowerCase();
+
   const existingIdx = albums.findIndex(a => 
-    a.folder === albumData.folder || 
+    cleanAlbumFolder(a.folder).toLowerCase() === cleanTarget || 
     a.id === albumWithUid.id ||
-    path.basename(a.folder) === safeFolder
+    cleanAlbumFolder(a.id).toLowerCase() === cleanTarget
   );
 
   let updatedList: AlbumRecord[];
@@ -293,14 +351,20 @@ export async function saveAlbum(albumData: AlbumRecord): Promise<AlbumRecord> {
     updatedList = [...albums];
     updatedList[existingIdx] = { ...albums[existingIdx], ...albumWithUid };
   } else {
-    updatedList = [albumWithUid, ...albums];
+    // New album: Place at order 0 (top of stack) and shift all existing albums down
+    albumWithUid.order = 0;
+    const rest = albums.map((a, idx) => ({ ...a, order: idx + 1 }));
+    updatedList = [albumWithUid, ...rest];
   }
 
-  // Sort by order
+  // Sort by order ascending
   updatedList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // Clean consecutive reindexing 0, 1, 2, ...
+  updatedList.forEach((a, i) => { a.order = i; });
+
   await writeManifests(updatedList);
-  await syncAlbumToFirestore(albumWithUid).catch(() => {});
-  console.log(`[AlbumService] Album "${albumData.name}" saved to vinyl-collection.json and Firestore cloud`);
+  await syncAllAlbumsToFirestore(updatedList).catch(() => {});
+  console.log(`[AlbumService] Album "${albumData.name}" saved at top of stack (order: 0) to vinyl-collection.json and Firestore cloud`);
 
   return albumWithUid;
 }
@@ -309,7 +373,7 @@ export async function saveAlbum(albumData: AlbumRecord): Promise<AlbumRecord> {
  * Updates album metadata in local manifest and Firestore
  */
 export async function updateAlbumMetadata(targetIdOrFolder: string, updates: Partial<AlbumRecord>): Promise<void> {
-  const safeFolder = path.basename(targetIdOrFolder);
+  const cleanTarget = cleanAlbumFolder(targetIdOrFolder).toLowerCase();
   const albums = await getAlbums();
   let updatedItem: AlbumRecord | null = null;
 
@@ -317,7 +381,8 @@ export async function updateAlbumMetadata(targetIdOrFolder: string, updates: Par
     if (
       album.id === targetIdOrFolder ||
       album.folder === targetIdOrFolder ||
-      path.basename(album.folder) === safeFolder ||
+      cleanAlbumFolder(album.folder).toLowerCase() === cleanTarget ||
+      cleanAlbumFolder(album.id).toLowerCase() === cleanTarget ||
       album._uid === targetIdOrFolder
     ) {
       updatedItem = {
