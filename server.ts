@@ -24,6 +24,7 @@ import {
   getR2ObjectStream,
   getR2Config,
   deleteR2ObjectsByPrefix,
+  ensureR2Cors,
   R2Credentials
 } from "./server/r2Service.js";
 import {
@@ -459,6 +460,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
+    if (isR2Configured()) {
+      ensureR2Cors().catch(e => console.warn("[Server] R2 CORS check notice:", e?.message));
+    }
   });
 }
 

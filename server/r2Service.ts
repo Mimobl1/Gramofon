@@ -5,7 +5,8 @@ import {
   HeadBucketCommand, 
   DeleteObjectCommand,
   ListObjectsV2Command,
-  DeleteObjectsCommand
+  DeleteObjectsCommand,
+  PutBucketCorsCommand
 } from "@aws-sdk/client-s3";
 import fs from "fs";
 import fsPromises from "fs/promises";
@@ -282,4 +283,33 @@ export async function getR2ObjectStream(
     contentRange,
     statusCode
   };
+}
+
+/**
+ * Ensures the Cloudflare R2 bucket has CORS enabled for web browser streaming & direct uploads.
+ */
+export async function ensureR2Cors(): Promise<void> {
+  try {
+    const client = getR2Client();
+    const conf = getR2Config();
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: conf.bucketName,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedHeaders: ["*"],
+              AllowedMethods: ["GET", "HEAD", "PUT", "POST", "DELETE"],
+              AllowedOrigins: ["*"],
+              ExposeHeaders: ["ETag", "Content-Range", "Accept-Ranges", "Content-Length", "Content-Type"],
+              MaxAgeSeconds: 3600
+            }
+          ]
+        }
+      })
+    );
+    console.log(`[R2 CORS] Successfully verified and applied open CORS policy to R2 bucket "${conf.bucketName}".`);
+  } catch (err: any) {
+    console.warn(`[R2 CORS] Notice verifying CORS on bucket:`, err?.message);
+  }
 }

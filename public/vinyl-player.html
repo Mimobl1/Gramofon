@@ -1442,52 +1442,28 @@
       }
       
       if (!absoluteUrl) {
-          // If the audio belongs to Vinyl Collection, route via server streaming proxy
-          // which provides HTTP 206 Partial Content, CORS headers, and direct S3/local streaming
-          const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i) || fullPath.match(/Vinyl%20Collection\/(.+)$/i);
-          if (vinylMatch) {
-              let subKey = vinylMatch[1];
-              try {
-                if (subKey.includes("%")) subKey = decodeURIComponent(subKey);
-              } catch (_) {}
-              const r2Key = `Vinyl Collection/${subKey}`;
-              absoluteUrl = `/api/r2-stream/${encodeURIComponent(r2Key)}`;
-          } else if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
-              try {
-                  absoluteUrl = encodeURI(fullPath);
-              } catch (_) {
-                  absoluteUrl = fullPath;
-              }
+          if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
+              absoluteUrl = encodeURI(fullPath);
           } else {
-              const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
-              absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
+              const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i) || fullPath.match(/Vinyl%20Collection\/(.+)$/i);
+              if (vinylMatch) {
+                  let subKey = vinylMatch[1];
+                  try {
+                    if (subKey.includes("%")) subKey = decodeURIComponent(subKey);
+                  } catch (_) {}
+                  // Direct Cloudflare R2 CDN (configured with Access-Control-Allow-Origin: * and HTTP 206 Partial Content)
+                  absoluteUrl = `https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev/Vinyl%20Collection/${encodeURIComponent(subKey).replace(/%2F/g, "/")}`;
+              } else {
+                  const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
+                  absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
+              }
           }
       }
       
-      const resolvedDeckUrl = new URL(absoluteUrl, window.location.origin).href;
-      if (!resolvedDeckUrl.startsWith("blob:")) {
-          try {
-              console.log("[Player] Fetching audio blob for:", resolvedDeckUrl);
-              const resp = await fetch(resolvedDeckUrl);
-              if (resp.ok) {
-                  const blob = await resp.blob();
-                  const blobUrl = URL.createObjectURL(blob);
-                  if (deckAudio.src && deckAudio.src.startsWith("blob:")) {
-                      try { URL.revokeObjectURL(deckAudio.src); } catch(_) {}
-                  }
-                  if (deckAudio.src !== blobUrl) {
-                      deckAudio.src = blobUrl;
-                      deckAudio.load();
-                  }
-                  return;
-              }
-          } catch(e) {
-              console.warn("[Player] Blob fetch fallback warning:", e);
-          }
-      }
-
-      if(deckAudio.src !== resolvedDeckUrl){
+      const resolvedDeckUrl = absoluteUrl.startsWith("blob:") ? absoluteUrl : new URL(absoluteUrl, window.location.origin).href;
+      if (deckAudio.src !== resolvedDeckUrl) {
         console.log("[Player] Setting deck source to:", resolvedDeckUrl);
+        deckAudio.crossOrigin = "anonymous";
         deckAudio.src = resolvedDeckUrl;
         deckAudio.load();
       }

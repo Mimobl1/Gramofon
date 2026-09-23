@@ -83,6 +83,53 @@
 
             window.dispatchEvent(new CustomEvent("cloudDbReady"));
             console.log("[Firestore & Auth] Modular client cloud database & auth active:", firebaseConfig.firestoreDatabaseId);
+
+            // Cloudflare R2 Direct Client-Side S3 Uploader
+            try {
+                const { S3Client, PutObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3@3.734.0");
+                const defaultR2 = {
+                    region: "auto",
+                    endpoint: "https://024cdf19996bc443a2051518c2bdfb26.r2.cloudflarestorage.com",
+                    credentials: {
+                        accessKeyId: "bc1e0964d5a52ed92c7ece6e2a3910f4",
+                        secretAccessKey: "52a0eac3f4ecb676d9b10e9a4cbda8c45cd064d9a32774f4b87cfb5359a3d454"
+                    },
+                    bucketName: "vinyl-archive",
+                    publicUrl: "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev"
+                };
+                let s3ClientInstance = new S3Client({
+                    region: defaultR2.region,
+                    endpoint: defaultR2.endpoint,
+                    credentials: defaultR2.credentials
+                });
+
+                window.__r2DirectUpload = async (key, fileOrBlob, contentType, userCreds) => {
+                    let client = s3ClientInstance;
+                    let bucket = defaultR2.bucketName;
+                    if (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) {
+                        client = new S3Client({
+                            region: "auto",
+                            endpoint: `https://${userCreds.accountId}.r2.cloudflarestorage.com`,
+                            credentials: {
+                                accessKeyId: userCreds.accessKeyId,
+                                secretAccessKey: userCreds.secretAccessKey
+                            }
+                        });
+                        bucket = userCreds.bucketName || bucket;
+                    }
+                    const cleanKey = key.replace(/^\/+/, "");
+                    return await client.send(new PutObjectCommand({
+                        Bucket: bucket,
+                        Key: cleanKey,
+                        Body: fileOrBlob,
+                        ContentType: contentType || "audio/mpeg"
+                    }));
+                };
+                window.__r2PublicUrl = defaultR2.publicUrl;
+                console.log("[R2 Direct] Direct client-to-R2 upload capability initialized.");
+            } catch (r2ClientErr) {
+                console.warn("[R2 Direct] Could not load direct S3 client:", r2ClientErr?.message);
+            }
         } catch (err) {
             console.warn("[Firestore] Modular client init notice:", err);
         }
@@ -3414,15 +3461,6 @@
         // Purge legacy offline databases so they never resurrect or override the CMS Firestore database
         try {
             window.indexedDB.deleteDatabase("VinylPlayerStorage");
-            if (typeof dbPromise !== "undefined") {
-                dbPromise.then(db => {
-                    if (!db) return;
-                    try {
-                        const tx = db.transaction("albums", "readwrite");
-                        tx.objectStore("albums").clear();
-                    } catch(_) {}
-                }).catch(() => {});
-            }
         } catch(_) {}
 
         // ==========================================
@@ -4398,6 +4436,19 @@
                     let folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
                     let coverPath = `Vinyl Collection/${folderName}/folder.jpg`;
                     let customCoverDataUrl = clientCoverDataUrl;
+                    const defaultPublicR2 = (window.__r2PublicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
+
+                    // Direct Cloudflare R2 cover image upload
+                    if (selectedCoverFile && window.__r2DirectUpload) {
+                        try {
+                            const coverKey = `Vinyl Collection/${folderName}/folder.jpg`;
+                            await window.__r2DirectUpload(coverKey, selectedCoverFile, selectedCoverFile.type || "image/jpeg", userR2Creds);
+                            coverPath = `${defaultPublicR2}/${coverKey}`;
+                            console.log("[R2 Direct] Cover uploaded directly to Cloudflare R2:", coverPath);
+                        } catch (coverR2Err) {
+                            console.warn("[R2 Direct] Cover upload warning:", coverR2Err);
+                        }
+                    }
 
                     try {
                         const initData = await sendUploadRequest({
@@ -4425,13 +4476,27 @@
                     let uploadedBytesPreviousTracks = 0;
                     const uploadedTrackNames = [];
 
-                    // 2. Upload each track individually
+                    // 2. Upload each track (Directly to Cloudflare R2 + server chunk fallback)
                     const CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
                     const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 
                     for (let fileIdx = 0; fileIdx < selectedAudioFiles.length; fileIdx++) {
                         const file = selectedAudioFiles[fileIdx];
                         const fileSize = file.size || 1;
+                        uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length}: ${file.name} (Slanje na Cloudflare R2)...`;
+
+                        // Direct upload to Cloudflare R2 via S3 API
+                        let r2DirectDone = false;
+                        if (window.__r2DirectUpload) {
+                            try {
+                                const r2TrackKey = `Vinyl Collection/${folderName}/${file.name}`;
+                                await window.__r2DirectUpload(r2TrackKey, file, file.type || "audio/mpeg", userR2Creds);
+                                r2DirectDone = true;
+                                console.log("[R2 Direct] Track uploaded successfully:", r2TrackKey);
+                            } catch (r2Err) {
+                                console.warn("[R2 Direct] Direct upload notice for " + file.name + ":", r2Err?.message);
+                            }
+                        }
 
                         try {
                             if (fileSize <= CHUNK_THRESHOLD) {
@@ -4456,6 +4521,9 @@
                                             uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
                                         }
                                     }
+                                }).catch((e) => {
+                                    console.warn("[Upload] Chunk proxy notice:", e?.message);
+                                    return null;
                                 });
 
                                 if (res && res.fileName) {
@@ -4494,6 +4562,9 @@
                                                 uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} [Deo ${chunkIdx + 1}/${totalChunks}] — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
                                             }
                                         }
+                                    }).catch((e) => {
+                                        console.warn("[Upload] Chunk proxy notice:", e?.message);
+                                        return null;
                                     });
 
                                     fileChunkBytesDone += chunkSize;
@@ -4522,6 +4593,7 @@
                     const finalCoverDataUrl = clientCoverDataUrl || customCoverDataUrl || "";
                     const finalTrackNames = uploadedTrackNames.length ? uploadedTrackNames : selectedAudioFiles.map(f => f.name.replace(/\.[^/.]+$/, ""));
                     const albumDocId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+                    const targetCloudFolder = `${defaultPublicR2}/Vinyl Collection/${folderName}`;
 
                     let finalizeResult = null;
                     try {
@@ -4545,8 +4617,7 @@
                         console.warn("[Upload] Server finalize endpoint warning, proceeding with cloud persistence:", finalizeErr?.message);
                     }
 
-                    // Save audio files into IndexedDB for 100% robust offline & serverless local playback
-                    let localFolderId = `LOCAL://${albumDocId}`;
+                    // Save audio files into IndexedDB for 100% robust offline & instant playback
                     try {
                         const db = await new Promise((res, rej) => {
                             const req = indexedDB.open("VinylCollectionDB", 1);
@@ -4576,11 +4647,11 @@
                     }
 
                     if (finalizeResult && finalizeResult.album) {
-                        finalizeResult.album.folder = localFolderId;
+                        finalizeResult.album.folder = targetCloudFolder;
                         return finalizeResult;
                     }
                     if (finalizeResult && finalizeResult.status === "ok") {
-                        finalizeResult.folderName = localFolderId;
+                        finalizeResult.folderName = targetCloudFolder;
                     }
 
                     // Direct client-side Firestore fallback so upload never hangs
@@ -4588,7 +4659,7 @@
                         id: albumDocId,
                         name: albumName,
                         author: artistName,
-                        folder: localFolderId,
+                        folder: targetCloudFolder,
                         color: uploadColorVal,
                         genre: genre,
                         year: year,
@@ -4610,7 +4681,7 @@
                     return {
                         status: "ok",
                         album: fallbackAlbum,
-                        folderName: localFolderId
+                        folderName: targetCloudFolder
                     };
                 }
 
