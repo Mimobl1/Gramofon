@@ -2251,7 +2251,6 @@
     }
 
     async function runDropInAnimation() {
-      try { sleeveSound.currentTime = 0; sleeveSound.play().catch(()=>{}); } catch (_) {}
       const recordStage = $("recordStage");
       const recordEl = $("vinylRecord");
       const ENTRY_TO_CENTER_MS = 1480;

@@ -135,13 +135,20 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
       console.log(`[R2 Sync] Discovered ${discoveredAlbums.length} albums directly from R2 bucket.`);
       const existing = await getAlbumsFromFirestore().catch(() => []);
       const existingMap = new Map(existing.map((a: any) => [a.folder || a.id, a]));
-      const finalAlbums = [...existing];
 
-      for (const disc of discoveredAlbums) {
-        if (!existingMap.has(disc.folder) && !existingMap.has(disc.id)) {
-          finalAlbums.push(disc);
+      const finalAlbums = discoveredAlbums.map((disc, idx) => {
+        const found = existingMap.get(disc.folder) || existingMap.get(disc.id);
+        if (found) {
+          return {
+            ...disc,
+            ...found,
+            tracks: disc.tracks.length > 0 ? disc.tracks : (found.tracks || []),
+            cover: disc.cover || found.cover,
+            order: typeof found.order === "number" ? found.order : idx
+          };
         }
-      }
+        return { ...disc, order: idx };
+      });
 
       await writeManifests(finalAlbums);
       await syncAllAlbumsToFirestore(finalAlbums).catch(() => {});

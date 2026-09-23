@@ -1775,23 +1775,38 @@
                 }
             });
 
+            // Strict deduplication by folder, ID or normalized name
+            const uniqueMap = new Map();
+            merged.forEach(album => {
+                const uniqueKey = (album.folder || album.id || `${album.author || ""}-${album.name || ""}`).trim().toLowerCase();
+                if (!uniqueMap.has(uniqueKey)) {
+                    uniqueMap.set(uniqueKey, album);
+                } else {
+                    const existing = uniqueMap.get(uniqueKey);
+                    if ((album.tracks || []).length > (existing.tracks || []).length) {
+                        uniqueMap.set(uniqueKey, album);
+                    }
+                }
+            });
+            const dedupedMerged = Array.from(uniqueMap.values());
+
             // 3. Sort by custom order
-            merged.sort((a, b) => {
+            dedupedMerged.sort((a, b) => {
                 const orderA = typeof a.order === "number" ? a.order : 999;
                 const orderB = typeof b.order === "number" ? b.order : 999;
                 return orderA - orderB;
             });
 
-            if (merged.length > 0) {
+            if (dedupedMerged.length > 0) {
                 const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
-                const newKey = merged.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
-                if (currentKey !== newKey || (!collection.length && merged.length > 0)) {
-                    applyCollectionData(merged);
+                const newKey = dedupedMerged.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
+                if (currentKey !== newKey || (!collection.length && dedupedMerged.length > 0)) {
+                    applyCollectionData(dedupedMerged);
                 }
                 try {
-                    localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(merged));
+                    localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(dedupedMerged));
                 } catch(_) {}
-                preloadCovers(merged);
+                preloadCovers(dedupedMerged);
                 refreshRecordLoadedState();
             }
         }
@@ -4023,7 +4038,7 @@
                     pendingActionAfterAuth = "delete";
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator kako biste upravljali i brisali albume sa demo naloga.");
+                    showAuthError("Please log in as administrator to manage and delete albums from the demo account.");
                     authModalOverlay?.classList.add("active");
                     return;
                 }
@@ -4153,7 +4168,7 @@
                     pendingActionAfterAuth = "upload";
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator za upravljanje demo kolekcijom, ili se registrujte za lični nalog.");
+                    showAuthError("Please log in as administrator to manage the demo collection, or register for a personal account.");
                     authModalOverlay?.classList.add('active');
                     return;
                 }
@@ -5305,7 +5320,7 @@
                     editModalOverlay?.classList.remove("active");
                     updateAuthUI();
                     switchAuthTab("login");
-                    showAuthError("Prijavite se kao administrator kako biste brisali albume sa demo naloga.");
+                    showAuthError("Please log in as administrator to delete albums from the demo account.");
                     authModalOverlay?.classList.add("active");
                     return;
                 }
