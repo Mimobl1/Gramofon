@@ -63,9 +63,15 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
     const bucket = conf.bucketName;
     const publicBase = (conf.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
 
+    console.log(`[R2 Sync] Scanning bucket: ${bucket}`);
     const res = await client.send(new ListObjectsV2Command({
       Bucket: bucket
     }));
+
+    console.log(`[R2 Sync] Found ${res.Contents?.length || 0} objects in bucket.`);
+    if (res.Contents) {
+      console.log(`[R2 Sync] First 5 keys:`, res.Contents.slice(0, 5).map(o => o.Key));
+    }
 
     if (!res.Contents || res.Contents.length === 0) {
       return [];
@@ -174,25 +180,9 @@ async function writeManifests(albums: AlbumRecord[]) {
 }
 
 /**
- * Reads albums from Firestore (cloud database), local manifest, or scans public/Vinyl Collection
+ * Reads albums from Firestore (cloud database) as the Primary Source of Truth
  */
 export async function getAlbums(): Promise<AlbumRecord[]> {
-  // 0. Automatically discover & sync albums from Cloudflare R2 bucket first
-  try {
-    const r2Synced = await syncAlbumsFromR2();
-    if (Array.isArray(r2Synced) && r2Synced.length > 0) {
-      const formatted: AlbumRecord[] = r2Synced.map((a: any, idx: number) => ({
-        ...a,
-        id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
-        _uid: a.folder || a.id || `album_${idx}`,
-        order: typeof a.order === "number" ? a.order : idx
-      }));
-      return formatted;
-    }
-  } catch (e) {
-    console.warn("[AlbumService] R2 auto-discovery notice:", e);
-  }
-
   // 1. Primary Source of Truth: Firestore Cloud Database
   try {
     const cloudAlbums = await getAlbumsFromFirestore();
@@ -204,16 +194,15 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
         _uid: a.folder || a.id || `album_${idx}`,
         order: typeof a.order === "number" ? a.order : idx
       }));
-      // Keep local manifests and Firestore in sync as cache/source
+      // Keep local manifests in sync as cache
       await writeManifests(formatted);
-      await syncAllAlbumsToFirestore(formatted).catch(() => {});
       return formatted;
     }
   } catch (err) {
     console.warn("[AlbumService] Could not fetch from Firestore, falling back to local files:", err);
   }
 
-  // 2. Secondary Source: Local manifest file
+  // 2. Fallback: Secondary Source: Local manifest file
   try {
     if (fs.existsSync(MANIFEST_PATH)) {
       const data = await fsPromises.readFile(MANIFEST_PATH, "utf-8");
@@ -229,18 +218,10 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
       }
     }
   } catch (err) {
-    console.warn("[AlbumService] Could not read manifest, rescanning Vinyl Collection...", err);
+    console.warn("[AlbumService] Could not read manifest...", err);
   }
 
-  // 3. Fallback: scan public/Vinyl Collection folder directly
-  const scanned = await updateCollection().catch(() => []);
-  return scanned.map((a: any, idx: number) => ({
-    ...a,
-    tracks: deduplicateTracks(a.tracks),
-    id: a.id || `Vinyl_Collection_${path.basename(a.folder || `album_${idx}`)}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    _uid: a.folder || a.id || `album_${idx}`,
-    order: typeof a.order === "number" ? a.order : idx
-  }));
+  return [];
 }
 
 /**
