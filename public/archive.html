@@ -4545,8 +4545,42 @@
                         console.warn("[Upload] Server finalize endpoint warning, proceeding with cloud persistence:", finalizeErr?.message);
                     }
 
-                    if (finalizeResult && (finalizeResult.status === "ok" || finalizeResult.album)) {
+                    // Save audio files into IndexedDB for 100% robust offline & serverless local playback
+                    let localFolderId = `LOCAL://${albumDocId}`;
+                    try {
+                        const db = await new Promise((res, rej) => {
+                            const req = indexedDB.open("VinylCollectionDB", 1);
+                            req.onupgradeneeded = (e) => {
+                                const db = e.target.result;
+                                if (!db.objectStoreNames.contains("albums")) db.createObjectStore("albums", { keyPath: "id" });
+                                if (!db.objectStoreNames.contains("covers")) db.createObjectStore("covers", { keyPath: "id" });
+                            };
+                            req.onsuccess = () => res(req.result);
+                            req.onerror = () => rej(req.error);
+                        });
+                        if (db) {
+                            const tx = db.transaction("albums", "readwrite");
+                            const store = tx.objectStore("albums");
+                            const albumFilesRecord = {
+                                id: albumDocId,
+                                files: await Promise.all(selectedAudioFiles.map(async f => ({
+                                    name: f.name,
+                                    type: f.type || "audio/mpeg",
+                                    data: await f.arrayBuffer()
+                                })))
+                            };
+                            store.put(albumFilesRecord);
+                        }
+                    } catch(e) {
+                        console.warn("[Upload] IndexedDB local save note:", e);
+                    }
+
+                    if (finalizeResult && finalizeResult.album) {
+                        finalizeResult.album.folder = localFolderId;
                         return finalizeResult;
+                    }
+                    if (finalizeResult && finalizeResult.status === "ok") {
+                        finalizeResult.folderName = localFolderId;
                     }
 
                     // Direct client-side Firestore fallback so upload never hangs
@@ -4554,7 +4588,7 @@
                         id: albumDocId,
                         name: albumName,
                         author: artistName,
-                        folder: `Vinyl Collection/${folderName}`,
+                        folder: localFolderId,
                         color: uploadColorVal,
                         genre: genre,
                         year: year,
@@ -4576,7 +4610,7 @@
                     return {
                         status: "ok",
                         album: fallbackAlbum,
-                        folderName
+                        folderName: localFolderId
                     };
                 }
 
