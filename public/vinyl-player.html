@@ -1787,41 +1787,53 @@
         handlePress(null,"stop");
       }
     });
+    const retryAttemptForSrc = {};
     deckAudio.addEventListener("error", ()=>{
       const err = deckAudio.error;
-      console.warn("[Player] deckAudio error:", err?.code, err?.message, deckAudio.src);
-      // 1. If direct CDN/R2 URL failed, fallback to /api/r2-stream proxy
-      if (deckAudio.src && !deckAudio.src.includes("/api/r2-stream/")) {
-        const match = deckAudio.src.match(/Vinyl%20Collection\/(.+)$/i) || deckAudio.src.match(/Vinyl Collection\/(.+)$/i);
+      const currentSrc = deckAudio.src || "";
+      console.warn("[Player] deckAudio error:", err?.code, err?.message, currentSrc);
+      
+      const attempts = retryAttemptForSrc[currentSrc] || 0;
+      if (attempts >= 1) {
+        console.warn("[Player] Stopping playback retries for this track to prevent loop:", currentSrc);
+        return;
+      }
+      retryAttemptForSrc[currentSrc] = attempts + 1;
+
+      // Smart check 1: Case-sensitive extensions on Cloudflare R2 (.mp3 vs .MP3)
+      if (currentSrc.includes(".mp3")) {
+        const altSrc = currentSrc.replace(/\.mp3(\?|$)/i, ".MP3$1");
+        console.log("[Player] Retrying track with alternative uppercase extension:", altSrc);
+        retryAttemptForSrc[altSrc] = 1;
+        deckAudio.src = altSrc;
+        deckAudio.load();
+        if (playing) deckAudio.play().catch(()=>{});
+        return;
+      } else if (currentSrc.includes(".MP3")) {
+        const altSrc = currentSrc.replace(/\.MP3(\?|$)/, ".mp3$1");
+        console.log("[Player] Retrying track with alternative lowercase extension:", altSrc);
+        retryAttemptForSrc[altSrc] = 1;
+        deckAudio.src = altSrc;
+        deckAudio.load();
+        if (playing) deckAudio.play().catch(()=>{});
+        return;
+      }
+
+      // Smart check 2: Server stream proxy only if running with full-stack Node server (not static Vercel)
+      const isStaticHost = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("github.io");
+      if (!isStaticHost && !currentSrc.includes("/api/r2-stream/")) {
+        const match = currentSrc.match(/Vinyl%20Collection\/(.+)$/i) || currentSrc.match(/Vinyl Collection\/(.+)$/i);
         if (match) {
           try {
             const rawKey = "Vinyl Collection/" + decodeURIComponent(match[1]);
             const fallback = `/api/r2-stream/${encodeURIComponent(rawKey)}`;
             console.log("[Player] Direct play failed, retrying via server stream proxy:", fallback);
+            retryAttemptForSrc[fallback] = 1;
             deckAudio.src = fallback;
             deckAudio.load();
-            if (playing) {
-              deckAudio.play().catch(()=>{});
-            }
+            if (playing) deckAudio.play().catch(()=>{});
           } catch(e) {
             console.warn("[Player] Fallback error:", e);
-          }
-        }
-      } else if (deckAudio.src && deckAudio.src.includes("/api/r2-stream/")) {
-        // 2. If server stream proxy failed, fallback to direct public Cloudflare R2 URL
-        const match = deckAudio.src.match(/r2-stream\/(.+)$/i);
-        if (match) {
-          try {
-            const rawKey = decodeURIComponent(match[1]);
-            const directFallback = `https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev/${encodeURI(rawKey)}`;
-            console.log("[Player] Stream proxy failed, retrying via direct public CDN:", directFallback);
-            deckAudio.src = directFallback;
-            deckAudio.load();
-            if (playing) {
-              deckAudio.play().catch(()=>{});
-            }
-          } catch(e) {
-            console.warn("[Player] Direct fallback error:", e);
           }
         }
       }

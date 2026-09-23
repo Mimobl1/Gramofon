@@ -84,52 +84,87 @@
             window.dispatchEvent(new CustomEvent("cloudDbReady"));
             console.log("[Firestore & Auth] Modular client cloud database & auth active:", firebaseConfig.firestoreDatabaseId);
 
-            // Cloudflare R2 Direct Client-Side S3 Uploader
-            try {
-                const { S3Client, PutObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3@3.734.0");
-                const defaultR2 = {
-                    region: "auto",
-                    endpoint: "https://024cdf19996bc443a2051518c2bdfb26.r2.cloudflarestorage.com",
-                    credentials: {
-                        accessKeyId: "bc1e0964d5a52ed92c7ece6e2a3910f4",
-                        secretAccessKey: "52a0eac3f4ecb676d9b10e9a4cbda8c45cd064d9a32774f4b87cfb5359a3d454"
-                    },
-                    bucketName: "vinyl-archive",
-                    publicUrl: "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev"
-                };
-                let s3ClientInstance = new S3Client({
-                    region: defaultR2.region,
-                    endpoint: defaultR2.endpoint,
-                    credentials: defaultR2.credentials
-                });
+            // Cloudflare R2 Direct Client-Side S3 Uploader (zero-dependency Web Crypto SigV4)
+            const DEFAULT_R2_CONFIG = {
+                accountId: "024cdf19996bc443a2051518c2bdfb26",
+                accessKeyId: "bc1e0964d5a52ed92c7ece6e2a3910f4",
+                secretAccessKey: "52a0eac3f4ecb676d9b10e9a4cbda8c45cd064d9a32774f4b87cfb5359a3d454",
+                bucketName: "vinyl-archive",
+                publicUrl: "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev"
+            };
 
-                window.__r2DirectUpload = async (key, fileOrBlob, contentType, userCreds) => {
-                    let client = s3ClientInstance;
-                    let bucket = defaultR2.bucketName;
-                    if (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) {
-                        client = new S3Client({
-                            region: "auto",
-                            endpoint: `https://${userCreds.accountId}.r2.cloudflarestorage.com`,
-                            credentials: {
-                                accessKeyId: userCreds.accessKeyId,
-                                secretAccessKey: userCreds.secretAccessKey
-                            }
-                        });
-                        bucket = userCreds.bucketName || bucket;
+            window.__r2DirectUpload = async (key, fileOrBlob, contentType, onProgress, userCreds) => {
+                const creds = (userCreds && userCreds.accountId && userCreds.accessKeyId && userCreds.secretAccessKey) ? userCreds : DEFAULT_R2_CONFIG;
+                const host = `${creds.accountId}.r2.cloudflarestorage.com`;
+                const cleanKey = key.replace(/^\/+/, "");
+                const encodedKey = cleanKey.split("/").map(encodeURIComponent).join("/");
+                const canonicalUri = `/${creds.bucketName}/${encodedKey}`;
+                
+                const now = new Date();
+                const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+                const dateStamp = amzDate.slice(0, 8);
+                const region = "auto";
+                const service = "s3";
+                const payloadHash = "UNSIGNED-PAYLOAD";
+
+                const encoder = new TextEncoder();
+                async function sha256Hex(data) {
+                    const buf = typeof data === "string" ? encoder.encode(data) : data;
+                    const hash = await crypto.subtle.digest("SHA-256", buf);
+                    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+                }
+                async function hmac(keyBuf, data) {
+                    const k = await crypto.subtle.importKey("raw", keyBuf, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+                    const sig = await crypto.subtle.sign("HMAC", k, typeof data === "string" ? encoder.encode(data) : data);
+                    return new Uint8Array(sig);
+                }
+
+                const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+                const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+                const canonicalRequest = `PUT\n${canonicalUri}\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+                const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${dateStamp}/${region}/${service}/aws4_request\n${await sha256Hex(canonicalRequest)}`;
+
+                const kDate = await hmac(encoder.encode("AWS4" + creds.secretAccessKey), dateStamp);
+                const kRegion = await hmac(kDate, region);
+                const kService = await hmac(kRegion, service);
+                const kSigning = await hmac(kService, "aws4_request");
+                const signatureBytes = await hmac(kSigning, stringToSign);
+                const signature = Array.from(signatureBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+
+                const authHeader = `AWS4-HMAC-SHA256 Credential=${creds.accessKeyId}/${dateStamp}/${region}/${service}/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+                const targetUrl = `https://${host}${canonicalUri}`;
+
+                return new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open("PUT", targetUrl, true);
+                    xhr.setRequestHeader("Host", host);
+                    xhr.setRequestHeader("x-amz-date", amzDate);
+                    xhr.setRequestHeader("x-amz-content-sha256", payloadHash);
+                    xhr.setRequestHeader("Authorization", authHeader);
+                    if (contentType) {
+                        xhr.setRequestHeader("Content-Type", contentType);
                     }
-                    const cleanKey = key.replace(/^\/+/, "");
-                    return await client.send(new PutObjectCommand({
-                        Bucket: bucket,
-                        Key: cleanKey,
-                        Body: fileOrBlob,
-                        ContentType: contentType || "audio/mpeg"
-                    }));
-                };
-                window.__r2PublicUrl = defaultR2.publicUrl;
-                console.log("[R2 Direct] Direct client-to-R2 upload capability initialized.");
-            } catch (r2ClientErr) {
-                console.warn("[R2 Direct] Could not load direct S3 client:", r2ClientErr?.message);
-            }
+                    if (xhr.upload && typeof onProgress === "function") {
+                        xhr.upload.onprogress = onProgress;
+                    }
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            const publicBase = (creds.publicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
+                            resolve({
+                                status: xhr.status,
+                                url: `${publicBase}/${encodedKey}`
+                            });
+                        } else {
+                            reject(new Error(`Cloudflare R2 odbio upload (HTTP ${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error("Mrežna greška pri uploadu na Cloudflare R2"));
+                    xhr.ontimeout = () => reject(new Error("Isteklo vreme za upload na Cloudflare R2"));
+                    xhr.send(fileOrBlob);
+                });
+            };
+            window.__r2PublicUrl = DEFAULT_R2_CONFIG.publicUrl;
+            console.log("[R2 Direct] Bulletproof WebCrypto SigV4 uploader initialized.");
         } catch (err) {
             console.warn("[Firestore] Modular client init notice:", err);
         }
@@ -4442,7 +4477,7 @@
                     if (selectedCoverFile && window.__r2DirectUpload) {
                         try {
                             const coverKey = `Vinyl Collection/${folderName}/folder.jpg`;
-                            await window.__r2DirectUpload(coverKey, selectedCoverFile, selectedCoverFile.type || "image/jpeg", userR2Creds);
+                            await window.__r2DirectUpload(coverKey, selectedCoverFile, selectedCoverFile.type || "image/jpeg", null, userR2Creds);
                             coverPath = `${defaultPublicR2}/${coverKey}`;
                             console.log("[R2 Direct] Cover uploaded directly to Cloudflare R2:", coverPath);
                         } catch (coverR2Err) {
@@ -4476,7 +4511,7 @@
                     let uploadedBytesPreviousTracks = 0;
                     const uploadedTrackNames = [];
 
-                    // 2. Upload each track (Directly to Cloudflare R2 + server chunk fallback)
+                    // 2. Upload each track (Directly to Cloudflare R2 with progress + server chunk fallback)
                     const CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
                     const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -4485,19 +4520,39 @@
                         const fileSize = file.size || 1;
                         uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length}: ${file.name} (Slanje na Cloudflare R2)...`;
 
-                        // Direct upload to Cloudflare R2 via S3 API
+                        // Direct upload to Cloudflare R2 via SigV4
                         let r2DirectDone = false;
                         if (window.__r2DirectUpload) {
                             try {
                                 const r2TrackKey = `Vinyl Collection/${folderName}/${file.name}`;
-                                await window.__r2DirectUpload(r2TrackKey, file, file.type || "audio/mpeg", userR2Creds);
+                                await window.__r2DirectUpload(
+                                    r2TrackKey,
+                                    file,
+                                    file.type || "audio/mpeg",
+                                    (e) => {
+                                        if (e.lengthComputable) {
+                                            const totalLoaded = uploadedBytesPreviousTracks + e.loaded;
+                                            const overallPercent = Math.min(88, Math.max(10, Math.round((totalLoaded / totalBytesAllTracks) * 80) + 10));
+                                            const trackPercent = Math.min(100, Math.round((e.loaded / fileSize) * 100));
+                                            uploadModalProgressBar.style.width = overallPercent + "%";
+                                            uploadModalProgressStatus.innerText = `Pesma ${fileIdx + 1}/${selectedAudioFiles.length} (${trackPercent}%): ${file.name} — ${formatBytes(totalLoaded)} / ${formatBytes(totalBytesAllTracks)}`;
+                                        }
+                                    },
+                                    userR2Creds
+                                );
                                 r2DirectDone = true;
-                                console.log("[R2 Direct] Track uploaded successfully:", r2TrackKey);
+                                uploadedTrackNames.push(file.name);
+                                uploadedBytesPreviousTracks += fileSize;
+                                console.log("[R2 Direct] Track uploaded successfully to R2:", r2TrackKey);
+                                const currentOverall = Math.min(88, Math.round((uploadedBytesPreviousTracks / totalBytesAllTracks) * 80) + 10);
+                                uploadModalProgressBar.style.width = currentOverall + "%";
+                                continue;
                             } catch (r2Err) {
                                 console.warn("[R2 Direct] Direct upload notice for " + file.name + ":", r2Err?.message);
                             }
                         }
 
+                        // Fallback to server chunk proxy
                         try {
                             if (fileSize <= CHUNK_THRESHOLD) {
                                 const trackFormData = new FormData();
