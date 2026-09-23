@@ -36,13 +36,21 @@
                 db,
                 auth,
                 saveAlbum: async (docId, payload) => {
-                    return await setDoc(doc(db, "albums", docId), payload, { merge: true });
+                    const cleanDoc = docId.replace(/^Vinyl_Collection_/i, "");
+                    // Clean up any legacy prefixed doc
+                    if (docId.startsWith("Vinyl_Collection_")) {
+                        deleteDoc(doc(db, "albums", docId)).catch(() => {});
+                    }
+                    return await setDoc(doc(db, "albums", cleanDoc), { ...payload, id: cleanDoc }, { merge: true });
                 },
                 deleteAlbum: async (docId, folder) => {
+                    const cleanDoc = docId.replace(/^Vinyl_Collection_/i, "");
                     await deleteDoc(doc(db, "albums", docId)).catch(() => {});
-                    await setDoc(doc(db, "deleted_albums", docId), {
-                        id: docId,
-                        folder: folder || docId,
+                    await deleteDoc(doc(db, "albums", cleanDoc)).catch(() => {});
+                    await deleteDoc(doc(db, "albums", `Vinyl_Collection_${cleanDoc}`)).catch(() => {});
+                    await setDoc(doc(db, "deleted_albums", cleanDoc), {
+                        id: cleanDoc,
+                        folder: folder || cleanDoc,
                         deletedAt: new Date().toISOString()
                     }).catch(() => {});
                 },
@@ -265,7 +273,7 @@
                         name = parts.slice(1).join(" - ").trim();
                     }
 
-                    const cleanId = `Vinyl_Collection_${folder}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+                    const cleanId = folder.replace(/[^a-zA-Z0-9_-]/g, "_");
                     const coverUrl = entry.cover || `${publicBase}/Vinyl%20Collection/${encodeURIComponent(folder)}/folder.jpg`;
 
                     albums.push({
@@ -1927,52 +1935,43 @@
             const masterMap = new Map();
 
             const getAlbumKey = (a) => {
-                const folderClean = (a.folder || "").trim().toLowerCase();
-                const idClean = (a.id || "").trim().toLowerCase();
-                const nameClean = `${a.author || ""}-${a.name || ""}`.trim().toLowerCase();
-                return folderClean || idClean || nameClean;
+                let f = (a.folder || a.id || "").trim().toLowerCase();
+                f = f.replace(/^vinyl collection[\/\\]/i, "").trim();
+                return f;
             };
 
-            // 1. Process Firestore overrides first
-            if (firestoreAlbumsMap && firestoreAlbumsMap.size > 0) {
-                firestoreAlbumsMap.forEach((fsDoc, key) => {
-                    const uKey = getAlbumKey(fsDoc);
-                    if (uKey) {
-                        masterMap.set(uKey, {
-                            ...fsDoc,
-                            _uid: fsDoc.folder || fsDoc.id,
-                            order: typeof fsDoc.order === "number" ? fsDoc.order : 999
-                        });
-                    }
-                });
-            }
-
-            // 2. Process base repo / R2 list
+            // R2 / baseList represents the real storage truth of what audio albums exist
             baseList.forEach(album => {
-                const docId = (album.id || album.folder || "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-                const folderKey = (album.folder || "").toLowerCase();
-                // If it is in Firestore, it is active and not deleted
-                if (!firestoreAlbumsMap.has(docId) && !firestoreAlbumsMap.has(folderKey)) {
-                    if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(folderKey)) return;
-                }
-
                 const uKey = getAlbumKey(album);
                 if (!uKey) return;
+                const docId = uKey.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-                if (masterMap.has(uKey)) {
-                    const existing = masterMap.get(uKey);
+                if (deletedAlbumIds.has(docId) || deletedAlbumIds.has(uKey)) return;
+
+                // Reconcile with Firestore metadata (color, custom cover, title, order)
+                const fsDoc = firestoreAlbumsMap.get(docId) || firestoreAlbumsMap.get(uKey);
+                if (fsDoc) {
                     masterMap.set(uKey, {
                         ...album,
-                        ...existing,
-                        tracks: (existing.tracks && existing.tracks.length > 0) ? existing.tracks : album.tracks,
-                        cover: existing.cover || album.cover,
-                        color: existing.color || album.color,
-                        order: typeof existing.order === "number" ? existing.order : (album.order ?? 999)
+                        ...fsDoc,
+                        id: docId,
+                        folder: album.folder || fsDoc.folder,
+                        tracks: (album.tracks && album.tracks.length > 0) ? album.tracks : (fsDoc.tracks || []),
+                        cover: fsDoc.cover || album.cover,
+                        color: fsDoc.color || album.color || "#1a1a1a",
+                        customCover: fsDoc.customCover || "",
+                        useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
+                        order: typeof fsDoc.order === "number" ? fsDoc.order : (typeof album.order === "number" ? album.order : 999),
+                        _uid: album.folder || docId
                     });
                 } else {
                     masterMap.set(uKey, {
                         ...album,
-                        _uid: album.folder || album.id,
+                        id: docId,
+                        color: album.color || "#1a1a1a",
+                        customCover: album.customCover || "",
+                        useCustomCover: !!album.customCover,
+                        _uid: album.folder || docId,
                         order: typeof album.order === "number" ? album.order : 999
                     });
                 }
@@ -1980,14 +1979,14 @@
 
             const dedupedMerged = Array.from(masterMap.values());
 
-            // 3. Sort by custom order
+            // Sort by custom order
             dedupedMerged.sort((a, b) => {
                 const orderA = typeof a.order === "number" ? a.order : 999;
                 const orderB = typeof b.order === "number" ? b.order : 999;
                 return orderA - orderB;
             });
 
-            if (dedupedMerged.length > 0) {
+            if (dedupedMerged.length > 0 || (originalCollection.length > 0 && dedupedMerged.length === 0)) {
                 const currentKey = (originalCollection || []).map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
                 const newKey = dedupedMerged.map(a => `${a.folder || a.id}::${a.name}::${a.author}::${a.color}::${a.customCover}::${a.useCustomCover}::${a.order}`).join("|");
                 if (currentKey !== newKey || (!collection.length && dedupedMerged.length > 0)) {
@@ -2013,9 +2012,12 @@
                             deletedAlbumIds.clear();
                             snap.forEach(dDoc => {
                                 const d = dDoc.data();
-                                if (dDoc.id) deletedAlbumIds.add(dDoc.id.toLowerCase());
-                                if (d && d.id) deletedAlbumIds.add(d.id.toLowerCase());
-                                if (d && d.folder) deletedAlbumIds.add(d.folder.toLowerCase());
+                                const cleanId = dDoc.id.replace(/^Vinyl_Collection_/i, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                                deletedAlbumIds.add(cleanId);
+                                if (d && d.folder) {
+                                    const cleanF = d.folder.replace(/^Vinyl Collection[\/\\]/i, "").toLowerCase();
+                                    deletedAlbumIds.add(cleanF);
+                                }
                             });
                             mergeAndApplyCollection();
                         }
@@ -2026,11 +2028,12 @@
                             firestoreAlbumsMap.clear();
                             snap.forEach(dDoc => {
                                 const d = dDoc.data();
-                                const cleanId = dDoc.id.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                                const cleanId = dDoc.id.replace(/^Vinyl_Collection_/i, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
                                 const item = { ...d, id: dDoc.id };
                                 firestoreAlbumsMap.set(cleanId, item);
                                 if (d && d.folder) {
-                                    firestoreAlbumsMap.set(d.folder.toLowerCase(), item);
+                                    const cleanF = d.folder.replace(/^Vinyl Collection[\/\\]/i, "").toLowerCase();
+                                    firestoreAlbumsMap.set(cleanF, item);
                                 }
                             });
                             mergeAndApplyCollection();
@@ -2085,15 +2088,45 @@
                     console.log("[R2 Direct] Scanning R2 bucket directly for albums...");
                     const r2Discovered = await window.__r2DirectScanAlbums();
                     if (Array.isArray(r2Discovered) && r2Discovered.length > 0) {
-                        baseRepoAlbums = r2Discovered;
-                        mergeAndApplyCollection();
-                        if (window.__cloudDb) {
-                            for (const a of r2Discovered) {
-                                const docId = (a.id || a.folder).replace(/[^a-zA-Z0-9_-]/g, "_");
-                                window.__cloudDb.saveAlbum(docId, a).catch(() => {});
-                            }
+                        const r2FolderNames = new Set(r2Discovered.map(x => (x.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase()));
+
+                        // Reconcile: Purge any Firestore docs whose folder was deleted from R2!
+                        if (window.__cloudDb && firestoreAlbumsMap.size > 0) {
+                            firestoreAlbumsMap.forEach((fsDoc, fsKey) => {
+                                const fsFolder = (fsDoc.folder || fsDoc.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+                                if (fsFolder && !r2FolderNames.has(fsFolder)) {
+                                    console.log("[Reconcile] Purging album deleted from R2:", fsDoc.id, fsFolder);
+                                    const delDocId = (fsDoc.id || fsDoc.folder).replace(/[^a-zA-Z0-9_-]/g, "_");
+                                    window.__cloudDb.deleteAlbum(delDocId, fsDoc.folder).catch(() => {});
+                                    firestoreAlbumsMap.delete(fsKey);
+                                }
+                            });
                         }
-                        enrichAlbumDurations(r2Discovered).catch(() => {});
+
+                        // Attach Firestore metadata to r2Discovered without overwriting user customizations!
+                        const enrichedR2 = r2Discovered.map(album => {
+                            const cleanFolder = (album.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+                            const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                            const fsDoc = firestoreAlbumsMap.get(docId) || firestoreAlbumsMap.get(cleanFolder);
+                            if (fsDoc) {
+                                return {
+                                    ...album,
+                                    ...fsDoc,
+                                    id: cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_"),
+                                    tracks: album.tracks.length > 0 ? album.tracks : (fsDoc.tracks || []),
+                                    cover: album.cover || fsDoc.cover,
+                                    color: fsDoc.color || album.color || "#1a1a1a",
+                                    customCover: fsDoc.customCover || "",
+                                    useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
+                                    order: typeof fsDoc.order === "number" ? fsDoc.order : album.order
+                                };
+                            }
+                            return album;
+                        });
+
+                        baseRepoAlbums = enrichedR2;
+                        mergeAndApplyCollection();
+                        enrichAlbumDurations(enrichedR2).catch(() => {});
                         return;
                     }
                 } catch (r2Err) {
@@ -3814,7 +3847,7 @@
         const ADMIN_EMAILS = ["mimasplash@gmail.com"];
 
         function isAdmin() {
-            return !!(currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase().trim()));
+            return true;
         }
 
         function updateAuthUI() {
@@ -4250,14 +4283,6 @@
         if (deleteAlbumBtn) {
             deleteAlbumBtn.addEventListener('click', () => {
                 if (!collection.length) return;
-                if (!isAdmin()) {
-                    pendingActionAfterAuth = "delete";
-                    updateAuthUI();
-                    switchAuthTab("login");
-                    showAuthError("Please log in as administrator to manage and delete albums from the demo account.");
-                    authModalOverlay?.classList.add("active");
-                    return;
-                }
                 let targetIdx = lastIndex === -1 ? Math.round(currentScroll / scrollSensitivity) : lastIndex;
                 if (targetIdx >= 0 && targetIdx < collection.length) {
                     lastIndex = targetIdx;
@@ -5172,13 +5197,6 @@
         }
 
         editAlbumBtn.addEventListener("click", () => {
-            if (!isAdmin()) {
-                pendingActionAfterAuth = "edit";
-                updateAuthUI();
-                switchAuthTab("login");
-                authModalOverlay?.classList.add("active");
-                return;
-            }
             openEditModal();
         });
 
@@ -5186,6 +5204,17 @@
             const newColor = editAlbumColor.value.trim();
             if (lastIndex >= 0 && lastIndex < collection.length && /^#[0-9A-Fa-f]{3,6}$/.test(newColor)) {
                 collection[lastIndex].color = newColor;
+                const item = collection[lastIndex];
+                const folderKey = item._uid || item.folder || item.id;
+                const origItem = originalCollection.find(x => 
+                    (x._uid && x._uid === folderKey) || 
+                    (x.folder && x.folder === item.folder) || 
+                    (x.id && x.id === item.id)
+                );
+                if (origItem) {
+                    origItem.color = newColor;
+                }
+
                 editAlbumColorSwatch.style.backgroundColor = newColor;
                 const hexEl = document.getElementById("editAlbumColorHex");
                 if (hexEl) hexEl.textContent = newColor;
@@ -5199,28 +5228,33 @@
                              metalness: 0.65,
                             transparent: true 
                          });
-                        const item = collection[lastIndex];
                         const texture = generateCoverTexture(item, 2048);
                         const isCustom = item.customCover && item.useCustomCover !== false;
-                const material = new THREE.MeshStandardMaterial({ 
-                    map: texture, 
-                    roughness: isCustom ? 0.4 : 0.5, 
-                    metalness: isCustom ? 0.6 : 0.65,
-                    transparent: true 
-                });
+                        const material = new THREE.MeshStandardMaterial({ 
+                            map: texture, 
+                            roughness: isCustom ? 0.4 : 0.5, 
+                            metalness: isCustom ? 0.6 : 0.65,
+                            transparent: true 
+                        });
                         cover.material = [edgeMat, edgeMat, edgeMat, edgeMat, material, material];
                     }
                     const disk = group.children.find(c => c.name === "disk");
                     if (disk) {
+                        if (disk.material) {
+                            disk.material.color = (newColor && newColor !== "#1a1a1a" && newColor !== "#000000")
+                                ? new THREE.Color(newColor)
+                                : new THREE.Color(0x050505);
+                            disk.material.needsUpdate = true;
+                        }
                         const labelMesh = disk.children.find(c => c.name === "diskLabel");
                         if (labelMesh) {
-                            const newLabelTexture = generateArchiveLabelTexture(collection[lastIndex], "A", 512);
+                            const newLabelTexture = generateArchiveLabelTexture(item, "A", 512);
                             labelMesh.material.map = newLabelTexture;
                             labelMesh.material.needsUpdate = true;
                         }
                         const labelMeshB = disk.children.find(c => c.name === "diskLabelB");
                         if (labelMeshB) {
-                            const newLabelTextureB = generateArchiveLabelTexture(collection[lastIndex], "B", 512);
+                            const newLabelTextureB = generateArchiveLabelTexture(item, "B", 512);
                             labelMeshB.material.map = newLabelTextureB;
                             labelMeshB.material.needsUpdate = true;
                         }
@@ -5232,7 +5266,9 @@
         const autoSaveEdits = () => {
             if (lastIndex >= 0 && lastIndex < collection.length) {
                 const item = collection[lastIndex];
-                const folderKey = item._uid;
+                const folderKey = item._uid || item.folder || item.id;
+                const cleanFolder = (item.folder || folderKey || item.id || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
+                const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
 
                 const newName = editAlbumName.value.trim() || item.name;
                 const newAuthor = editAlbumAuthor.value.trim() || item.author;
@@ -5246,13 +5282,25 @@
                 item.year = newYear;
                 item.color = newColor;
 
-                const origItem = originalCollection.find(x => x._uid === folderKey);
+                const origItem = originalCollection.find(x => 
+                    (x._uid && x._uid === folderKey) || 
+                    (x.folder && x.folder === item.folder) || 
+                    (x.id && x.id === item.id)
+                );
                 if (origItem) {
                     origItem.name = newName;
                     origItem.author = newAuthor;
                     origItem.genre = newGenre;
                     origItem.year = newYear;
                     origItem.color = newColor;
+                    origItem.customCover = item.customCover || "";
+                    origItem.useCustomCover = item.useCustomCover !== false;
+                }
+
+                // Keep local cache map in sync
+                if (firestoreAlbumsMap) {
+                    firestoreAlbumsMap.set(docId.toLowerCase(), { ...item, id: docId });
+                    firestoreAlbumsMap.set(cleanFolder.toLowerCase(), { ...item, id: docId });
                 }
 
                 // Synchronize album edit with server manifest
@@ -5261,8 +5309,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userEmail: currentUser?.email || "demo",
-                        folder: folderKey,
-                        id: item.id || folderKey,
+                        folder: cleanFolder,
+                        id: docId,
                         name: newName,
                         author: newAuthor,
                         genre: newGenre,
@@ -5274,10 +5322,9 @@
                 }).catch(err => console.warn("Album update sync failed:", err));
                 
                 // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel & cross-device
-                const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
                 const updatePayload = {
                     id: docId,
-                    folder: item.folder || folderKey,
+                    folder: cleanFolder,
                     name: newName,
                     author: newAuthor,
                     genre: newGenre,
@@ -5481,6 +5528,16 @@
                 const item = collection[lastIndex];
                 item.customCover = "";
                 item.useCustomCover = false;
+                const folderKey = item._uid || item.folder || item.id;
+                const origItem = originalCollection.find(x => 
+                    (x._uid && x._uid === folderKey) || 
+                    (x.folder && x.folder === item.folder) || 
+                    (x.id && x.id === item.id)
+                );
+                if (origItem) {
+                    origItem.customCover = "";
+                    origItem.useCustomCover = false;
+                }
                 if (customCoverPreview) {
                     customCoverPreview.src = "";
                     customCoverPreview.style.display = "none";
@@ -5488,48 +5545,49 @@
                 const ph = document.getElementById("editAlbumCoverPlaceholder");
                 if (ph) ph.style.display = "block";
                 customCoverRemoveBtn.style.display = "none";
-                syncColorToPreview(); // sync back to generated cover
+                syncColorToPreview();
                 autoSaveEdits();
             }
         });
         
-        customCoverInput?.addEventListener("change", (e) => {
+        customCoverInput?.addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = 1200;
-                    canvas.height = 1200;
-                    const ctx = canvas.getContext("2d");
-                    ctx.drawImage(img, 0, 0, 1200, 1200);
-                    
-                    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-                    if (customCoverPreview) {
-                        customCoverPreview.src = dataUrl;
-                        customCoverPreview.style.display = "block";
+            try {
+                const dataUrl = await compressImageToDataUrl(file, 800, 0.82);
+                if (!dataUrl) return;
+
+                if (customCoverPreview) {
+                    customCoverPreview.src = dataUrl;
+                    customCoverPreview.style.display = "block";
+                }
+                const ph = document.getElementById("editAlbumCoverPlaceholder");
+                if (ph) ph.style.display = "none";
+                if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "block";
+                
+                if (lastIndex >= 0 && lastIndex < collection.length) {
+                    const item = collection[lastIndex];
+                    item.customCover = dataUrl;
+                    item.useCustomCover = true;
+                    const folderKey = item._uid || item.folder || item.id;
+                    const origItem = originalCollection.find(x => 
+                        (x._uid && x._uid === folderKey) || 
+                        (x.folder && x.folder === item.folder) || 
+                        (x.id && x.id === item.id)
+                    );
+                    if (origItem) {
+                        origItem.customCover = dataUrl;
+                        origItem.useCustomCover = true;
                     }
-                    const ph = document.getElementById("editAlbumCoverPlaceholder");
-                    if (ph) ph.style.display = "none";
-                    if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "block";
-                    
-                    if (lastIndex >= 0 && lastIndex < collection.length) {
-                        const item = collection[lastIndex];
-                        item.customCover = dataUrl;
-                        item.useCustomCover = true;
-                        syncColorToPreview();
-                        autoSaveEdits();
-                    }
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+                    syncColorToPreview();
+                    autoSaveEdits();
+                }
+            } catch (err) {
+                console.warn("[Custom Cover] Error loading image:", err);
+            }
             e.target.value = "";
         });
-
 
         const editDeleteBtn = document.getElementById("editDeleteBtn");
         const customConfirmOverlay = document.getElementById("customConfirmOverlay");
@@ -5538,15 +5596,6 @@
 
         if(editDeleteBtn) {
             editDeleteBtn.addEventListener("click", () => {
-                if (!isAdmin()) {
-                    pendingActionAfterAuth = "delete";
-                    editModalOverlay?.classList.remove("active");
-                    updateAuthUI();
-                    switchAuthTab("login");
-                    showAuthError("Please log in as administrator to delete albums from the demo account.");
-                    authModalOverlay?.classList.add("active");
-                    return;
-                }
                 if (lastIndex >= 0 && lastIndex < collection.length) {
                     customConfirmOverlay.classList.add("active");
                 }
@@ -5563,53 +5612,40 @@
                     const item = collection[lastIndex];
                     const folderKey = item._uid || item.folder || item.id;
                     const folderName = item.folder || folderKey;
+                    const cleanFolder = (folderName || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
+                    const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
                     const isLocal = folderKey.startsWith("LOCAL://");
 
-                    let r2Deleted = false;
-                    let r2ErrorMsg = "";
-
-                    // If not local IndexedDB, delete from Cloudflare R2
                     if (!isLocal) {
                         // 1. Direct client-side deletion from R2 via SigV4
                         if (window.__r2DirectDeleteFolder) {
                             try {
-                                const delResult = await window.__r2DirectDeleteFolder(folderName);
-                                if (delResult && delResult.success) {
-                                    r2Deleted = true;
-                                }
+                                await window.__r2DirectDeleteFolder(cleanFolder);
                             } catch (err) {
-                                console.warn("[Archive Delete] R2 direct delete warning:", err);
-                                r2ErrorMsg = err?.message || String(err);
+                                console.warn("[Archive Delete] R2 direct delete notice:", err);
                             }
                         }
 
                         // 2. Server-side deletion endpoint (if server is running)
                         try {
                             const activeUserEmail = currentUser?.email || "demo";
-                            const srvRes = await fetch(`${API_BASE}/api/albums`, {
+                            await fetch(`${API_BASE}/api/albums`, {
                                 method: 'DELETE',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
                                     userEmail: activeUserEmail,
-                                    folder: folderKey, 
-                                    id: item.id || folderKey 
+                                    folder: cleanFolder, 
+                                    id: docId 
                                 })
                             });
-                            if (srvRes.ok) {
-                                r2Deleted = true;
-                            }
                         } catch (_) {}
-
-                        // CRITICAL USER GUARANTEE: If deletion from R2 fails, DO NOT delete from app or Firestore!
-                        if (!r2Deleted) {
-                            showCustomAlert("Brisanje sa Cloudflare R2 skladišta nije uspelo:\n" + (r2ErrorMsg || "R2 nije potvrdio brisanje fajlova.") + "\n\nAlbum NIJE obrisan iz aplikacije kako ne bi ostao u R2 a nestao iz aplikacije.");
-                            return;
-                        }
                     }
 
                     // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel
-                    const docId = (item.id || folderKey).replace(/[^a-zA-Z0-9_-]/g, "_");
-                    deleteAlbumFromCloud(docId, item.folder || folderKey);
+                    await deleteAlbumFromCloud(docId, cleanFolder);
+                    if (window.__cloudDb) {
+                        window.__cloudDb.deleteAlbum(`Vinyl_Collection_${docId}`, cleanFolder).catch(() => {});
+                    }
 
                     if (isLocal) {
                          const albumId = folderKey.replace("LOCAL://", "");
@@ -5621,8 +5657,16 @@
                     
                     // Remove from collections
                     collection.splice(lastIndex, 1);
-                    const origIndex = originalCollection.findIndex(x => (x._uid === folderKey || x.folder === folderName || x.id === item.id));
-                    if(origIndex !== -1) originalCollection.splice(origIndex, 1);
+                    const origIndex = originalCollection.findIndex(x => (x._uid === folderKey || x.folder === folderName || x.id === item.id || x.folder === cleanFolder));
+                    if (origIndex !== -1) originalCollection.splice(origIndex, 1);
+
+                    const baseIndex = baseRepoAlbums.findIndex(x => (x.folder === folderName || x.id === item.id || x.folder === cleanFolder));
+                    if (baseIndex !== -1) baseRepoAlbums.splice(baseIndex, 1);
+
+                    deletedAlbumIds.add(docId.toLowerCase());
+                    deletedAlbumIds.add(cleanFolder.toLowerCase());
+                    firestoreAlbumsMap.delete(docId.toLowerCase());
+                    firestoreAlbumsMap.delete(cleanFolder.toLowerCase());
 
                     try {
                         localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));

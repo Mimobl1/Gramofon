@@ -120,7 +120,7 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
         name = folderName.slice(dashIdx + 3).trim();
       }
 
-      const albumId = `Vinyl_Collection_${folderName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const albumId = folderName.replace(/[^a-zA-Z0-9_-]/g, "_");
       const cover = data.cover || `${publicBase}/Vinyl Collection/${encodeURIComponent(folderName)}/folder.jpg`;
 
       discoveredAlbums.push({
@@ -139,16 +139,38 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
     if (discoveredAlbums.length > 0) {
       console.log(`[R2 Sync] Discovered ${discoveredAlbums.length} albums directly from R2 bucket.`);
       const existing = await getAlbumsFromFirestore().catch(() => []);
-      const existingMap = new Map(existing.map((a: any) => [a.folder || a.id, a]));
+      const r2FolderSet = new Set(discoveredAlbums.map(d => (d.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase()));
+
+      // Automatically purge Firestore docs that were deleted from R2
+      for (const ex of existing) {
+        const cleanF = (ex.folder || ex.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        if (cleanF && !r2FolderSet.has(cleanF)) {
+          console.log(`[R2 Sync] Purging album deleted from R2: ${ex.id} (${ex.folder})`);
+          await deleteAlbumFromFirestore(ex.id).catch(() => {});
+        }
+      }
+
+      const existingMap = new Map();
+      existing.forEach((a: any) => {
+        const cleanF = (a.folder || a.id || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        if (cleanF) existingMap.set(cleanF, a);
+        if (a.id) existingMap.set(a.id, a);
+      });
 
       const finalAlbums = discoveredAlbums.map((disc, idx) => {
-        const found = existingMap.get(disc.folder) || existingMap.get(disc.id);
+        const cleanF = (disc.folder || "").replace(/^Vinyl Collection[\/\\]/i, "").trim().toLowerCase();
+        const found = existingMap.get(cleanF) || existingMap.get(disc.id);
         if (found) {
           return {
             ...disc,
             ...found,
+            id: disc.id,
+            folder: disc.folder,
             tracks: disc.tracks.length > 0 ? disc.tracks : (found.tracks || []),
-            cover: disc.cover || found.cover,
+            cover: found.cover || disc.cover,
+            color: found.color || "#1a1a1a",
+            customCover: found.customCover || "",
+            useCustomCover: found.useCustomCover !== undefined ? found.useCustomCover : (!!found.customCover),
             order: typeof found.order === "number" ? found.order : idx
           };
         }
