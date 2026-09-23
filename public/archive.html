@@ -1082,6 +1082,12 @@
         const EMBEDDED = new URLSearchParams(window.location.search).get("embedded") === "1";
         const API_BASE = "";
         try {
+            Object.keys(localStorage).forEach(key => {
+                const val = localStorage.getItem(key);
+                if (val && (val.includes("gramofon-26.vercel.app") || val.includes("vercel.app"))) {
+                    localStorage.removeItem(key);
+                }
+            });
             localStorage.removeItem("vinyl_archive_albums_v1");
             localStorage.removeItem("vinyl_selected_album_v1");
             localStorage.removeItem("archive_playing_uid_v1");
