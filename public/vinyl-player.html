@@ -1390,22 +1390,50 @@
     };
 
     let currentAlbumFolder = "";
+    let currentAlbumData = null;
+
+    function resolveAudioTrackUrl(trackName, folder) {
+      if (!trackName) return "";
+      if (trackName.startsWith("blob:") || trackName.startsWith("data:")) return trackName;
+      if (trackName.startsWith("http://") || trackName.startsWith("https://")) {
+        return trackName;
+      }
+      const rawFolder = folder || currentAlbumFolder || "";
+      if (rawFolder.startsWith("LOCAL://")) {
+        return ""; // Local files are read directly from IndexedDB
+      }
+      if (rawFolder.startsWith("http://") || rawFolder.startsWith("https://")) {
+        const cleanBase = rawFolder.replace(/\/$/, "");
+        const cleanTrack = trackName.replace(/^\/+/, "");
+        return `${cleanBase}/${encodeURIComponent(cleanTrack).replace(/%2F/g, "/")}`;
+      }
+
+      const cleanFolder = rawFolder
+        .replace(/^https?:\/\/[^\/]+\/Vinyl%20Collection\//i, "")
+        .replace(/^Vinyl Collection[\/\\]/i, "")
+        .replace(/\/$/, "")
+        .trim();
+
+      let subKey = "";
+      if (trackName.toLowerCase().startsWith("vinyl collection/")) {
+        subKey = trackName.replace(/^vinyl collection[\/\\]/i, "");
+      } else if (cleanFolder && !trackName.startsWith(cleanFolder)) {
+        subKey = `${cleanFolder}/${trackName}`;
+      } else {
+        subKey = trackName;
+      }
+
+      try {
+        if (subKey.includes("%")) subKey = decodeURIComponent(subKey);
+      } catch (_) {}
+
+      // Direct Cloudflare R2 Public CDN
+      return `https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev/Vinyl%20Collection/${encodeURIComponent(subKey).replace(/%2F/g, "/")}`;
+    }
     
     const setDeckSourceByIndex=async(idx)=>{
       const trackName = albumTracks[idx];
       if(!trackName) return;
-      
-      let fullPath = trackName;
-      if (trackName.startsWith("http://") || trackName.startsWith("https://")) {
-          fullPath = trackName;
-      } else if (currentAlbumFolder && (currentAlbumFolder.startsWith("http://") || currentAlbumFolder.startsWith("https://"))) {
-          fullPath = currentAlbumFolder.replace(/\/$/, "") + "/" + trackName;
-      } else if (currentAlbumFolder && !currentAlbumFolder.startsWith("LOCAL://")) {
-          const cleanFolder = currentAlbumFolder.replace(/^Vinyl Collection\//i, "").replace(/\/$/, "");
-          fullPath = `Vinyl Collection/${cleanFolder}/${trackName}`;
-      } else if (!fullPath.startsWith("Vinyl Collection/")) {
-          fullPath = `Vinyl Collection/${fullPath}`;
-      }
       
       let absoluteUrl = "";
       
@@ -1438,9 +1466,9 @@
                   possibleKeys.push(`Vinyl_Collection_${folderClean}`.replace(/[^a-zA-Z0-9_-]/g, "_"));
                   possibleKeys.push(folderClean);
               }
-              if (currentAlbum && currentAlbum._uid) {
-                  possibleKeys.push(currentAlbum._uid);
-                  possibleKeys.push(`Vinyl_Collection_${currentAlbum._uid}`.replace(/[^a-zA-Z0-9_-]/g, "_"));
+              if (typeof currentAlbumData !== "undefined" && currentAlbumData && currentAlbumData._uid) {
+                  possibleKeys.push(currentAlbumData._uid);
+                  possibleKeys.push(`Vinyl_Collection_${currentAlbumData._uid}`.replace(/[^a-zA-Z0-9_-]/g, "_"));
               }
 
               let foundAlbum = null;
@@ -1474,22 +1502,7 @@
       
       // 2. If not found in IndexedDB, stream from Cloudflare R2 / Server CDN
       if (!absoluteUrl) {
-          if (fullPath.startsWith("http://") || fullPath.startsWith("https://")) {
-              absoluteUrl = encodeURI(fullPath);
-          } else {
-              const vinylMatch = fullPath.match(/Vinyl Collection\/(.+)$/i) || fullPath.match(/Vinyl%20Collection\/(.+)$/i);
-              if (vinylMatch) {
-                  let subKey = vinylMatch[1];
-                  try {
-                    if (subKey.includes("%")) subKey = decodeURIComponent(subKey);
-                  } catch (_) {}
-                  // Direct Cloudflare R2 CDN (configured with Access-Control-Allow-Origin: * and HTTP 206 Partial Content)
-                  absoluteUrl = `https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev/Vinyl%20Collection/${encodeURIComponent(subKey).replace(/%2F/g, "/")}`;
-              } else {
-                  const cleanPath = fullPath.startsWith("/") ? fullPath : "/" + fullPath;
-                  absoluteUrl = new URL(encodeURI(cleanPath), window.location.origin).href;
-              }
-          }
+          absoluteUrl = resolveAudioTrackUrl(trackName, currentAlbumFolder);
       }
       
       const resolvedDeckUrl = absoluteUrl.startsWith("blob:") ? absoluteUrl : new URL(absoluteUrl, window.location.origin).href;
@@ -1578,23 +1591,18 @@
             }
             
             if (!absoluteUrl) {
-                let fullPath = src;
-                if (src.startsWith("http://") || src.startsWith("https://")) {
-                    fullPath = src;
-                    absoluteUrl = src;
-                } else if (currentAlbumFolder && (currentAlbumFolder.startsWith("http://") || currentAlbumFolder.startsWith("https://"))) {
-                    fullPath = currentAlbumFolder.replace(/\/$/, "") + "/" + src;
-                    absoluteUrl = fullPath;
-                } else if (currentAlbumFolder && !src.startsWith(currentAlbumFolder)) {
-                    fullPath = currentAlbumFolder + "/" + src;
-                }
-                if (!absoluteUrl) {
-                    absoluteUrl = encodeURI(fullPath);
-                }
+                absoluteUrl = resolveAudioTrackUrl(src, currentAlbumFolder);
             }
             
             const fallback = getRealisticFallbackDuration(src, idx);
+            if (!absoluteUrl) {
+                return resolve(fallback);
+            }
+
             let settled = false;
+            const a = new Audio();
+            a.preload = "metadata";
+            a.crossOrigin = "anonymous";
             const done=(value)=>{
                 if (settled) return;
                 settled = true;
@@ -2065,8 +2073,8 @@
         }
         if (!coll.length) {
           try {
-            const res = await fetch("/api/albums");
-            if (res.ok) coll = await res.json();
+            const res = await fetch("/vinyl-collection.json");
+            if (res && res.ok) coll = await res.json();
           } catch (_) {}
         }
         const matched = coll.find(a => 
@@ -2151,6 +2159,7 @@
       const folder = (selectedOverride?.folder || params.get("folder") || selectedFromStorage?.folder || "");
       currentAlbumFolder = folder;
       currentAlbumName = String(name);
+      currentAlbumData = albumData || selectedOverride || selectedFromStorage || { name, folder, tracks };
       albumTracks = tracks.slice();
       trackDurationsSec = albumTracks.map((t, idx) => getRealisticFallbackDuration(t, idx));
       if(albumTracks.length){

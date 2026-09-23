@@ -2052,32 +2052,35 @@
             }
         }
 
+        let apiAlbumsAvailable = true;
+
         async function loadCollectionManifest() {
             initFirestoreRealtimeListener();
 
-            for (let attempt = 1; attempt <= 2; attempt++) {
+            if (apiAlbumsAvailable) {
                 try {
-                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 3500));
                     const fetchPromise = fetch(`${API_BASE}/api/albums?t=${Date.now()}`, { 
                         cache: "no-store"
                     });
                     const res = await Promise.race([fetchPromise, timeoutPromise]);
                     
-                    if (res && res.ok) {
-                        const data = await res.json();
-                        const parsed = Array.isArray(data) ? data : [];
-                        if (parsed.length > 0) {
-                            baseRepoAlbums = parsed;
-                            mergeAndApplyCollection();
-                            enrichAlbumDurations(parsed).catch(() => {});
-                            return;
+                    if (res) {
+                        if (res.status === 404) {
+                            apiAlbumsAvailable = false;
+                        } else if (res.ok) {
+                            const data = await res.json();
+                            const parsed = Array.isArray(data) ? data : [];
+                            if (parsed.length > 0) {
+                                baseRepoAlbums = parsed;
+                                mergeAndApplyCollection();
+                                enrichAlbumDurations(parsed).catch(() => {});
+                                return;
+                            }
                         }
                     }
                 } catch (e) {
-                    console.warn(`Live collection fetch error (attempt ${attempt}):`, e);
-                }
-                if (attempt === 1) {
-                    await new Promise(r => setTimeout(r, 200));
+                    // Fallback to static or R2
                 }
             }
 
@@ -2134,8 +2137,20 @@
                 }
             }
 
-            // Fallback to static manifest window.VINYL_COLLECTION or localStorage
+            // Fallback to static vinyl-collection.json or window.VINYL_COLLECTION or localStorage
             if (!baseRepoAlbums.length) {
+                try {
+                    const jsonRes = await fetch("/vinyl-collection.json");
+                    if (jsonRes && jsonRes.ok) {
+                        const jsonData = await jsonRes.json();
+                        if (Array.isArray(jsonData) && jsonData.length > 0) {
+                            baseRepoAlbums = jsonData;
+                            mergeAndApplyCollection();
+                            return;
+                        }
+                    }
+                } catch (_) {}
+
                 if (typeof window !== "undefined" && Array.isArray(window.VINYL_COLLECTION) && window.VINYL_COLLECTION.length) {
                     baseRepoAlbums = window.VINYL_COLLECTION;
                     mergeAndApplyCollection();
@@ -6030,9 +6045,13 @@
         // Continuous live synchronization across tabs, browsers, and deployed environments
         setInterval(() => {
             if (!isMouseDown && launchIndex === -1 && !isModalActive()) {
-                loadCollectionManifest();
+                // If Firestore realtime listener is active, records update instantaneously.
+                // Only poll fallback if Firestore is not yet attached and API is available.
+                if (!firestoreListenerAttached && apiAlbumsAvailable) {
+                    loadCollectionManifest();
+                }
             }
-        }, 5000);
+        }, 15000);
 
         window.addEventListener("focus", () => {
             loadCollectionManifest();
