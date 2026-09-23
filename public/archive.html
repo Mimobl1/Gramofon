@@ -1084,7 +1084,7 @@
         try {
             Object.keys(localStorage).forEach(key => {
                 const val = localStorage.getItem(key);
-                if (val && (val.includes("gramofon-26.vercel.app") || val.includes("vercel.app"))) {
+                if (val && (val.includes("") || val.includes("vercel.app"))) {
                     localStorage.removeItem(key);
                 }
             });

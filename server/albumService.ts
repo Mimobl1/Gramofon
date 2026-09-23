@@ -199,7 +199,7 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
       return formatted;
     }
   } catch (err) {
-    console.warn("[AlbumService] Could not fetch from Firestore, falling back to local files:", err);
+    console.warn("[AlbumService] Could not fetch from Firestore:", err);
   }
 
   // 2. Fallback: Secondary Source: Local manifest file
@@ -219,6 +219,15 @@ export async function getAlbums(): Promise<AlbumRecord[]> {
     }
   } catch (err) {
     console.warn("[AlbumService] Could not read manifest...", err);
+  }
+
+  // 3. Last Resort: Sync from R2
+  try {
+    console.log("[AlbumService] Firestore and manifest empty, syncing from R2...");
+    const r2Albums = await syncAlbumsFromR2();
+    return r2Albums;
+  } catch (err) {
+    console.error("[AlbumService] Sync from R2 failed:", err);
   }
 
   return [];
