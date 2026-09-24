@@ -1335,7 +1335,7 @@
         let lastMouseClientY = 0;
         let isMouseDragging = false;
         let wheelSnapTimeout = null;
-        const LAUNCH_MS = 620;
+        const LAUNCH_MS = 750;
         const WARM_FLAG_KEY = "vinyl_assets_warmed_v1";
         const PLAYING_UID_KEY = "archive_playing_uid_v1";
         const SCROLL_STATE_KEY = "archive_scroll_state_v1";
@@ -1733,8 +1733,9 @@
                     metalness: isCustom ? 0.6 : 0.65,
                     transparent: true 
                 });
+                const edgeMatColor = (item.customCover || item.cover) && item.useCustomCover !== false ? "#333333" : (item.color || "#1a1a1a");
                 const edgeMat = new THREE.MeshStandardMaterial({ 
-                    color: new THREE.Color(item.color), 
+                    color: new THREE.Color(edgeMatColor), 
                     roughness: 0.5, 
                     metalness: 0.65,
                     transparent: true 
@@ -2920,7 +2921,7 @@
 
             const coverSrc = (item.customCover && item.useCustomCover !== false)
                 ? item.customCover
-                : null;
+                : ((item.useCustomCover !== false && item.cover) ? getSafeCoverUrl(item.cover) : null);
 
             if (coverSrc) {
                 let img = inMemoryImageCache.get(coverSrc);
@@ -2959,16 +2960,7 @@
                     ctx.fillRect(0, 0, size, size);
                     ctx.restore();
 
-                    // Semi-transparent overlay with custom theme color
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.arc(c, c, r, 0, Math.PI * 2);
-                    ctx.clip();
-                    ctx.fillStyle = toHex(item.color) || "#1f1f1f";
-                    ctx.globalAlpha = 0.45;
-                    ctx.fill();
-                    ctx.restore();
-
+                    // Do not apply color tint overlay if an image cover is assigned
                     drawLabelOverlayElements(ctx, true);
                     if (texture) texture.needsUpdate = true;
                 };
@@ -5830,6 +5822,7 @@
                 if (item) {
                     item.customCover = dataUrl;
                     item.useCustomCover = true;
+                    item.color = "#333333";
                     const folderKey = item._uid || item.folder || item.id;
                     const origItem = originalCollection.find(x => 
                         (x._uid && x._uid === folderKey) || 
@@ -5839,7 +5832,13 @@
                     if (origItem) {
                         origItem.customCover = dataUrl;
                         origItem.useCustomCover = true;
+                        origItem.color = "#333333";
                     }
+                    if (editAlbumColor) editAlbumColor.value = "#333333";
+                    if (editAlbumColorSwatch) editAlbumColorSwatch.style.backgroundColor = "#333333";
+                    const hexEl = document.getElementById("editAlbumColorHex");
+                    if (hexEl) hexEl.textContent = "#333333";
+
                     syncColorToPreview();
                     autoSaveEdits();
                 }
