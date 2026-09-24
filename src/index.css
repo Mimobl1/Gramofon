@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+  position: fixed !important;
+  overscroll-behavior: none !important;
+  overscroll-behavior-y: none !important;
+  overscroll-behavior-x: none !important;
+  touch-action: none;
+}
+
 ::placeholder {
   color: rgba(255, 255, 255, 0.28) !important;
   opacity: 1 !important;

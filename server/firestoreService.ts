@@ -112,15 +112,12 @@ export async function syncAlbumToFirestore(album: any): Promise<void> {
       year: album.year || "",
       order: typeof album.order === "number" ? album.order : 0,
       tracks: Array.isArray(album.tracks) ? album.tracks : [],
+      cover: album.cover || "",
+      customCover: (album.customCover && album.customCover.length < 850000) ? album.customCover : "",
+      useCustomCover: album.useCustomCover !== undefined ? !!album.useCustomCover : false,
       createdAt: album.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-
-    if (album.cover) payload.cover = album.cover;
-    if (album.useCustomCover !== undefined) payload.useCustomCover = !!album.useCustomCover;
-    if (album.customCover && album.customCover.length < 850000) {
-      payload.customCover = album.customCover;
-    }
 
     // Set with timeout to avoid blocking server responses if Firestore connection is slow
     const savePromise = setDoc(doc(db, "albums", docId), payload, { merge: true });

@@ -1,16 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="overflow: hidden; overscroll-behavior: none; overscroll-behavior-y: none; overscroll-behavior-x: none; height: 100%; width: 100%; position: fixed;">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Vinyl Player</title>
     <meta name="description" content="Interactive vinyl record player with album collection and playback." />
     <meta property="og:title" content="Vinyl Player" />
     <meta property="og:description" content="Interactive vinyl record player with album collection and playback." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden !important;
+        position: fixed !important;
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
+        touch-action: none;
+      }
+    </style>
   </head>
-  <body>
+  <body style="overflow: hidden; overscroll-behavior: none; overscroll-behavior-y: none; overscroll-behavior-x: none; height: 100%; width: 100%; position: fixed;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

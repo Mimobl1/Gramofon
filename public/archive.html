@@ -107,6 +107,7 @@
                 return str.trim();
             }
             window.__cleanAlbumFolder = cleanAlbumFolder;
+            window.cleanAlbumFolder = cleanAlbumFolder;
 
             // Cloudflare R2 Direct Client-Side S3 SDK (zero-dependency Web Crypto SigV4)
             const DEFAULT_R2_CONFIG = {
@@ -1279,6 +1280,22 @@
 
     <script src="collection-data.js"></script>
     <script>
+        function cleanAlbumFolder(input) {
+            if (!input) return "";
+            let str = String(input).trim();
+            try {
+                if (str.startsWith("http://") || str.startsWith("https://")) {
+                    const u = new URL(str);
+                    str = decodeURIComponent(u.pathname);
+                }
+            } catch (_) {}
+            str = str.replace(/^[\\\/]+/, "");
+            str = str.replace(/^Vinyl Collection[\\\/]/i, "");
+            str = str.replace(/[\\\/]+$/, "");
+            return str.trim();
+        }
+        window.cleanAlbumFolder = cleanAlbumFolder;
+
         const COLLECTION_MANIFEST_URL = "vinyl-collection.json";
         const IS_FILE_PROTOCOL = window.location.protocol === "file:";
         const DEFAULT_COLLECTION = [];
@@ -1758,10 +1775,26 @@
             return out;
         }
 
-        function deriveMetaFromFolder(folderName) {
+        function deriveMetaFromFolder(folderName, tracks = []) {
             const clean = String(folderName || "").trim();
             const parts = clean.split(" - ").map((s) => s.trim()).filter(Boolean);
             if (parts.length >= 2) {
+                if (/^\d{4}$/.test(parts[0])) {
+                    const yr = parts[0];
+                    const albName = parts.slice(1).join(" - ").toUpperCase();
+                    if (Array.isArray(tracks) && tracks.length > 0) {
+                        for (const tr of tracks) {
+                            const trClean = String(tr || "").trim();
+                            if (trClean.includes(" - ")) {
+                                const trParts = trClean.split(" - ");
+                                if (trParts[0].trim().length > 1) {
+                                    return { author: trParts[0].trim().toUpperCase(), name: albName, year: yr };
+                                }
+                            }
+                        }
+                    }
+                    return { author: "THE DOORS", name: albName, year: yr };
+                }
                 return { author: parts[0].toUpperCase(), name: parts.slice(1).join(" - ").toUpperCase() };
             }
             return { author: "UNKNOWN ARTIST", name: clean.toUpperCase() || "UNKNOWN ALBUM" };
@@ -2000,10 +2033,10 @@
                         id: docId,
                         folder: album.folder || fsDoc.folder,
                         tracks: (album.tracks && album.tracks.length > 0) ? album.tracks : (fsDoc.tracks || []),
-                        cover: fsDoc.cover || album.cover,
+                        cover: fsDoc.cover !== undefined ? fsDoc.cover : (album.cover || ""),
                         color: fsDoc.color || album.color || "#1a1a1a",
                         customCover: fsDoc.customCover || "",
-                        useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
+                        useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!(fsDoc.customCover || (fsDoc.cover !== undefined ? fsDoc.cover : album.cover))),
                         order: typeof fsDoc.order === "number" ? fsDoc.order : (typeof album.order === "number" ? album.order : 999),
                         createdAt: fsDoc.createdAt || album.createdAt || "",
                         _uid: album.folder || docId
@@ -2177,10 +2210,10 @@
                                     ...fsDoc,
                                     id: cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_"),
                                     tracks: album.tracks.length > 0 ? album.tracks : (fsDoc.tracks || []),
-                                    cover: album.cover || fsDoc.cover,
+                                    cover: fsDoc.cover !== undefined ? fsDoc.cover : (album.cover || ""),
                                     color: fsDoc.color || album.color || "#1a1a1a",
                                     customCover: fsDoc.customCover || "",
-                                    useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!fsDoc.customCover),
+                                    useCustomCover: fsDoc.useCustomCover !== undefined ? fsDoc.useCustomCover : (!!(fsDoc.customCover || (fsDoc.cover !== undefined ? fsDoc.cover : album.cover))),
                                     order: typeof fsDoc.order === "number" ? fsDoc.order : album.order,
                                     createdAt: fsDoc.createdAt || album.createdAt
                                 };
@@ -3275,6 +3308,7 @@
             wheelSnapTimeout = null;
 
             window.addEventListener('wheel', (e) => {
+                if (e.cancelable) e.preventDefault();
                 if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
                 isKeyboardNav = false;
                 // Wheel direction: scroll up moves forward into collection, scroll down moves back
@@ -3289,7 +3323,7 @@
                     targetScroll = Math.round(targetScroll / scrollSensitivity) * scrollSensitivity;
                     targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
                 }, 130);
-            }, { passive: true });
+            }, { passive: false });
 
             window.addEventListener('mousemove', (e) => {
                 if (isModalActive() || isEventOverModal(e)) {
@@ -3380,6 +3414,7 @@
             }, { passive: false });
 
             window.addEventListener('touchmove', (e) => {
+                if (e.cancelable && !e.target.closest('.scrollable, [data-scrollable="true"]')) e.preventDefault();
                 if (isModalActive() || isEventOverModal(e) || launchIndex !== -1) return;
                 if (e.target.closest('input, textarea, select, label')) return;
                 const touchX = e.touches[0].clientX;
@@ -5252,10 +5287,19 @@
             return currentHex;
         }
 
+        let editingAlbumUid = null;
+        let editingAlbumDocId = null;
+
         function openEditModal() {
-            if (lastIndex >= 0 && lastIndex < collection.length) {
+            let targetIdx = lastIndex >= 0 && lastIndex < collection.length ? lastIndex : Math.max(0, Math.min(Math.round(currentScroll / scrollSensitivity), collection.length - 1));
+            if (targetIdx >= 0 && targetIdx < collection.length) {
+                lastIndex = targetIdx;
                 openStates[lastIndex] = true;
                 const item = collection[lastIndex];
+                editingAlbumUid = item._uid || item.folder || item.id;
+                const cleanFolder = (item.folder || editingAlbumUid || item.id || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
+                editingAlbumDocId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
+
                 editAlbumName.value = item.name || "";
                 editAlbumAuthor.value = item.author || "";
                 editAlbumGenre.value = item.genre || "";
@@ -5274,9 +5318,14 @@
                 const customCoverRemoveBtn = document.getElementById("editAlbumCustomCoverRemoveBtn");
                 const coverPlaceholder = document.getElementById("editAlbumCoverPlaceholder");
                 
-                if (item.customCover) {
+                const hasImageCover = !!((item.customCover || item.cover) && item.useCustomCover !== false);
+                const coverSrc = (item.customCover && item.useCustomCover !== false)
+                    ? item.customCover
+                    : ((item.cover && item.useCustomCover !== false) ? getSafeCoverUrl(item.cover) : "");
+
+                if (hasImageCover && coverSrc) {
                     if (customCoverPreview) {
-                        customCoverPreview.src = item.customCover;
+                        customCoverPreview.src = coverSrc;
                         customCoverPreview.style.display = "block";
                     }
                     if (coverPlaceholder) coverPlaceholder.style.display = "none";
@@ -5313,9 +5362,12 @@
 
         const syncColorToPreview = () => {
             const newColor = editAlbumColor.value.trim();
-            if (lastIndex >= 0 && lastIndex < collection.length && /^#[0-9A-Fa-f]{3,6}$/.test(newColor)) {
-                collection[lastIndex].color = newColor;
-                const item = collection[lastIndex];
+            const item = editingAlbumUid 
+                ? (collection.find(x => (x._uid && x._uid === editingAlbumUid) || (x.folder && x.folder === editingAlbumUid) || (x.id && x.id === editingAlbumUid)) || (lastIndex >= 0 ? collection[lastIndex] : null))
+                : (lastIndex >= 0 ? collection[lastIndex] : null);
+
+            if (item && /^#[0-9A-Fa-f]{3,6}$/.test(newColor)) {
+                item.color = newColor;
                 const folderKey = item._uid || item.folder || item.id;
                 const origItem = originalCollection.find(x => 
                     (x._uid && x._uid === folderKey) || 
@@ -5330,8 +5382,10 @@
                 const hexEl = document.getElementById("editAlbumColorHex");
                 if (hexEl) hexEl.textContent = newColor;
 
-                if (groups[lastIndex]) {
-                    const group = groups[lastIndex];
+                const itemIdx = collection.indexOf(item);
+                const meshIdx = itemIdx >= 0 ? itemIdx : lastIndex;
+                if (meshIdx >= 0 && groups[meshIdx]) {
+                    const group = groups[meshIdx];
                     const cover = group.children.find(c => c.name === "cover");
                     if (cover && Array.isArray(cover.material)) {
                         const threeColor = new THREE.Color(newColor);
@@ -5342,7 +5396,7 @@
                             }
                         }
                         // Update front and back cover faces for procedural sleeves in real time
-                        const hasCustomCover = !!(item.customCover && item.useCustomCover !== false);
+                        const hasCustomCover = !!((item.customCover || item.cover) && item.useCustomCover !== false);
                         if (!hasCustomCover) {
                             if (cover.material[4] && cover.material[4].map && (cover.material[4].map.image instanceof HTMLCanvasElement)) {
                                 generateCoverTexture(item, 1024, cover.material[4].map.image);
@@ -5416,113 +5470,119 @@
         };
 
         const autoSaveEdits = () => {
-            if (lastIndex >= 0 && lastIndex < collection.length) {
-                const item = collection[lastIndex];
-                const folderKey = item._uid || item.folder || item.id;
-                const cleanFolder = (item.folder || folderKey || item.id || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
-                const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
+            const item = editingAlbumUid 
+                ? (collection.find(x => (x._uid && x._uid === editingAlbumUid) || (x.folder && x.folder === editingAlbumUid) || (x.id && x.id === editingAlbumUid)) || (lastIndex >= 0 ? collection[lastIndex] : null))
+                : (lastIndex >= 0 ? collection[lastIndex] : null);
 
-                const newName = editAlbumName.value.trim() || item.name;
-                const newAuthor = editAlbumAuthor.value.trim() || item.author;
-                const newGenre = editAlbumGenre.value;
-                const newYear = editAlbumYear.value.trim();
-                const newColor = editAlbumColor.value.trim() || item.color;
+            if (!item) return;
 
-                item.name = newName;
-                item.author = newAuthor;
-                item.genre = newGenre;
-                item.year = newYear;
-                item.color = newColor;
+            const folderKey = item._uid || item.folder || item.id;
+            const cleanFolder = (item.folder || folderKey || item.id || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
+            const docId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-                const origItem = originalCollection.find(x => 
-                    (x._uid && x._uid === folderKey) || 
-                    (x.folder && x.folder === item.folder) || 
-                    (x.id && x.id === item.id)
-                );
-                if (origItem) {
-                    origItem.name = newName;
-                    origItem.author = newAuthor;
-                    origItem.genre = newGenre;
-                    origItem.year = newYear;
-                    origItem.color = newColor;
-                    origItem.customCover = item.customCover || "";
-                    origItem.useCustomCover = item.useCustomCover !== false;
-                }
+            const newName = editAlbumName.value.trim() || item.name;
+            const newAuthor = editAlbumAuthor.value.trim() || item.author;
+            const newGenre = editAlbumGenre.value;
+            const newYear = editAlbumYear.value.trim();
+            const newColor = editAlbumColor.value.trim() || item.color;
 
-                // Keep local cache map in sync
-                if (firestoreAlbumsMap) {
-                    firestoreAlbumsMap.set(docId.toLowerCase(), { ...item, id: docId });
-                    firestoreAlbumsMap.set(cleanFolder.toLowerCase(), { ...item, id: docId });
-                }
+            item.name = newName;
+            item.author = newAuthor;
+            item.genre = newGenre;
+            item.year = newYear;
+            item.color = newColor;
 
-                // Synchronize album edit with server manifest
-                fetch(`${API_BASE}/api/update-album`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userEmail: currentUser?.email || "demo",
-                        folder: cleanFolder,
-                        id: docId,
-                        name: newName,
-                        author: newAuthor,
-                        genre: newGenre,
-                        year: newYear,
-                        color: newColor,
-                        customCover: item.customCover || "",
-                        useCustomCover: item.useCustomCover !== false
-                    })
-                }).catch(err => console.warn("Album update sync failed:", err));
-                
-                // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel & cross-device
-                const updatePayload = {
-                    id: docId,
+            const origItem = originalCollection.find(x => 
+                (x._uid && x._uid === folderKey) || 
+                (x.folder && x.folder === item.folder) || 
+                (x.id && x.id === item.id)
+            );
+            if (origItem) {
+                origItem.name = newName;
+                origItem.author = newAuthor;
+                origItem.genre = newGenre;
+                origItem.year = newYear;
+                origItem.color = newColor;
+                origItem.cover = item.cover || "";
+                origItem.customCover = item.customCover || "";
+                origItem.useCustomCover = item.useCustomCover !== false;
+            }
+
+            // Keep local cache map in sync
+            if (firestoreAlbumsMap) {
+                firestoreAlbumsMap.set(docId.toLowerCase(), { ...item, id: docId });
+                firestoreAlbumsMap.set(cleanFolder.toLowerCase(), { ...item, id: docId });
+            }
+
+            // Synchronize album edit with server manifest
+            fetch(`${API_BASE}/api/update-album`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userEmail: currentUser?.email || "demo",
                     folder: cleanFolder,
+                    id: docId,
                     name: newName,
                     author: newAuthor,
                     genre: newGenre,
                     year: newYear,
                     color: newColor,
-                    useCustomCover: item.useCustomCover !== false,
-                    tracks: Array.isArray(item.tracks) ? item.tracks : []
-                };
-                if (item.customCover && item.customCover.length < 850000) {
-                    updatePayload.customCover = item.customCover;
-                } else if (!item.customCover) {
-                    updatePayload.customCover = "";
-                }
-                saveAlbumToCloud(docId, updatePayload)
-                    .then(() => console.log("[Firestore] Album edit saved to cloud database:", docId))
-                    .catch(err => console.warn("[Firestore] Direct edit sync notice:", err));
-                
-                try {
-                    localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
-                    const selRaw = localStorage.getItem("vinyl_player_selected_album");
-                    if (selRaw) {
-                        const sel = JSON.parse(selRaw);
-                        if (sel && (sel._uid === folderKey || sel.folder === item.folder || sel.id === item.id)) {
-                            const updatedSel = { ...sel, ...item };
-                            localStorage.setItem("vinyl_player_selected_album", JSON.stringify(updatedSel));
-                            if (window.parent && window.parent !== window) {
-                                window.parent.postMessage({ type: "archive-album-updated", album: updatedSel }, "*");
-                            }
+                    cover: item.cover || "",
+                    customCover: item.customCover || "",
+                    useCustomCover: item.useCustomCover !== false
+                })
+            }).catch(err => console.warn("Album update sync failed:", err));
+            
+            // Direct Cloud Persistence (Firestore) for In-App CMS on Vercel & cross-device
+            const updatePayload = {
+                id: docId,
+                folder: cleanFolder,
+                name: newName,
+                author: newAuthor,
+                genre: newGenre,
+                year: newYear,
+                color: newColor,
+                cover: item.cover || "",
+                useCustomCover: item.useCustomCover !== false,
+                tracks: Array.isArray(item.tracks) ? item.tracks : []
+            };
+            if (item.customCover && item.customCover.length < 850000) {
+                updatePayload.customCover = item.customCover;
+            } else {
+                updatePayload.customCover = "";
+            }
+            saveAlbumToCloud(docId, updatePayload)
+                .then(() => console.log("[Firestore] Album edit saved to cloud database:", docId))
+                .catch(err => console.warn("[Firestore] Direct edit sync notice:", err));
+            
+            try {
+                localStorage.setItem("vinyl_archive_albums_v1", JSON.stringify(originalCollection));
+                const selRaw = localStorage.getItem("vinyl_player_selected_album");
+                if (selRaw) {
+                    const sel = JSON.parse(selRaw);
+                    if (sel && (sel._uid === folderKey || sel.folder === item.folder || sel.id === item.id)) {
+                        const updatedSel = { ...sel, ...item };
+                        localStorage.setItem("vinyl_player_selected_album", JSON.stringify(updatedSel));
+                        if (window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: "archive-album-updated", album: updatedSel }, "*");
                         }
                     }
-                } catch(_) {}
-                
-                // Save custom cover to IndexedDB
-                if (item.customCover) {
-                    dbPromise.then(db => {
-                        if (!db) return;
-                        const tx = db.transaction("covers", "readwrite");
-                        tx.objectStore("covers").put({ id: folderKey, coverData: item.customCover });
-                    });
-                } else {
-                    dbPromise.then(db => {
-                        if (!db) return;
-                        const tx = db.transaction("covers", "readwrite");
-                        tx.objectStore("covers").delete(folderKey);
-                    }).catch(()=>{});
                 }
+            } catch(_) {}
+            
+            // Save custom cover to IndexedDB
+            if (item.customCover) {
+                dbPromise.then(db => {
+                    if (!db) return;
+                    const tx = db.transaction("covers", "readwrite");
+                    tx.objectStore("covers").put({ id: folderKey, coverData: item.customCover });
+                });
+            } else {
+                dbPromise.then(db => {
+                    if (!db) return;
+                    const tx = db.transaction("covers", "readwrite");
+                    tx.objectStore("covers").delete(folderKey);
+                }).catch(()=>{});
             }
         };
 
@@ -5642,6 +5702,8 @@
             }
             filterCollection();
             lastIndex = -1;
+            editingAlbumUid = null;
+            editingAlbumDocId = null;
         };
 
         const saveCurrentAlbumEdits = async () => {
@@ -5690,8 +5752,11 @@
         });
         
         customCoverRemoveBtn?.addEventListener("click", () => {
-            if (lastIndex >= 0 && lastIndex < collection.length) {
-                const item = collection[lastIndex];
+            const item = editingAlbumUid 
+                ? (collection.find(x => (x._uid && x._uid === editingAlbumUid) || (x.folder && x.folder === editingAlbumUid) || (x.id && x.id === editingAlbumUid)) || (lastIndex >= 0 ? collection[lastIndex] : null))
+                : (lastIndex >= 0 ? collection[lastIndex] : null);
+
+            if (item) {
                 item.customCover = "";
                 item.useCustomCover = false;
                 item.cover = "";
@@ -5713,6 +5778,30 @@
                 const ph = document.getElementById("editAlbumCoverPlaceholder");
                 if (ph) ph.style.display = "block";
                 customCoverRemoveBtn.style.display = "none";
+
+                // Immediately regenerate sleeve texture to procedural sleeve with user color
+                const itemIdx = collection.indexOf(item);
+                const meshIdx = itemIdx >= 0 ? itemIdx : lastIndex;
+                if (meshIdx >= 0 && groups[meshIdx]) {
+                    const group = groups[meshIdx];
+                    const cover = group.children.find(c => c.name === "cover");
+                    if (cover && Array.isArray(cover.material)) {
+                        const newTex = generateCoverTexture(item, 1024);
+                        if (cover.material[4]) {
+                            if (cover.material[4].map) cover.material[4].map.dispose();
+                            cover.material[4].map = newTex;
+                            cover.material[4].needsUpdate = true;
+                        }
+                        if (cover.material[5] && cover.material[5] !== cover.material[4]) {
+                            cover.material[5].map = newTex;
+                            cover.material[5].needsUpdate = true;
+                        }
+                    }
+                    if (renderer && scene && camera) {
+                        renderer.render(scene, camera);
+                    }
+                }
+
                 syncColorToPreview();
                 autoSaveEdits();
             }
@@ -5734,8 +5823,11 @@
                 if (ph) ph.style.display = "none";
                 if (customCoverRemoveBtn) customCoverRemoveBtn.style.display = "block";
                 
-                if (lastIndex >= 0 && lastIndex < collection.length) {
-                    const item = collection[lastIndex];
+                const item = editingAlbumUid 
+                    ? (collection.find(x => (x._uid && x._uid === editingAlbumUid) || (x.folder && x.folder === editingAlbumUid) || (x.id && x.id === editingAlbumUid)) || (lastIndex >= 0 ? collection[lastIndex] : null))
+                    : (lastIndex >= 0 ? collection[lastIndex] : null);
+
+                if (item) {
                     item.customCover = dataUrl;
                     item.useCustomCover = true;
                     const folderKey = item._uid || item.folder || item.id;
@@ -6221,12 +6313,13 @@
     </script>
 <script>
     // Wipe any legacy local overrides so all devices connect to the single server/Firestore database
-    if(!localStorage.getItem('firestore_unified_v2')){
+    if(!localStorage.getItem('firestore_unified_v3')){
         try {
             localStorage.removeItem('vinyl_album_overrides_v1');
             localStorage.removeItem('vinyl_album_order_v1');
             localStorage.removeItem('vinyl_archive_albums_v1');
-            localStorage.setItem('firestore_unified_v2', 'true');
+            localStorage.removeItem('vinyl_scroll_state_v1');
+            localStorage.setItem('firestore_unified_v3', 'true');
         } catch(_) {}
     }
 </script>
