@@ -1,12 +1,10 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite",
   "rewrites": [
     { "source": "/player", "destination": "/vinyl-player.html" },
     { "source": "/archive", "destination": "/archive.html" },
-    { "source": "/admin-milan", "destination": "/admin-milan/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/admin-milan", "destination": "/admin-milan/index.html" }
   ],
   "headers": [
     {

@@ -106,46 +106,33 @@ export async function initAlbumUpload(body: any, files?: Express.Multer.File[]) 
     : null;
 
   if (coverFile) {
-  const timestamp = Date.now();
-  const ext = (path.extname(coverFile.originalname) || ".jpg").toLowerCase();
-  const coverFileName = `cover_${timestamp}${ext}`;
-  const targetCover = path.join(targetDir, coverFileName);
-  
-  // Cleanup old covers to prevent clutter
-  try {
-    const filesInDir = await fsPromises.readdir(targetDir);
-    for (const f of filesInDir) {
-      if (f.startsWith("cover_") || f === "folder.jpg" || f === "folder.png") {
-        await fsPromises.unlink(path.join(targetDir, f)).catch(() => {});
-      }
-    }
-  } catch (_) {}
-
-  try {
-    await fsPromises.copyFile(coverFile.path, targetCover);
-  } catch (fsErr: any) {
-    console.warn("[Upload] Note: could not write local cover copy (read-only disk):", fsErr?.message);
-  }
-
-  coverPath = `Vinyl Collection/${folderName}/${coverFileName}`;
-
-  if (isR2Configured(userCreds)) {
+    const ext = (path.extname(coverFile.originalname) || ".jpg").toLowerCase();
+    const targetCover = path.join(targetDir, `folder${ext}`);
     try {
-      const coverBuf = await fsPromises.readFile(coverFile.path).catch(() => fsPromises.readFile(targetCover));
-      if (coverBuf) {
-        const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/${coverFileName}`, coverBuf, undefined, userCreds);
-        coverPath = r2Res.publicUrl;
-        console.log(`[R2] Cover image uploaded to Cloudflare R2: ${r2Res.publicUrl}`);
-      }
-    } catch (r2Err: any) {
-      console.warn("[R2] Cloudflare R2 cover upload notice:", r2Err?.message);
+      await fsPromises.copyFile(coverFile.path, targetCover);
+    } catch (fsErr: any) {
+      console.warn("[Upload] Note: could not write local cover copy (read-only disk):", fsErr?.message);
     }
-  }
+
+    coverPath = `Vinyl Collection/${folderName}/folder${ext}`;
+
+    if (isR2Configured(userCreds)) {
+      try {
+        const coverBuf = await fsPromises.readFile(coverFile.path).catch(() => fsPromises.readFile(targetCover));
+        if (coverBuf) {
+          const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/folder${ext}`, coverBuf, undefined, userCreds);
+          coverPath = r2Res.publicUrl;
+          console.log(`[R2] Cover image uploaded to Cloudflare R2: ${r2Res.publicUrl}`);
+        }
+      } catch (r2Err: any) {
+        console.warn("[R2] Cloudflare R2 cover upload notice:", r2Err?.message);
+      }
+    }
 
     if (!customCoverDataUrl) {
       try {
         const buf = await fsPromises.readFile(coverFile.path).catch(() => fsPromises.readFile(targetCover));
-        if (buf && buf.length <= 950 * 1024) {
+        if (buf && buf.length <= 800 * 1024) {
           const mime = ext === ".png" ? "image/png" : "image/jpeg";
           customCoverDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
         }
@@ -407,28 +394,15 @@ export async function handleSingleAlbumUpload(body: any, files: Express.Multer.F
   let customCoverDataUrl = "";
 
   if (coverFile) {
-    const timestamp = Date.now();
     const ext = (path.extname(coverFile.originalname) || ".jpg").toLowerCase();
-    const coverFileName = `cover_${timestamp}${ext}`;
-    const targetCover = path.join(targetDir, coverFileName);
-    
-    // Cleanup old covers
-    try {
-      const filesInDir = await fsPromises.readdir(targetDir);
-      for (const f of filesInDir) {
-        if (f.startsWith("cover_") || f === "folder.jpg" || f === "folder.png") {
-          await fsPromises.unlink(path.join(targetDir, f)).catch(() => {});
-        }
-      }
-    } catch (_) {}
-
+    const targetCover = path.join(targetDir, `folder${ext}`);
     await fsPromises.copyFile(coverFile.path, targetCover);
-    coverPath = `Vinyl Collection/${folderName}/${coverFileName}`;
+    coverPath = `Vinyl Collection/${folderName}/folder${ext}`;
 
     if (isR2Configured()) {
       try {
         const coverBuf = await fsPromises.readFile(targetCover);
-        const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/${coverFileName}`, coverBuf);
+        const r2Res = await uploadBufferToR2(`Vinyl Collection/${folderName}/folder${ext}`, coverBuf);
         coverPath = r2Res.publicUrl;
         console.log(`[R2] Single-upload cover uploaded to Cloudflare R2: ${r2Res.publicUrl}`);
       } catch (r2Err: any) {

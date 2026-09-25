@@ -300,9 +300,9 @@
     .sidebar {
       position: fixed;
       right: 0;
-      top: var(--edge-y);
+      top: calc(50% - (var(--h) * var(--scale) / 2));
       width: var(--sidebar-w);
-      height: calc(100% - 2 * var(--edge-y));
+      height: calc((var(--h) * var(--scale)) + 40px);
       display:flex;
       flex-direction:column;
       justify-content:flex-start;
@@ -526,7 +526,7 @@
     .label-cover-bg:after{content:"";position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0.30);pointer-events:none;z-index:2}
     .label-standard{position:relative;z-index:5;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
     .label-header{position:absolute;top:24%;left:12%;right:12%;display:flex;flex-direction:column;align-items:center;gap:2px}
-    #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:2.8px;font-weight:400;letter-spacing:.3px;line-height:1.1;color:#ececec;text-align:center;text-transform:uppercase;opacity:1}
+    #labelBrand,.label-brand{font-family:Inter,system-ui,sans-serif;font-size:4.2px;font-weight:900;letter-spacing:.3px;line-height:1.1;color:#f3f3f3;text-align:center;text-transform:uppercase;opacity:1}
     #labelTitle,.label-title{font-family:Inter,system-ui,sans-serif;font-size:4.2px;font-weight:900;letter-spacing:.3px;color:#f3f3f3;text-align:center;line-height:1;text-transform:uppercase}
     .label-midband{position:absolute;left:4.8%;right:4.8%;top:calc(50% - 6.5% + 0px);height:13%;background:#181818;border-top:1px solid #1f1f1f;border-bottom:1px solid #1f1f1f;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;font-size:3.5px;font-weight:400;letter-spacing:.2px;color:#f1f1f1;text-transform:uppercase}
     .label-midband span{text-align:center}
@@ -936,31 +936,14 @@
         edgeY = Math.round(vh * 0.10);
         edgeX = Math.round(vw * 0.10);
       } else {
-        if (isMobile) {
-          edgeX = 16;
-          edgeY = 16;
-        } else {
-          // Adjust margins for desktop: use smaller margins on wider screens to allow larger player
-          const marginFactor = vw > 1800 ? 0.10 : (vw > 1200 ? 0.15 : 0.20);
-          edgeX = Math.round(vw * marginFactor);
-          // Na većim ekranima od laptopa (vw > 1200) padding po visini je 20%
-          edgeY = vw > 1200 ? Math.round(vh * 0.20) : Math.round(vh * marginFactor);
-        }
+        edgeX = isMobile ? 16 : Math.round(vw * 0.20);
+        edgeY = isMobile ? 16 : Math.round(vh * 0.20);
       }
 
       document.documentElement.style.setProperty('--edge-x', `${edgeX}px`);
       document.documentElement.style.setProperty('--edge-y', `${edgeY}px`);
 
-      // If sidebar is open and on desktop, it takes up space
-      let sideW = 0;
-      if (sidebarOpen && !isMobile && !isFullscreenMode) {
-        const rootStyles = getComputedStyle(document.documentElement);
-        sideW = parseFloat(rootStyles.getPropertyValue('--sidebar-w')) || 320;
-        const gap = parseFloat(rootStyles.getPropertyValue('--sidebar-gap')) || 0;
-        sideW += gap;
-      }
-
-      const availW = Math.max(0, vw - edgeX*2 - sideW);
+      const availW = Math.max(0, vw - edgeX*2);
       const availH = Math.max(0, vh - edgeY*2);
 
       const baseW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w')) || 456;
@@ -968,10 +951,8 @@
 
       const sW = availW / baseW;
       const sH = availH / baseH;
-      
-      // Significantly increase sMax for desktop to allow it to grow on large monitors
-      const sMax = isFullscreenMode ? 6.0 : (vw > 1200 ? 3.5 : 2.2);
-      const s = Math.max(0.4, Math.min(sMax, Math.min(sW, sH)));
+      const sMax = isFullscreenMode ? 5.0 : 1.5;
+      const s = Math.max(0.5, Math.min(sMax, Math.min(sW, sH)));
       document.documentElement.style.setProperty('--scale', String(s));
     }
 
@@ -2148,7 +2129,7 @@
       if (sidebarArtist) sidebarArtist.textContent = author || "Unknown Artist";
       if (sidebarMeta) sidebarMeta.textContent = duration ? `Length: ${duration}` : "";
       if (vinylLabel && isHexColor(color)) {
-        vinylLabel.style.background = brightenAndDesaturate(color);
+        vinylLabel.style.background = normalizeHexColor(color) || "#1f1f1f";
       }
 
       // Apply album cover as texture on vinyl label

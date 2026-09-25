@@ -1,9 +1,0 @@
-node_modules
-dist
-tmp_uploads
-.git
-.gitignore
-.env*
-*.log
-coverage
-.DS_Store

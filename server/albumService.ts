@@ -103,7 +103,7 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
       return [];
     }
 
-    const folderMap = new Map<string, { tracks: string[]; cover?: string; latestTime: number; _coverTime?: number }>();
+    const folderMap = new Map<string, { tracks: string[]; cover?: string; latestTime: number }>();
 
     for (const obj of allObjects) {
       const key = obj.Key;
@@ -132,26 +132,8 @@ export async function syncAlbumsFromR2(): Promise<AlbumRecord[]> {
         if (!alb.tracks.includes(fileName)) {
           alb.tracks.push(fileName);
         }
-      } else if (lower.endsWith(".jpg") || lower.endsWith(".png") || lower.endsWith(".webp") || lower.endsWith(".jpeg")) {
-        const isVersioned = lower.startsWith("cover_");
-        const currentCover = alb.cover || "";
-        const currentIsVersioned = currentCover.toLowerCase().includes("/cover_");
-
-        let shouldUpdate = false;
-        if (!alb.cover) {
-          shouldUpdate = true;
-        } else if (isVersioned && !currentIsVersioned) {
-          shouldUpdate = true;
-        } else if (isVersioned === currentIsVersioned) {
-          if (objTime > (alb._coverTime || 0)) {
-            shouldUpdate = true;
-          }
-        }
-
-        if (shouldUpdate) {
-          alb.cover = `${publicBase}/Vinyl Collection/${encodeURIComponent(albumFolder)}/${encodeURIComponent(fileName)}`;
-          alb._coverTime = objTime;
-        }
+      } else if (lower.includes("folder.jpg") || lower.includes("cover.jpg") || lower.includes("cover.png") || lower.endsWith(".jpg") || lower.endsWith(".png")) {
+        alb.cover = `${publicBase}/Vinyl Collection/${encodeURIComponent(albumFolder)}/${encodeURIComponent(fileName)}`;
       }
     }
 

@@ -237,14 +237,7 @@ async function startServer() {
         res.setHeader("Accept-Ranges", "bytes");
         if (contentLength) res.setHeader("Content-Length", contentLength);
         if (contentRange) res.setHeader("Content-Range", contentRange);
-
-        // Adjust Cache-Control: long for audio, shorter for others
-        const isAudio = finalContentType.startsWith("audio/");
-        if (isAudio) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        } else {
-          res.setHeader("Cache-Control", "public, max-age=3600");
-        }
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
 
         stream.pipe(res);
         return;

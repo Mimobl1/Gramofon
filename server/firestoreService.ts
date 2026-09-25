@@ -113,30 +113,15 @@ export async function syncAlbumToFirestore(album: any): Promise<void> {
       order: typeof album.order === "number" ? album.order : 0,
       tracks: Array.isArray(album.tracks) ? album.tracks : [],
       cover: album.cover || "",
+      customCover: (album.customCover && album.customCover.length < 850000) ? album.customCover : "",
       useCustomCover: album.useCustomCover !== undefined ? !!album.useCustomCover : false,
+      createdAt: album.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    if (album.createdAt) {
-      payload.createdAt = album.createdAt;
-    } else {
-      payload.createdAt = new Date().toISOString();
-    }
-
-    // Only include customCover if it's a valid Base64 string under the limit
-    if (album.customCover && typeof album.customCover === "string" && album.customCover.length > 50) {
-      if (album.customCover.length < 950000) {
-        payload.customCover = album.customCover;
-      } else {
-        console.warn(`[Server Firestore] Album ${docId} cover too large (${album.customCover.length} chars), skipping sync for this field.`);
-      }
-    } else if (album.customCover === "") {
-        payload.customCover = "";
-    }
-
     // Set with timeout to avoid blocking server responses if Firestore connection is slow
     const savePromise = setDoc(doc(db, "albums", docId), payload, { merge: true });
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore sync timeout")), 12000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore sync timeout")), 4000));
     await Promise.race([savePromise, timeoutPromise]);
     console.log(`[Server Firestore] Album synced to cloud: ${docId} (color: ${payload.color})`);
   } catch (err: any) {
