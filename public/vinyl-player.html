@@ -2280,6 +2280,19 @@
           }
           if(sidebarTitle && album.name) sidebarTitle.textContent = album.name;
           if(sidebarArtist && album.author) sidebarArtist.textContent = album.author;
+          
+          // Update cover image
+          const labelCoverBg = document.getElementById("labelCoverBg");
+          if (labelCoverBg) {
+              const coverUrl = album.customCover || album.cover;
+              if (coverUrl) {
+                  labelCoverBg.style.backgroundImage = `url("${coverUrl}")`;
+                  labelCoverBg.classList.add("has-cover");
+              } else {
+                  labelCoverBg.style.backgroundImage = "none";
+                  labelCoverBg.classList.remove("has-cover");
+              }
+          }
         }
       }
     }
