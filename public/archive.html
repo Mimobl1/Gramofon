@@ -5289,6 +5289,7 @@
                 lastIndex = targetIdx;
                 openStates[lastIndex] = true;
                 const item = collection[lastIndex];
+                window.__currentEditingAlbum = item;
                 editingAlbumUid = item._uid || item.folder || item.id;
                 const cleanFolder = (item.folder || editingAlbumUid || item.id || "").replace(/^Vinyl Collection[\/\\]/i, '').trim();
                 editingAlbumDocId = cleanFolder.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -6253,7 +6254,12 @@
                             author: found.author || "",
                             folder: found.folder || uid,
                             tracks: Array.isArray(found.tracks) ? found.tracks : [],
-                            order: idx
+                            order: idx,
+                            cover: found.cover || "",
+                            customCover: found.customCover || "",
+                            useCustomCover: found.useCustomCover !== false,
+                            genre: found.genre || "",
+                            year: found.year || ""
                         }).catch(() => {});
                     }
                 });
