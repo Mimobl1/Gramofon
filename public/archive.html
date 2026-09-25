@@ -286,9 +286,27 @@
                         if (!albumEntry.tracks.includes(fileName)) {
                             albumEntry.tracks.push(fileName);
                         }
-                    } else if (lowerFile.includes("folder.jpg") || lowerFile.includes("cover.jpg") || lowerFile.includes("cover.png") || lowerFile.endsWith(".jpg") || lowerFile.endsWith(".png")) {
-                        const encodedK = k.split("/").map(encodeURIComponent).join("/");
-                        albumEntry.cover = `${publicBase}/${encodedK}`;
+                    } else if (lowerFile.endsWith(".jpg") || lowerFile.endsWith(".png") || lowerFile.endsWith(".webp") || lowerFile.endsWith(".jpeg")) {
+                        const isVersioned = lowerFile.startsWith("cover_");
+                        const currentCoverIsVersioned = albumEntry.cover && albumEntry.cover.toLowerCase().includes("/cover_");
+                        
+                        // Rule: prefer versioned covers, or if both are versioned/non-versioned, prefer the newer one
+                        let shouldUpdate = false;
+                        if (!albumEntry.cover) {
+                            shouldUpdate = true;
+                        } else if (isVersioned && !currentCoverIsVersioned) {
+                            shouldUpdate = true;
+                        } else if (isVersioned === currentCoverIsVersioned) {
+                            if (item.lastModified > (albumEntry._coverTime || 0)) {
+                                shouldUpdate = true;
+                            }
+                        }
+
+                        if (shouldUpdate) {
+                            const encodedK = k.split("/").map(encodeURIComponent).join("/");
+                            albumEntry.cover = `${publicBase}/${encodedK}`;
+                            albumEntry._coverTime = item.lastModified;
+                        }
                     }
                 });
 
@@ -4856,7 +4874,9 @@
                     }
 
                     let folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
-                    let coverPath = `Vinyl Collection/${folderName}/folder.jpg`;
+                    const coverExt = selectedCoverFile ? (selectedCoverFile.name.split('.').pop() || 'jpg').toLowerCase() : 'jpg';
+                    const coverFileName = `cover_${Date.now()}.${coverExt}`;
+                    let coverPath = `Vinyl Collection/${folderName}/${coverFileName}`;
                     let customCoverDataUrl = clientCoverDataUrl;
                     const defaultPublicR2 = (window.__r2PublicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
                     const userR2Creds = (function() {
@@ -4869,7 +4889,7 @@
                     // Direct Cloudflare R2 cover image upload
                     if (selectedCoverFile && window.__r2DirectUpload) {
                         try {
-                            const coverKey = `Vinyl Collection/${folderName}/folder.jpg`;
+                            const coverKey = `Vinyl Collection/${folderName}/${coverFileName}`;
                             await window.__r2DirectUpload(coverKey, selectedCoverFile, selectedCoverFile.type || "image/jpeg", null, userR2Creds);
                             coverPath = `${defaultPublicR2}/${coverKey}`;
                             console.log("[R2 Direct] Cover uploaded directly to Cloudflare R2:", coverPath);
@@ -5538,10 +5558,14 @@
                 useCustomCover: item.useCustomCover !== false,
                 tracks: Array.isArray(item.tracks) ? item.tracks : []
             };
-            if (item.customCover && item.customCover.length < 850000) {
+            if (item.customCover && item.customCover.length < 950000) {
                 updatePayload.customCover = item.customCover;
-            } else {
+            } else if (item.customCover === "") {
                 updatePayload.customCover = "";
+            } else if (item.customCover) {
+                // If it's too large, OMIT it from the payload to avoid overwriting with empty string
+                // But keep the existing one in Firestore if possible (merge:true handles this)
+                console.warn("[Firestore] Cover too large for direct sync, skipping field to preserve existing data.");
             }
             saveAlbumToCloud(docId, updatePayload)
                 .then(() => console.log("[Firestore] Album edit saved to cloud database:", docId))

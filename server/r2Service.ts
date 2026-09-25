@@ -141,7 +141,8 @@ export async function uploadBufferToR2(
   key: string,
   buffer: Buffer,
   contentType?: string,
-  overrideCreds?: Partial<R2Credentials> | null
+  overrideCreds?: Partial<R2Credentials> | null,
+  cacheControl?: string
 ): Promise<{ key: string; publicUrl: string }> {
   const client = getR2Client(overrideCreds);
   const conf = getR2Config(overrideCreds);
@@ -149,12 +150,18 @@ export async function uploadBufferToR2(
   const cleanKey = key.startsWith("/") ? key.slice(1) : key;
   const mime = contentType || getContentTypeForFile(cleanKey);
 
+  // Default Cache-Control: long for audio, shorter for others
+  const isAudio = mime.startsWith("audio/");
+  const defaultCache = isAudio 
+    ? "public, max-age=31536000, immutable" 
+    : "public, max-age=3600";
+
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: cleanKey,
     Body: buffer,
     ContentType: mime,
-    CacheControl: "public, max-age=31536000, immutable"
+    CacheControl: cacheControl || defaultCache
   });
 
   await client.send(command);
@@ -170,10 +177,11 @@ export async function uploadFileToR2(
   key: string,
   filePath: string,
   contentType?: string,
-  overrideCreds?: Partial<R2Credentials> | null
+  overrideCreds?: Partial<R2Credentials> | null,
+  cacheControl?: string
 ): Promise<{ key: string; publicUrl: string }> {
   const buffer = await fsPromises.readFile(filePath);
-  return uploadBufferToR2(key, buffer, contentType, overrideCreds);
+  return uploadBufferToR2(key, buffer, contentType, overrideCreds, cacheControl);
 }
 
 /**
