@@ -293,9 +293,6 @@
 
     /* Sidebar push: always reserve space on the right */
     .sidebar-open .container-nosac { left: var(--edge-x); right: calc(var(--edge-x) + var(--sidebar-w) + var(--sidebar-gap)); }
-    @media (min-width: 1270px) {
-      .sidebar-open .container-nosac { left: calc(var(--edge-x) + 10vw); }
-    }
 
     /* SIDEBAR */
     .sidebar {
@@ -942,7 +939,10 @@
           edgeY = 16;
         } else {
           // Adjust margins for desktop: increase padding on larger screens to avoid oversized player
-          const marginFactor = vw > 1800 ? 0.24 : (vw > 1200 ? 0.22 : 0.20);
+          // If sidebar is open, use significantly smaller margins to prevent double padding and allow space
+          const marginFactor = sidebarOpen 
+            ? 0.08 
+            : (vw > 1800 ? 0.24 : (vw > 1200 ? 0.22 : 0.20));
           edgeX = Math.round(vw * marginFactor);
           edgeY = Math.round(vh * marginFactor);
         }
