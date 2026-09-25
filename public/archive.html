@@ -286,27 +286,9 @@
                         if (!albumEntry.tracks.includes(fileName)) {
                             albumEntry.tracks.push(fileName);
                         }
-                    } else if (lowerFile.endsWith(".jpg") || lowerFile.endsWith(".png") || lowerFile.endsWith(".webp") || lowerFile.endsWith(".jpeg")) {
-                        const isVersioned = lowerFile.startsWith("cover_");
-                        const currentCoverIsVersioned = albumEntry.cover && albumEntry.cover.toLowerCase().includes("/cover_");
-                        
-                        // Rule: prefer versioned covers, or if both are versioned/non-versioned, prefer the newer one
-                        let shouldUpdate = false;
-                        if (!albumEntry.cover) {
-                            shouldUpdate = true;
-                        } else if (isVersioned && !currentCoverIsVersioned) {
-                            shouldUpdate = true;
-                        } else if (isVersioned === currentCoverIsVersioned) {
-                            if (item.lastModified > (albumEntry._coverTime || 0)) {
-                                shouldUpdate = true;
-                            }
-                        }
-
-                        if (shouldUpdate) {
-                            const encodedK = k.split("/").map(encodeURIComponent).join("/");
-                            albumEntry.cover = `${publicBase}/${encodedK}`;
-                            albumEntry._coverTime = item.lastModified;
-                        }
+                    } else if (lowerFile.includes("folder.jpg") || lowerFile.includes("cover.jpg") || lowerFile.includes("cover.png") || lowerFile.endsWith(".jpg") || lowerFile.endsWith(".png")) {
+                        const encodedK = k.split("/").map(encodeURIComponent).join("/");
+                        albumEntry.cover = `${publicBase}/${encodedK}`;
                     }
                 });
 
@@ -329,7 +311,8 @@
                     }
 
                     const cleanId = folder.replace(/[^a-zA-Z0-9_-]/g, "_");
-                    const coverUrl = entry.cover || `${publicBase}/Vinyl%20Collection/${encodeURIComponent(folder)}/folder.jpg`;
+                    const encodedFolder = folder.split('/').map(encodeURIComponent).join('/');
+                    const coverUrl = entry.cover || `${publicBase}/Vinyl%20Collection/${encodedFolder}/folder.jpg`;
 
                     albums.push({
                         id: cleanId,
@@ -1418,7 +1401,7 @@
         }
 
         // Fast client-side image compressor: converts any selected image into a crisp base64 JPEG
-        async function compressImageToDataUrl(fileOrBlob, maxDim = 700, quality = 0.80) {
+        async function compressImageToDataUrl(fileOrBlob, maxDim = 1400, quality = 0.95) {
             return new Promise((resolve) => {
                 if (!fileOrBlob) return resolve("");
                 try {
@@ -2693,8 +2676,8 @@
             ctx.save();
             ctx.globalCompositeOperation = "overlay";
             const overlay = ctx.createLinearGradient(0, 0, size, size);
-            overlay.addColorStop(0, "rgba(0,0,0,0.3)");
-            overlay.addColorStop(1, "rgba(0,0,0,0.6)");
+            overlay.addColorStop(0, "rgba(0,0,0,0.08)");
+            overlay.addColorStop(1, "rgba(0,0,0,0.22)");
             ctx.fillStyle = overlay;
             ctx.fillRect(0, 0, size, size);
             ctx.restore();
@@ -2805,10 +2788,7 @@
                 if (img.complete && img.naturalWidth > 0) {
                     drawCoverImage();
                 } else {
-                    img.addEventListener("load", () => {
-                        drawCoverImage();
-                        if (renderer && scene && camera) renderer.render(scene, camera);
-                    }, { once: true });
+                    img.addEventListener("load", drawCoverImage, { once: true });
                 }
             }
             
@@ -2864,7 +2844,7 @@
                 targetCtx.beginPath();
                 targetCtx.arc(c, c, r, 0, Math.PI * 2);
                 targetCtx.strokeStyle = "#252525";
-                targetCtx.lineWidth = size * 0.002;
+                targetCtx.lineWidth = size * 0.0065;
                 targetCtx.stroke();
 
                 targetCtx.beginPath();
@@ -2988,10 +2968,7 @@
                 if (img.complete && img.naturalWidth > 0) {
                     drawLabelCover();
                 } else {
-                    img.addEventListener("load", () => {
-                        drawLabelCover();
-                        if (renderer && scene && camera) renderer.render(scene, camera);
-                    }, { once: true });
+                    img.addEventListener("load", drawLabelCover, { once: true });
                 }
             }
 
@@ -4880,9 +4857,7 @@
                     }
 
                     let folderName = `${artistName} - ${albumName}`.replace(/[\/\\?%*:|"<>]/g, "_").trim();
-                    const coverExt = selectedCoverFile ? (selectedCoverFile.name.split('.').pop() || 'jpg').toLowerCase() : 'jpg';
-                    const coverFileName = `cover_${Date.now()}.${coverExt}`;
-                    let coverPath = `Vinyl Collection/${folderName}/${coverFileName}`;
+                    let coverPath = `Vinyl Collection/${folderName}/folder.jpg`;
                     let customCoverDataUrl = clientCoverDataUrl;
                     const defaultPublicR2 = (window.__r2PublicUrl || "https://pub-4b9d70f6726b44f081cf11942ab2556d.r2.dev").replace(/\/$/, "");
                     const userR2Creds = (function() {
@@ -4895,7 +4870,7 @@
                     // Direct Cloudflare R2 cover image upload
                     if (selectedCoverFile && window.__r2DirectUpload) {
                         try {
-                            const coverKey = `Vinyl Collection/${folderName}/${coverFileName}`;
+                            const coverKey = `Vinyl Collection/${folderName}/folder.jpg`;
                             await window.__r2DirectUpload(coverKey, selectedCoverFile, selectedCoverFile.type || "image/jpeg", null, userR2Creds);
                             coverPath = `${defaultPublicR2}/${coverKey}`;
                             console.log("[R2 Direct] Cover uploaded directly to Cloudflare R2:", coverPath);
@@ -5564,14 +5539,10 @@
                 useCustomCover: item.useCustomCover !== false,
                 tracks: Array.isArray(item.tracks) ? item.tracks : []
             };
-            if (item.customCover && item.customCover.length < 950000) {
+            if (item.customCover && item.customCover.length < 850000) {
                 updatePayload.customCover = item.customCover;
-            } else if (item.customCover === "") {
+            } else {
                 updatePayload.customCover = "";
-            } else if (item.customCover) {
-                // If it's too large, OMIT it from the payload to avoid overwriting with empty string
-                // But keep the existing one in Firestore if possible (merge:true handles this)
-                console.warn("[Firestore] Cover too large for direct sync, skipping field to preserve existing data.");
             }
             saveAlbumToCloud(docId, updatePayload)
                 .then(() => console.log("[Firestore] Album edit saved to cloud database:", docId))
