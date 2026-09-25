@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { optimizeAllAudio } from './optimize-audio.js';
 import { getR2Client, getR2Config, isR2Configured } from './server/r2Service.js';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 

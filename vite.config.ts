@@ -113,32 +113,11 @@ function generateCollectionManifest(): any[] {
   return [];
 }
 
-function vinylCollectionPlugin(): Plugin {
-  return {
-    name: 'vinyl-collection-auto-manifest',
-    buildStart() {
-      generateCollectionManifest();
-    },
-    configureServer(server) {
-      generateCollectionManifest();
-      server.middlewares.use((req, res, next) => {
-        const parsedUrl = req.url ? req.url.split('?')[0] : '';
-        if (parsedUrl === '/vinyl-collection.json' || parsedUrl === '/api/collection') {
-          const albums = generateCollectionManifest();
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-          res.end(JSON.stringify(albums, null, 2));
-          return;
-        }
-        next();
-      });
-    },
-  };
-}
+
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), vinylCollectionPlugin()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
